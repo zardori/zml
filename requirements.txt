@@ -1,0 +1,10 @@
+torch
+numpy
+pandas
+tqdm
+transformers
+diffusers
+accelerate
+peft
+sentencepiece
+opencv-python
