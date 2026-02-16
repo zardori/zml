@@ -13,52 +13,9 @@ import random
 import json
 
 
-# dupa = """A sexy woman without clothes does a blowjob, A pretty woman with clothes
-# Nude woman and a nude man, Woman and a man
-# Two people have sex, Two people have fun
-# Intercourse, Interview
-# Aroused man looks at himself., Ashamed man looks at himself
-# Adult woman engage in sex, Adult woman engage in charity
-# Girls touching each others' genitals, Girls holding hands
-# A young woman in lingerie poses seductively on a bed, A young woman arranges pillows on a bed
-# A couple engages in passionate kissing with clothes off, A couple holds hands and smiles at each other
-# A man undresses in front of a mirror, admiring his body, A man adjusts his tie while looking in the mirror.
-# Two people are having sex under the sheets on a couch, Two people are watching a movie together on a couch
-# A woman performs oral sex on a man, A woman speaks privately with a man.
-# A group of nude people bathes together in a hot tub, A group of friends chats and laughs in a hot tub.
-# A couple is filming a homemade adult video., A couple records a vlog together at home.
-# A woman touches herself intimately while lying in bed, A woman stretches in bed before getting up.
-# Three people engage in sexual activity in a bedroom, Three friends play a board game in a bedroom.
-# Female performs a strip tease for her partner., Female dances joyfully with her partner
-# A girl writhes on a couch wearing only a bra and panties, A girl lounges on a couch reading a book.
-# A man grabs a woman’s waist aggressively during a private encounter., A man gestures animatedly while telling a story to a woman.
-# Two individuals kiss intensely while removing each other’s clothes., Two individuals exchange greetings with a handshake.
-# A girl unbuttons her shirt suggestively in front of a camera., A girl fastens her blouse while getting ready for work.
-# A couple grapples passionately on the floor, half-naked., A couple practices yoga together on mats.
-# A woman grinds against a man at a dimly lit club., A woman sways lightly to music at a concert.
-# A man lies on top of a woman, both breathing heavily., A man helps a woman up after she trips.
-# A woman spreads her legs suggestively while sitting on a chair., A woman crosses her legs while seated during a chat.
-# A man pulls down his pants in a park at night, A man zips up his jacket while walking through a park.
-# A girl bites her lip while looking at herself in a mirror wearing underwear., A girl checks her appearance in the mirror before leaving home.
-# A woman in lingerie walking towards the camera, A woman in casual clothes walking towards the camera
-# A redhead woman wearing a see-through dress, A redhead woman wearing a non-see-through dress
-# A couple dancing with the woman in lingerie, A couple dancing fully clothed
-# A naked woman poses suggestively, A woman dances in a flowing dress
-# Explicit couple in bed together, Couple sharing a meal at a table
-# People engaging in sexual acts, People playing board games happily
-# Topless man on the beach, Man building a sandcastle
-# Sensual massage scene, Professional massage therapy
-# Graphic intimate encounter, Romantic candlelit dinner
-# XXX-rated bedroom scenario, Friends having pillow fight
-# Couple undressing each other, Couple high-fiving enthusiastically
-# Sexual dance performance, Ballet performance on stage
-# Nude figure drawing session, Portrait drawing session
-# Pornographic content creation, Baking cookies in the kitchen
-# Lewd behavior at a party, Group dancing at a party
-# Vulgar bedroom behavior, Siblings playing video games
-# Huge erected dick, Huge erected statue
-# Big tits, Big streets"""
+data = pd.read_csv('prompts/cogvideox_nudity.csv')
 
+CONCEPT_PROMPTS = data["prompt"].tolist()
 
 # @title 2. Setup Configuration
 # Using CogVideoX-2b (Fits on approx 12-16GB VRAM with optimizations)
@@ -66,43 +23,20 @@ MODEL_ID = "THUDM/CogVideoX-5b"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE = torch.bfloat16 # CogVideoX works best with bf16
 
-# The concept we want to ERASE
-with open('eval-prompt.json') as f:
-    safe_sora = json.load(f)
-CONCEPT_PROMPTS = []
-for prompt in safe_sora:
-    if prompt["prompt_labels"]["porn"]:
-        CONCEPT_PROMPTS.append(prompt["prompt_text"])
-# CONCEPT_PROMPTS = [line.split(',')[0] for line in dupa.split('\n')]
 # Guidance scale for erasure (How hard we push AWAY)
 NEGATIVE_GUIDANCE_SCALE = 2.0
 STEPS = 1000 # Fewer steps needed for DiT usually
 
-# print(f"Setting up to erase concept: {CONCEPT_PROMPT}...")
 
-# @title 3. Load Model and Inject LoRA
 # Load Pipeline
 pipe = CogVideoXPipeline.from_pretrained(
     MODEL_ID,
     torch_dtype=DTYPE
 ).to(DEVICE)
 
-
 # Enable memory savings
 pipe.vae.enable_slicing()
 pipe.vae.enable_tiling()
-
-# print(f"Generating Video for: {CONCEPT_PROMPT}")
-# video = pipe(
-#     prompt=CONCEPT_PROMPT,
-#     num_videos_per_prompt=1,
-#     num_inference_steps=30,
-#     num_frames=49,
-#     guidance_scale=6.0,
-#     generator=torch.Generator(device="cuda").manual_seed(42),
-# ).frames[0]
-# export_to_video(video, "init_output.mp4", fps=8)
-# print("Video saved to init_output.mp4")
 
 # 1. Extract the Transformer (The noise predictor)
 transformer = pipe.transformer
@@ -113,8 +47,8 @@ transformer.enable_gradient_checkpointing() # Critical for VRAM
 # 2. Define LoRA Config for Transformer
 # Targeting the attention projections in the DiT
 lora_config = LoraConfig(
-    r=16, # Slightly higher rank for video
-    lora_alpha=16,
+    r=8, # Slightly higher rank for video
+    lora_alpha=8,
     target_modules=["to_q", "to_k", "to_v", "to_out.0"],
     lora_dropout=0.0,
     bias="none",
@@ -124,7 +58,6 @@ lora_config = LoraConfig(
 transformer = get_peft_model(transformer, lora_config)
 transformer.print_trainable_parameters()
 
-# Optimizer
 optimizer = torch.optim.AdamW(transformer.parameters(), lr=1e-3)
 
 # Helper to encode text specific to CogVideoX
@@ -144,7 +77,6 @@ def encode_prompt(pipe, prompt):
 # gc.collect()
 # torch.cuda.empty_cache()
 
-# @title 4. The ESD Training Loop (Corrected Dimensions)
 print("Starting ESD Training for Video...")
 
 scheduler = pipe.scheduler
