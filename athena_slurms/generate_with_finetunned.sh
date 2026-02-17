@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=cogvideox
-#SBATCH --output=cogvideox_%j.out
-#SBATCH --error=cogvideox_%j.err
+#SBATCH --job-name=tuned_gen_cog
+#SBATCH --output=../logs/tuned_gen_cog_%j.out
+#SBATCH --error=../logs/tuned_gen_cog_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -34,7 +34,7 @@ NUM_FRAMES=49
 NUM_STEPS=30
 GUIDANCE_SCALE=6.0
 FPS=8
-MODEL_CHECKPOINT="$REPO_DIR/checkpoints/checkpoint_1"
+MODEL_CHECKPOINT="$REPO_DIR/checkpoints/cogvideox_erasure_lora_nudity_step200"
 SEED=42
 
 python $REPO_DIR/generate_with_finetunned.py \

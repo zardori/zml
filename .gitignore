@@ -10,3 +10,8 @@ wheels/
 .venv
 
 .idea
+
+# Script outputs
+outputs/
+checkpoints/
+logs/

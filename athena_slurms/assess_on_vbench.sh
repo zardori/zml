@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=check_for_nudity
-#SBATCH --output=check_for_nudity%j.out
-#SBATCH --error=check_for_nudity%j.err
+#SBATCH --job-name=vbench_assess
+#SBATCH --output=../logs/vbench_assess_%j.out
+#SBATCH --error=../logs/vbench_assess_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=01:00:00
+#SBATCH --time=10:00:00
 
 # -------------------------
 # Load required modules
@@ -20,7 +20,7 @@ module load CUDA/12.0.0
 # -------------------------
 # Activate virtual environment
 # -------------------------
-source $PLG_GROUPS_STORAGE/plggtriplane/poblos/venv/bin/activate
+source $PLG_GROUPS_STORAGE/plggtriplane/poblos/vbench_venv/bin/activate
 
 # Set Hugging Face / diffusers cache to group storage
 export HF_HOME=$PLG_GROUPS_STORAGE/plggtriplane/poblos/hf_cache
@@ -31,14 +31,19 @@ export DIFFUSERS_CACHE=$HF_HOME
 # -------------------------
 # Define output directory
 # -------------------------
-export INPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/finetunned_v2_cog/finetunned_v2_cog_outputs_our_promptset
-mkdir -p $INPUT_DIR
+export OUTPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/cogvideo_outputs_vbench
+mkdir -p $OUTPUT_DIR
 
 # -------------------------
 # Run the CogVideoX script
 # -------------------------
 # You can change the prompt and other parameters here
+PROMPT_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/vbench_prompts"
+NUM_FRAMES=49
+NUM_STEPS=30
+GUIDANCE_SCALE=6.0
+FPS=8
+MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/poblos/cogvideox_erasure_lora_nudity"
+SEED=42
 
-
-python /net/pr2/projects/plgrid/plggtriplane/poblos/check_for_nudity.py \
-    --input_dir "$INPUT_DIR"
+vbench evaluate --videos_path $OUTPUT_DIR --dimension object_class

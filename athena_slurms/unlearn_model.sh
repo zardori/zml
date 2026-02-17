@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=cogvideox
-#SBATCH --output=cogvideox_%j.out
-#SBATCH --error=cogvideox_%j.err
+#SBATCH --job-name=unlearn_cog
+#SBATCH --output=../logs/unlearn_cog_%j.out
+#SBATCH --error=../logs/unlearn_cog_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -24,11 +24,9 @@ mkdir -p $HF_HOME
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
-# -------------------------
-# Define output directory
-# -------------------------
-# export OUTPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/cogvideo_outputs_erased
-# mkdir -p $OUTPUT_DIR
+# Specify parameters for unlearning
 export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
 cd $REPO_DIR
-python unlearn_model.py
+
+python unlearn_model.py \
+    --prompts_path "$REPO_DIR/prompts/cogvideox_nudity.csv"

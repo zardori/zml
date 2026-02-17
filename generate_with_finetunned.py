@@ -5,9 +5,7 @@ from diffusers import CogVideoXPipeline
 from diffusers.utils import export_to_video
 from peft import PeftModel
 
-# -------------------------
 # Parse command line arguments
-# -------------------------
 parser = argparse.ArgumentParser(description="Generate videos with the fine-tuned model on a given prompt set")
 parser.add_argument("--output_dir", type=str, default=".", help="Directory where the output videos will be saved")
 parser.add_argument("--prompt_dir", type=str, default="./vbench_prompts", help="Directory with prompts")
@@ -23,9 +21,7 @@ args = parser.parse_args()
 os.makedirs(args.output_dir, exist_ok=True)
 torch.manual_seed(args.seed)
 
-# -------------------------
 # Load the model
-# -------------------------
 print("Loading CogVideoX model...")
 pipe = CogVideoXPipeline.from_pretrained(
     "THUDM/CogVideoX-5b",
@@ -39,9 +35,7 @@ pipe.transformer = transformer
 transformer.eval()
 print("Model loaded successfully!")
 
-# -------------------------
 # Generate videos
-# -------------------------
 dimension_list = ['our_prompt_test_set'] #'object_class' #'subject_consistency
 for dimension in dimension_list: 
     
