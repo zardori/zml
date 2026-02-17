@@ -11,15 +11,11 @@
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=14:00:00
 
-# -------------------------
 # Load required modules
-# -------------------------
 module load Python/3.10.4
 module load CUDA/12.0.0
 
-# -------------------------
 # Activate virtual environment
-# -------------------------
 source $PLG_GROUPS_STORAGE/plggtriplane/btcaf/unlearning_env/bin/activate
 
 # Set Hugging Face / diffusers cache to group storage
@@ -33,6 +29,6 @@ export DIFFUSERS_CACHE=$HF_HOME
 # -------------------------
 # export OUTPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/cogvideo_outputs_erased
 # mkdir -p $OUTPUT_DIR
-
-cd /net/pr2/projects/plgrid/plggtriplane/poblos/zml
+export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
+cd $REPO_DIR
 python unlearn_model.py

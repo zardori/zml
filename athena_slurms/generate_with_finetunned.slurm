@@ -11,15 +11,11 @@
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=2:00:00
 
-# -------------------------
 # Load required modules
-# -------------------------
 module load Python/3.10.4
 module load CUDA/12.0.0
 
-# -------------------------
 # Activate virtual environment
-# -------------------------
 source $PLG_GROUPS_STORAGE/plggtriplane/btcaf/unlearning_env/bin/activate
 
 # Set Hugging Face / diffusers cache to group storage
@@ -28,25 +24,20 @@ mkdir -p $HF_HOME
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
-# -------------------------
-# Define output directory
-# -------------------------
-export OUTPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/finetunned_v1_cog_5b/finetunned_v1_cog_5b_outputs_our_promptset
+# Specify parameters for generation
+export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
+export OUTPUT_DIR=$REPO_DIR/outputs/experiment_1
 mkdir -p $OUTPUT_DIR
 
-# -------------------------
-# Run the CogVideoX script
-# -------------------------
-# You can change the prompt and other parameters here
-PROMPT_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/vbench_prompts"
+PROMPT_DIR="$REPO_DIR/prompts/vbench_prompts"
 NUM_FRAMES=49
 NUM_STEPS=30
 GUIDANCE_SCALE=6.0
 FPS=8
-MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/poblos/finetunned_v1_cog_5b/model"
+MODEL_CHECKPOINT="$REPO_DIR/checkpoints/checkpoint_1"
 SEED=42
 
-python /net/pr2/projects/plgrid/plggtriplane/poblos/generate_with_finetunned.py \
+python $REPO_DIR/generate_with_finetunned.py \
     --output_dir "$OUTPUT_DIR" \
     --prompt_dir "$PROMPT_DIR" \
     --num_frames $NUM_FRAMES \
