@@ -29,4 +29,11 @@ export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
 cd $REPO_DIR
 
 python unlearn_model.py \
-    --prompts_path "$REPO_DIR/prompts/cogvideox_nudity.csv"
+    --prompts_path "$REPO_DIR/prompts/cogvideox_nudity.csv" \
+    --lora_rank 8 \
+    --lora_alpha 8.0 \
+    --negative_guidance_scale 2.0 \
+    --steps 1000 \
+    --learning_rate 1e-3 \
+    --lora_dropout 0.0 \
+    --output_dir "$REPO_DIR/checkpoints"
