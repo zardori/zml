@@ -18,14 +18,17 @@ module load CUDA/12.0.0
 # Activate virtual environment
 source $PLG_GROUPS_STORAGE/plggtriplane/btcaf/unlearning_env/bin/activate
 
+# From plg[nick] extract nick
+CUT_USER=${USER:3}
+
 # Set Hugging Face / diffusers cache to group storage
-export HF_HOME=$PLG_GROUPS_STORAGE/plggtriplane/poblos/hf_cache
+export HF_HOME=$PLG_GROUPS_STORAGE/plggtriplane/$CUT_USER/hf_cache
 mkdir -p $HF_HOME
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
 # Specify parameters for generation
-export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
+export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/$CUT_USER/zml"
 export TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 export OUTPUT_DIR=$REPO_DIR/outputs/experiment_baseline_${TIMESTAMP}
 mkdir -p $OUTPUT_DIR
