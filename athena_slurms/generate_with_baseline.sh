@@ -26,7 +26,8 @@ export DIFFUSERS_CACHE=$HF_HOME
 
 # Specify parameters for generation
 export REPO_DIR="/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
-export OUTPUT_DIR=$REPO_DIR/outputs/experiment_1
+export TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+export OUTPUT_DIR=$REPO_DIR/outputs/experiment_baseline_${TIMESTAMP}
 mkdir -p $OUTPUT_DIR
 
 PROMPT_DIR="$REPO_DIR/prompts/vbench_prompts"
