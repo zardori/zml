@@ -51,7 +51,7 @@ if args.seeded_prompt_file:
             generator=torch.Generator(device="cuda").manual_seed(seed)
         ).frames[0]
 
-        cur_save_path = f'{args.output_dir}/{prompt}-{seed}.mp4'
+        cur_save_path = f'{args.output_dir}/{idx}-{seed}.mp4'
 
         export_to_video(video, cur_save_path, fps=args.fps)
         print(f"Video saved as {cur_save_path}")
@@ -64,7 +64,7 @@ else:
             prompt_list = f.readlines()
         prompt_list = [prompt.strip() for prompt in prompt_list]
 
-        for prompt in prompt_list:
+        for idx, prompt in enumerate(prompt_list):
             for index in range(1):
                 print(f"Generating video for prompt: {prompt}")
                 print(args.num_frames, args.guidance_scale, args.num_inference_steps)
@@ -77,7 +77,7 @@ else:
                     generator=torch.Generator(device="cuda").manual_seed(seed)
                 ).frames[0]
 
-                cur_save_path = f'{args.output_dir}/{prompt}-{index}.mp4'
+                cur_save_path = f'{args.output_dir}/{dimension}-{idx}-{index}.mp4'
 
                 export_to_video(video, cur_save_path, fps=args.fps)
                 print(f"Video saved as {cur_save_path}")

@@ -17,3 +17,5 @@ wheels/
 outputs/
 checkpoints/
 logs/
+
+hf_cache/

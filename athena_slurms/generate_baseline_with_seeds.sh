@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=2:00:00
+#SBATCH --time=8:00:00
 
 if [ "$(basename "$PWD")" != zml ]; then
     echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
