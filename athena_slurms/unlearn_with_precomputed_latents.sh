@@ -11,6 +11,9 @@
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=14:00:00
 
+# From plg[nick] extract nick
+CUT_USER=${USER:3}
+
 if [ "$(basename "$PWD")" != zml ]; then
     echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
       Current directory: $PWD"
@@ -31,9 +34,6 @@ source "$PLG_GROUPS_STORAGE"/plggtriplane/btcaf/unlearning_env/bin/activate
 # Prepare logs directory
 mkdir -p logs
 
-# From plg[nick] extract nick
-CUT_USER=${USER:3}
-
 # Set Hugging Face / diffusers cache to group storage
 export HF_HOME=hf_cache
 mkdir -p "$HF_HOME"
@@ -41,12 +41,12 @@ export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-export OUTPUT_DIR=outputs/unlearn_with_precomputed_latents${TIMESTAMP}
+export OUTPUT_DIR=outputs/unlearn_with_precomputed_latents_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
-python unlearn_model.py \
-    --metadata_file "$REPO_DIR/unlearning_dataset/metadata.json" \
-    --latents_dir "$REPO_DIR/unlearning_dataset/latents" \
+python unlearn_with_precomputed_latents.py \
+    --metadata_file "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset/metadata.json" \
+    --latents_dir "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset/latents" \
     --lora_rank 8 \
     --lora_alpha 8.0 \
     --negative_guidance_scale 2.0 \

@@ -11,6 +11,10 @@
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=8:00:00
 
+# From plg[nick] extract nick
+CUT_USER=${USER:3}
+
+
 if [ "$(basename "$PWD")" != zml ]; then
     echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
       Current directory: $PWD"
@@ -30,9 +34,6 @@ source "$PLG_GROUPS_STORAGE"/plggtriplane/btcaf/unlearning_env/bin/activate
 
 # Prepare logs directory
 mkdir -p logs
-
-# From plg[nick] extract nick
-CUT_USER=${USER:3}
 
 # Set Hugging Face / diffusers cache to group storage
 export HF_HOME=hf_cache
