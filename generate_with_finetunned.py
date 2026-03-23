@@ -44,7 +44,7 @@ for dimension in dimension_list:
     prompt_list = [prompt.strip() for prompt in prompt_list]
     
     for j, prompt in enumerate(prompt_list):
-        for index in range(5):
+        for index in range(1):
             print(f"Generating video for prompt: {prompt}")
             print(args.num_frames, args.guidance_scale, args.num_inference_steps)
             seed = args.seed + index
