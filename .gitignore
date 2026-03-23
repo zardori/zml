@@ -10,7 +10,9 @@ hf_cache
 # Virtual environments
 .venv
 
+# ides
 .idea
+.vscode/
 
 # Script outputs
 outputs/

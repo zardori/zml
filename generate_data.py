@@ -38,14 +38,12 @@ with torch.no_grad():
             # 1. Save current state (The tuple: prompt, seed, step, latent)
             latent_filename = f"p{idx}_s{seed}_step{t.item()}.pt"
             torch.save(latents.cpu(), os.path.join(LATENT_DIR, latent_filename))
-            
             metadata.append({
                 "prompt": prompt,
                 "seed": seed,
                 "step": t.item(),
                 "latent_path": latent_filename
             })
-            
             # 2. Step forward to get the next latent in the trajectory
             model_input = latents.permute(0, 2, 1, 3, 4)
             noise_pred = pipe.transformer(
@@ -53,7 +51,6 @@ with torch.no_grad():
                 encoder_hidden_states=prompt_embeds,
                 timestep=torch.tensor([t], device="cuda")
             ).sample.permute(0, 2, 1, 3, 4)
-            
             latents = scheduler.step(noise_pred, t, latents).prev_sample
 
 # Save mapping for the trainer
