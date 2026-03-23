@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=unlearn_cog
-#SBATCH --output=logs/unlearn_cog_%j.out
-#SBATCH --error=logs/unlearn_cog_%j.err
+#SBATCH --output=logs/unlearn_cog_%A_%a.out
+#SBATCH --error=logs/unlearn_cog_%A_%a.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -10,6 +10,7 @@
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=14:00:00
+#SBATCH --array=1-5
 
 # From plg[nick] extract nick
 CUT_USER=${USER:3}
@@ -41,12 +42,14 @@ export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-export OUTPUT_DIR=outputs/unlearn_with_precomputed_latents_${TIMESTAMP}
+export OUTPUT_DIR=outputs/unlearn_with_precomputed_latents_count${SLURM_ARRAY_TASK_ID}_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
+
+echo "Running array task $SLURM_ARRAY_TASK_ID with metadata_count=$SLURM_ARRAY_TASK_ID"
 
 python unlearn_with_precomputed_latents.py \
     --metadata_file "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset/metadata.json" \
-    --metadata_count 5 \
+    --metadata_count "$SLURM_ARRAY_TASK_ID" \
     --latents_dir "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset/latents" \
     --lora_rank 8 \
     --lora_alpha 8.0 \

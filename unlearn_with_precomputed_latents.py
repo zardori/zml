@@ -14,11 +14,13 @@ import pandas as pd
 import random
 import json
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
 class Config:
     metadata_file: str  # Entries containing (prompt, seed, step, name of a file with latent)
+    metadata_count: Optional[int]
     latents_dir: str
     lora_rank: int
     lora_alpha: float
@@ -78,6 +80,9 @@ def main(config: Config):
     # Load metadata
     with open(config.metadata_file) as f:
         metadata = json.load(f)
+
+    if config.metadata_count:
+        metadata = metadata[:config.metadata_count]
 
     # Group by (prompt, seed) so we can sample full trajectories
     from collections import defaultdict
@@ -172,6 +177,7 @@ def main(config: Config):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--metadata_file", type=str, default="unlearning_dataset/metadata.json")
+    parser.add_argument("--metadata_count", type=int, default=None)
     parser.add_argument("--latents_dir", type=str, default="unlearning_dataset/latents")
     parser.add_argument("--lora_rank", type=int, default=8)
     parser.add_argument("--lora_alpha", type=float, default=8.0)

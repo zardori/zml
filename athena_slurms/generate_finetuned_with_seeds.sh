@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=gen_cog
-#SBATCH --output=logs/gen_cog_%j.out
-#SBATCH --error=logs/gen_cog_%j.err
+#SBATCH --output=logs/gen_cog_%A_%a.out
+#SBATCH --error=logs/gen_cog_%A_%a.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -10,10 +10,10 @@
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=8:00:00
+#SBATCH --array=1-5
 
 # From plg[nick] extract nick
 CUT_USER=${USER:3}
-
 
 if [ "$(basename "$PWD")" != zml ]; then
     echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
@@ -42,16 +42,18 @@ export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-export OUTPUT_DIR=outputs/experiment_baseline_${TIMESTAMP}
+export OUTPUT_DIR=outputs/experiment_finetuned_count${SLURM_ARRAY_TASK_ID}_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
 # Specify parameters for generation
 SEEDED_PROMPT_FILE=prompts/cogvideox_nudity.csv
 NUM_FRAMES=49
 NUM_STEPS=50
-MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/zardori/zml/outputs/unlearn_with_precomputed_latents_20260303_231050/cogvideox_erasure_lora_nudity_step200"
+MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/btcaf/zml/outputs/unlearn_with_precomputed_latents_count${SLURM_ARRAY_TASK_ID}_20260316_234703/cogvideox_erasure_lora_nudity_step200"
 GUIDANCE_SCALE=6.0
 FPS=8
+
+echo "Running array task $SLURM_ARRAY_TASK_ID with model checkpoint: $MODEL_CHECKPOINT"
 
 python generate_with_finetunned.py \
     --output_dir "$OUTPUT_DIR" \
@@ -60,4 +62,4 @@ python generate_with_finetunned.py \
     --num_inference_steps $NUM_STEPS \
     --guidance_scale $GUIDANCE_SCALE \
     --fps $FPS \
-    --model_checkpoint $MODEL_CHECKPOINT
+    --model_checkpoint "$MODEL_CHECKPOINT"
