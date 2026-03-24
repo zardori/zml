@@ -1,6 +1,8 @@
 import os
 import subprocess
 from argparse import ArgumentParser
+import time
+from datetime import datetime
 
 import torch
 import torch.nn.functional as F
@@ -45,6 +47,8 @@ class Config:
 
 
 def main(config: Config):
+    training_start = time.time()
+    print(f"Started training procedure at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}")
     MODEL_ID = "THUDM/CogVideoX-5b"
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DTYPE = torch.bfloat16 # CogVideoX works best with bf16
@@ -184,7 +188,11 @@ def main(config: Config):
                 check=True
             )
 
-    print("Training Complete.")
+    elapsed = time.time() - training_start
+    finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    hours, rem = divmod(elapsed, 3600)
+    minutes, seconds = divmod(rem, 60)
+    print(f"Training Complete. Finished at {finished_at}, took {int(hours)}h {int(minutes)}m {seconds:.1f}s.")
 
 if __name__ == "__main__":
     parser = ArgumentParser()
