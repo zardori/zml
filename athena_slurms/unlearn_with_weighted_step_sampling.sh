@@ -11,7 +11,15 @@
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=14:00:00
 
-source "$(dirname "$0")/utils/ensure_repo_dir.sh"
+if [ "$(basename "$PWD")" != zml ]; then
+    echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
+      Current directory: $PWD"
+    echo "If your main repo dir has a different name, change it or include in the script check above as an alternative."
+    echo "Trying to guess repo dir based on username..."
+    GUESSED_DIR="$PLG_GROUPS_STORAGE/plggtriplane/${USER:3}/zml"
+    cd "$GUESSED_DIR" || { echo "Failed to change directory to guessed repo dir: $GUESSED_DIR. Exiting."; exit 1; }
+    echo "Assumed $PWD as repo dir"
+fi
 
 # Load required modules
 module load Python/3.10.4
@@ -29,9 +37,8 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
-SCRIPT_NAME=$(basename "$0" .sh)
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-export OUTPUT_DIR=outputs/${SCRIPT_NAME}_${TIMESTAMP}
+export OUTPUT_DIR=outputs/unlearn_with_weighted_step_sampling_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
 python unlearn_with_precomputed_latents.py \

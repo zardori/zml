@@ -48,7 +48,8 @@ class Config:
 
 def main(config: Config):
     training_start = time.time()
-    print(f"Started training procedure at: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}")
+    formatted_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"Started training procedure at: {formatted_start}")
     MODEL_ID = "THUDM/CogVideoX-5b"
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DTYPE = torch.bfloat16 # CogVideoX works best with bf16
