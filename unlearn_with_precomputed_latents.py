@@ -16,6 +16,17 @@ import json
 from dataclasses import dataclass
 from typing import Optional
 
+def weighted_sample(traj, config: "Config"):
+    steps_in_traj = torch.tensor([e["step"] for e in traj], dtype=torch.float)
+    steps_normalized = steps_in_traj / steps_in_traj.max()  # scale to [0, 1]
+    probs = torch.softmax(steps_normalized / config.sampling_temperature, dim=0)
+    return random.choices(traj, weights=probs.tolist(), k=1)[0]
+
+sampling_strategies = {
+    "uniform": lambda traj, _: random.choice(traj),
+    "weighted": weighted_sample,
+}
+
 
 @dataclass
 class Config:
@@ -29,6 +40,8 @@ class Config:
     learning_rate: float
     lora_dropout: float
     output_dir: str
+    step_sampling_strategy: str
+    sampling_temperature: float
 
 
 def main(config: Config):
@@ -119,8 +132,7 @@ def main(config: Config):
         traj = trajectories[key]
         prompt, seed = key
 
-        # 2. Sample a random timestep entry within that trajectory
-        entry = random.choice(traj)
+        entry = sampling_strategies[config.step_sampling_strategy](traj, config)
         target_step = torch.tensor([entry["step"]], dtype=torch.long, device=DEVICE)
 
         # 3. Load the saved latent at that timestep
@@ -186,6 +198,13 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--lora_dropout", type=float, default=0.0)
     parser.add_argument("--output_dir", type=str, default=".")
+    parser.add_argument("--step_sampling_strategy", type=str,
+                        default="uniform", choices=sampling_strategies.keys(),
+                        help="How to sample steps from the trajectory")
+    # Temperature used when sampling is "weighted". Lower -> more focus on early generation steps
+    parser.add_argument("--sampling_temperature", type=float, default=1.0)
     args = parser.parse_args()
     config = Config(**vars(args))
+    if config.step_sampling_strategy == "weighted" and config.sampling_temperature <= 0:
+        raise ValueError("sampling_temperature must be > 0 for weighted strategy")
     main(config)
