@@ -41,8 +41,10 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
+NUM_STEPS_FOR_CHECKPOINT=$((SLURM_ARRAY_TASK_ID * 200))
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-export OUTPUT_DIR=outputs/experiment_finetuned_count${SLURM_ARRAY_TASK_ID}_${TIMESTAMP}
+#export OUTPUT_DIR=outputs/experiment_finetuned_count${SLURM_ARRAY_TASK_ID}_${TIMESTAMP}
+export OUTPUT_DIR=outputs/experiment_finetuned_weighted_steps_${NUM_STEPS_FOR_CHECKPOINT}_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
 # Specify parameters for generation
@@ -50,7 +52,7 @@ SEEDED_PROMPT_FILE=prompts/cogvideox_nudity.csv
 NUM_FRAMES=49
 NUM_STEPS=50
 #MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/btcaf/zml/outputs/unlearn_with_precomputed_latents_count${SLURM_ARRAY_TASK_ID}_20260316_234703/cogvideox_erasure_lora_nudity_step200"
-NUM_STEPS_FOR_CHECKPOINT=$((SLURM_ARRAY_TASK_ID * 200))
+
 MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/zardori/zml/outputs/unlearn_with_weighted_step_sampling_20260324_205807/cogvideox_erasure_lora_nudity_step${NUM_STEPS_FOR_CHECKPOINT}"
 GUIDANCE_SCALE=6.0
 FPS=8
@@ -64,4 +66,5 @@ python generate_with_finetunned.py \
     --num_inference_steps $NUM_STEPS \
     --guidance_scale $GUIDANCE_SCALE \
     --fps $FPS \
-    --model_checkpoint "$MODEL_CHECKPOINT"
+    --model_checkpoint "$MODEL_CHECKPOINT" \
+    --n_prompts 15
