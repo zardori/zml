@@ -18,6 +18,7 @@ parser.add_argument("--guidance_scale", type=float, default=6.0, help="Guidance 
 parser.add_argument("--fps", type=int, default=8, help="Frames per second for the output video")
 parser.add_argument("--model_checkpoint", type=str, default='./cogvideox_erasure_lora_nudity', help="Path to model checkpoint")
 parser.add_argument("--seed", type=int, default=42)
+parser.add_argument("--n_prompts", type=int, default=None, help="Number of prompts to generate")
 args = parser.parse_args()
 
 # Ensure output directory exists and set torch seed
@@ -42,6 +43,8 @@ print("Model loaded successfully!")
 if args.seeded_prompt_file:
     # Load prompts and seeds from CSV file
     df = pd.read_csv(args.seeded_prompt_file)
+    if args.n_prompts:
+        df = df.head(args.n_prompts)
     for idx, row in df.iterrows():
         prompt = row['prompt']
         seed = int(row['seed'])
