@@ -11,7 +11,7 @@ SAVE_DIR = "./unlearning_dataset"
 LATENT_DIR = os.path.join(SAVE_DIR, "latents")
 os.makedirs(LATENT_DIR, exist_ok=True)
 
-pipe = CogVideoXPipeline.from_pretrained("THUDM/CogVideoX-2b", torch_dtype=torch.bfloat16).to("cuda")
+pipe = CogVideoXPipeline.from_pretrained("THUDM/CogVideoX-5b", torch_dtype=torch.bfloat16).to("cuda")
 scheduler = pipe.scheduler
 scheduler.set_timesteps(50)
 
