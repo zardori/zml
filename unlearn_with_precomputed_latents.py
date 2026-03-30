@@ -44,19 +44,19 @@ class Config:
     output_dir: str
     step_sampling_strategy: str
     sampling_temperature: float
+    model_id: str
 
 
 def main(config: Config):
     training_start = time.time()
     formatted_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"Started training procedure at: {formatted_start}")
-    MODEL_ID = "THUDM/CogVideoX-5b"
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DTYPE = torch.bfloat16 # CogVideoX works best with bf16
 
     # Load Pipeline
     pipe = CogVideoXPipeline.from_pretrained(
-        MODEL_ID,
+        config.model_id,
         torch_dtype=DTYPE
     ).to(DEVICE)
 
@@ -212,6 +212,7 @@ if __name__ == "__main__":
                         help="How to sample steps from the trajectory")
     # Temperature used when sampling is "weighted". Lower -> more focus on early generation steps
     parser.add_argument("--sampling_temperature", type=float, default=1.0)
+    parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
     args = parser.parse_args()
     config = Config(**vars(args))
     if config.step_sampling_strategy == "weighted" and config.sampling_temperature <= 0:
