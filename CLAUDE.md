@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a research project implementing **machine unlearning for CogVideoX** (a video diffusion transformer), specifically erasing nudity concepts using the ESD (Erased Stable Diffusion) method with LoRA fine-tuning. It runs on PLGrid HPC infrastructure via SLURM.
+The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. Currently, specifically tries erasing nudity concepts using the ESD (Erased Stable Diffusion) method with LoRA fine-tuning. The real challenge is to erase the target concept without harming the model's performance. Experiments are run on PLGrid HPC infrastructure via SLURM. 
 
 ## Environment Setup
 
