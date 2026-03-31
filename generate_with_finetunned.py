@@ -16,6 +16,7 @@ parser.add_argument("--num_frames", type=int, default=49, help="Number of frames
 parser.add_argument("--num_inference_steps", type=int, default=30, help="Number of diffusion steps")
 parser.add_argument("--guidance_scale", type=float, default=6.0, help="Guidance scale")
 parser.add_argument("--fps", type=int, default=8, help="Frames per second for the output video")
+parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b", help="Base model ID or path")
 parser.add_argument("--model_checkpoint", type=str, default='./cogvideox_erasure_lora_nudity', help="Path to model checkpoint")
 parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--n_prompts", type=int, default=None, help="Number of prompts to generate")
@@ -28,7 +29,7 @@ torch.manual_seed(args.seed)
 # Load the model
 print("Loading CogVideoX model...")
 pipe = CogVideoXPipeline.from_pretrained(
-    "THUDM/CogVideoX-5b",
+    args.model_id,
     torch_dtype=torch.bfloat16
 )
 pipe.to("cuda")
