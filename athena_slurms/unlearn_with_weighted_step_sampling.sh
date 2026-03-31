@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=14:00:00
+#SBATCH --time=8:00:00
 
 if [ "$(basename "$PWD")" != zml ]; then
     echo "WARNING: for correct paths this script should be run from the 'zml' directory (main repo dir).
@@ -53,4 +53,5 @@ python unlearn_with_precomputed_latents.py \
     --lora_dropout 0.0 \
     --step_sampling_strategy weighted \
     --sampling_temperature 1.0 \
-    --output_dir "$OUTPUT_DIR"
+    --output_dir "$OUTPUT_DIR" \
+    --num_sample_videos 12
