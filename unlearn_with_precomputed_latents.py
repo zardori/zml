@@ -44,6 +44,7 @@ class Config:
     step_sampling_strategy: str
     sampling_temperature: float
     model_id: str
+    num_sample_videos: int
 
 
 def main(config: Config):
@@ -98,6 +99,10 @@ def main(config: Config):
     with open(config.metadata_file) as f:
         metadata = json.load(f)
 
+    # Collect sample keys from the full metadata before any slicing, preserving order
+    all_keys_ordered = list(dict.fromkeys((e["prompt"], e["seed"]) for e in metadata))
+    sample_keys = all_keys_ordered[:config.num_sample_videos]
+
     if config.metadata_count:
         metadata = metadata[:config.metadata_count]
 
@@ -113,10 +118,10 @@ def main(config: Config):
         trajectories[key].sort(key=lambda x: x["step"], reverse=True)
     traj_keys = list(trajectories.keys())
 
-    # Cache prompt embeddings to save time and memory during training
+    # Cache prompt embeddings for training keys and sample keys
     prompt_emb_cache = {}
     with torch.no_grad():
-        for key in traj_keys:
+        for key in traj_keys + sample_keys:
             prompt = key[0]
             if prompt not in prompt_emb_cache:
                 prompt_emb_cache[prompt] = encode_prompt(pipe, prompt)
@@ -125,6 +130,27 @@ def main(config: Config):
     del pipe.text_encoder
     gc.collect()
     torch.cuda.empty_cache()
+
+    def generate_samples(step):
+        if config.num_sample_videos == 0:
+            return
+        samples_dir = os.path.join(config.output_dir, f"samples_step{step}")
+        os.makedirs(samples_dir, exist_ok=True)
+        transformer.eval()
+        with torch.no_grad():
+            for i, (prompt, seed) in enumerate(sample_keys):
+                video = pipe(
+                    prompt_embeds=prompt_emb_cache[prompt],
+                    negative_prompt_embeds=null_emb,
+                    num_frames=49,
+                    guidance_scale=6.0,
+                    num_inference_steps=30,
+                    generator=torch.Generator(device=DEVICE).manual_seed(seed),
+                ).frames[0]
+                save_path = os.path.join(samples_dir, f"{i}-{seed}.mp4")
+                export_to_video(video, save_path, fps=8)
+                print(f"Sample video saved: {save_path}")
+        transformer.train()
 
     print("Starting ESD Training for Video...")
     pbar = tqdm(range(config.steps))
@@ -183,6 +209,7 @@ def main(config: Config):
             os.makedirs(lora_output_dir, exist_ok=True)
             transformer.save_pretrained(lora_output_dir)
             print(f"Checkpoint saved to: {lora_output_dir}")
+            generate_samples(step + 1)
 
     elapsed = time.time() - training_start
     finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -208,6 +235,8 @@ if __name__ == "__main__":
     # Temperature used when sampling is "weighted". Lower -> more focus on early generation steps
     parser.add_argument("--sampling_temperature", type=float, default=1.0)
     parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
+    parser.add_argument("--num_sample_videos", type=int, default=0,
+                        help="Number of sample videos to generate after each checkpoint (0 = disabled)")
     args = parser.parse_args()
     config = Config(**vars(args))
     if config.step_sampling_strategy == "weighted" and config.sampling_temperature <= 0:
