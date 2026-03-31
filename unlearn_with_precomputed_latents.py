@@ -1,5 +1,4 @@
 import os
-import subprocess
 from argparse import ArgumentParser
 import time
 from datetime import datetime
@@ -184,10 +183,6 @@ def main(config: Config):
             os.makedirs(lora_output_dir, exist_ok=True)
             transformer.save_pretrained(lora_output_dir)
             print(f"Checkpoint saved to: {lora_output_dir}")
-            subprocess.run(
-                ["zip", "-r", f'{lora_output_dir}.zip', lora_output_dir],
-                check=True
-            )
 
     elapsed = time.time() - training_start
     finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
