@@ -14,6 +14,9 @@ hf_cache
 .idea
 .vscode/
 
+# Local config
+athena.conf
+
 # Script outputs
 outputs/
 checkpoints/
