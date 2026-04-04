@@ -104,8 +104,8 @@ def main(args):
             with torch.no_grad():
                 with transformer.disable_adapter():
                     noise_pred = transformer(
-                        hidden_states=latents.permute(0, 2, 1, 3, 4),
-                        encoder_hidden_states=concept_emb,
+                        hidden_states=latents.permute(0, 2, 1, 3, 4).to(dtype=DTYPE),
+                        encoder_hidden_states=concept_emb.to(dtype=DTYPE),
                         timestep=t_tensor,
                     ).sample.permute(0, 2, 1, 3, 4)
                 latents = scheduler.step(noise_pred, t_tensor, latents).prev_sample
