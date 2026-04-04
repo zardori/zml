@@ -110,7 +110,7 @@ def main(args):
                     ).sample.permute(0, 2, 1, 3, 4)
                 latents = scheduler.step(noise_pred, t_tensor, latents).prev_sample
 
-        model_input = latents.permute(0, 2, 1, 3, 4)
+        model_input = latents.to(dtype=DTYPE).permute(0, 2, 1, 3, 4)
 
         # Teacher predictions (frozen base model)
         with torch.no_grad():
