@@ -162,7 +162,7 @@ def main(config: Config):
         optimizer.step()
         pbar.set_description(f"Loss: {loss.item():.4f}")
 
-        if (step + 1) % 200 == 0:
+        if (step + 1) % 2000 == 0:
             lora_output_dir = os.path.join(config.output_dir, f"cogvideox_erasure_lora_nudity_step{step + 1}")
             os.makedirs(lora_output_dir, exist_ok=True)
             transformer.save_pretrained(lora_output_dir)

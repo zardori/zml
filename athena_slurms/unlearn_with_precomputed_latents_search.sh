@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=14:00:00
+#SBATCH --time=24:00:00
 #SBATCH --array=1-5
 
 # From plg[nick] extract nick
@@ -54,7 +54,7 @@ python unlearn_with_precomputed_latents.py \
     --lora_rank 8 \
     --lora_alpha 8.0 \
     --negative_guidance_scale 2.0 \
-    --steps 1000 \
+    --steps 10000 \
     --learning_rate 1e-3 \
     --lora_dropout 0.0 \
     --output_dir "$OUTPUT_DIR"
