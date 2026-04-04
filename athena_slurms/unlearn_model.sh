@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=unlearn_cog
-#SBATCH --output=../logs/unlearn_cog_%j.out
-#SBATCH --error=../logs/unlearn_cog_%j.err
+#SBATCH --output=./logs/unlearn_cog_%j.out
+#SBATCH --error=./logs/unlearn_cog_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16

@@ -1,5 +1,4 @@
 import os
-import subprocess
 import torch
 import torch.nn.functional as F
 from diffusers import CogVideoXPipeline, CogVideoXDDIMScheduler
@@ -242,10 +241,6 @@ for step in pbar:
         os.makedirs(lora_output_dir, exist_ok=True)
         transformer.save_pretrained(lora_output_dir)
         print(f"Checkpoint saved to: {lora_output_dir}")
-        subprocess.run(
-            ["zip", "-r", f'{lora_output_dir}.zip', lora_output_dir],
-            check=True
-        )
 
 
 

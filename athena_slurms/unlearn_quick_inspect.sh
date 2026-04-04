@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=gen_cog
-#SBATCH --output=logs/gen_cog_%A_%a.out
-#SBATCH --error=logs/gen_cog_%A_%a.err
+#SBATCH --job-name=quick_inspect
+#SBATCH --output=logs/quick_inspect_%j.out
+#SBATCH --error=logs/quick_inspect_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=16
@@ -9,8 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=8:00:00
-#SBATCH --array=1-5
+#SBATCH --time=4:00:00
 
 # From plg[nick] extract nick
 CUT_USER=${USER:3}
@@ -41,30 +40,18 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
-NUM_STEPS_FOR_CHECKPOINT=$((SLURM_ARRAY_TASK_ID * 200))
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-#export OUTPUT_DIR=outputs/experiment_finetuned_count${SLURM_ARRAY_TASK_ID}_${TIMESTAMP}
-export OUTPUT_DIR=outputs/experiment_finetuned_weighted_steps_${NUM_STEPS_FOR_CHECKPOINT}_${TIMESTAMP}
+export OUTPUT_DIR=outputs/quick_inspect_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
-# Specify parameters for generation
-SEEDED_PROMPT_FILE=prompts/cogvideox_nudity.csv
-NUM_FRAMES=49
-NUM_STEPS=50
-#MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/btcaf/zml/outputs/unlearn_with_precomputed_latents_count${SLURM_ARRAY_TASK_ID}_20260316_234703/cogvideox_erasure_lora_nudity_step200"
-
-MODEL_CHECKPOINT="/net/pr2/projects/plgrid/plggtriplane/zardori/zml/outputs/unlearn_with_weighted_step_sampling_20260324_205807/cogvideox_erasure_lora_nudity_step${NUM_STEPS_FOR_CHECKPOINT}"
-GUIDANCE_SCALE=6.0
-FPS=8
-
-echo "Running array task $SLURM_ARRAY_TASK_ID with model checkpoint: $MODEL_CHECKPOINT"
-
-python generate_with_finetunned.py \
+python unlearn_quick_inspect.py \
+    --model_id "THUDM/CogVideoX-5b" \
+    --concept_prompt "A blue motorcycle" \
+    --negative_guidance_scale 3.0 \
+    --steps 20 \
+    --save_interval 1 \
+    --lora_rank 16 \
+    --lora_alpha 16.0 \
+    --learning_rate 1e-3 \
     --output_dir "$OUTPUT_DIR" \
-    --seeded_prompt_file "$SEEDED_PROMPT_FILE" \
-    --num_frames $NUM_FRAMES \
-    --num_inference_steps $NUM_STEPS \
-    --guidance_scale $GUIDANCE_SCALE \
-    --fps $FPS \
-    --model_checkpoint "$MODEL_CHECKPOINT" \
-    --n_prompts 15
+    --seed 42

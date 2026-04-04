@@ -5,6 +5,7 @@ build/
 dist/
 wheels/
 *.egg-info
+hf_cache
 
 # Virtual environments
 .venv
@@ -13,9 +14,13 @@ wheels/
 .idea
 .vscode/
 
+# Local config
+athena.conf
+
 # Script outputs
 outputs/
 checkpoints/
 logs/
 
-hf_cache/
+# Dataset
+unlearning_dataset
