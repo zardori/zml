@@ -48,14 +48,14 @@ mkdir -p "$OUTPUT_DIR"
 echo "Running array task $SLURM_ARRAY_TASK_ID with metadata_count=$SLURM_ARRAY_TASK_ID"
 
 python unlearn_with_precomputed_latents.py \
-    --metadata_file "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset_2b/metadata.json" \
+    --metadata_file "${METADATA_FILE:-$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset_2b/metadata.json}" \
     --metadata_count "$SLURM_ARRAY_TASK_ID" \
-    --latents_dir "$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset_2b/latents" \
-    --lora_rank 8 \
-    --lora_alpha 8.0 \
-    --negative_guidance_scale 2.0 \
-    --steps 1000 \
-    --learning_rate 1e-3 \
-    --lora_dropout 0.0 \
+    --latents_dir "${LATENTS_DIR:-$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/unlearning_dataset_2b/latents}" \
+    --lora_rank "${LORA_RANK:-8}" \
+    --lora_alpha "${LORA_ALPHA:-8.0}" \
+    --negative_guidance_scale "${NEGATIVE_GUIDANCE_SCALE:-2.0}" \
+    --steps "${STEPS:-1000}" \
+    --learning_rate "${LR:-1e-3}" \
+    --lora_dropout "${LORA_DROPOUT:-0.0}" \
     --output_dir "$OUTPUT_DIR" \
-    --model_id "THUDM/CogVideoX-2b"
+    --model_id "${MODEL_ID:-THUDM/CogVideoX-2b}"

@@ -45,13 +45,13 @@ export OUTPUT_DIR=outputs/quick_inspect_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
 python unlearn_quick_inspect.py \
-    --model_id "THUDM/CogVideoX-5b" \
-    --concept_prompt "A blue motorcycle" \
-    --negative_guidance_scale 3.0 \
-    --steps 20 \
-    --save_interval 1 \
-    --lora_rank 16 \
-    --lora_alpha 16.0 \
-    --learning_rate 1e-3 \
+    --model_id "${MODEL_ID:-THUDM/CogVideoX-5b}" \
+    --concept_prompt "${CONCEPT_PROMPT:-A blue motorcycle}" \
+    --negative_guidance_scale "${NEGATIVE_GUIDANCE_SCALE:-3.0}" \
+    --steps "${STEPS:-20}" \
+    --save_interval "${SAVE_INTERVAL:-1}" \
+    --lora_rank "${LORA_RANK:-16}" \
+    --lora_alpha "${LORA_ALPHA:-16.0}" \
+    --learning_rate "${LR:-1e-3}" \
     --output_dir "$OUTPUT_DIR" \
-    --seed 42
+    --seed "${SEED:-42}"
