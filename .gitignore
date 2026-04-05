@@ -24,3 +24,6 @@ logs/
 
 # Dataset
 unlearning_dataset
+
+# macOS
+.DS_Store

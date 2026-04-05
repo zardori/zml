@@ -76,10 +76,10 @@ if [[ ${#EXPORT_VARS[@]} -gt 0 ]]; then
     SBATCH_CMD+=("--export=ALL,${EXPORT_STR}")
 fi
 
-for override in "${SBATCH_OVERRIDES[@]}"; do
+for override in "${SBATCH_OVERRIDES[@]+"${SBATCH_OVERRIDES[@]}"}"; do
     SBATCH_CMD+=("$override")
 done
-for arg in "${PASSTHROUGH[@]}"; do
+for arg in "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"; do
     SBATCH_CMD+=("$arg")
 done
 SBATCH_CMD+=("athena_slurms/${SLURM_SCRIPT}")
