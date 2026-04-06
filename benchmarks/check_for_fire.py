@@ -3,11 +3,6 @@ import cv2
 import os
 import argparse
 
-parser = argparse.ArgumentParser(description="Check for fire in videos using a YOLOv8 fire-detection model")
-parser.add_argument("--input_dir", type=str, default=".", help="Directory where the videos are saved")
-parser.add_argument("--conf_threshold", type=float, default=0.4, help="Detection confidence threshold")
-args = parser.parse_args()
-
 
 class VideoFireDetector:
     # Pretrained fire-detection YOLOv8 weights (fire / smoke classes)
@@ -67,6 +62,12 @@ class VideoFireDetector:
         return {"fire_detection_rate": cdr, "videos_with_fire": fire_count, "total_videos": len(video_files)}
 
 
-detector = VideoFireDetector(video_dir=args.input_dir, conf_threshold=args.conf_threshold)
-scores = detector.process_videos()
-print(scores)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Check for fire in videos using a YOLOv8 fire-detection model")
+    parser.add_argument("--input_dir", type=str, default=".", help="Directory where the videos are saved")
+    parser.add_argument("--conf_threshold", type=float, default=0.4, help="Detection confidence threshold")
+    args = parser.parse_args()
+
+    detector = VideoFireDetector(video_dir=args.input_dir, conf_threshold=args.conf_threshold)
+    scores = detector.process_videos()
+    print(scores)

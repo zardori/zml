@@ -1,4 +1,5 @@
 import os
+import sys
 from argparse import ArgumentParser
 
 import torch
@@ -16,23 +17,78 @@ from dataclasses import dataclass
 
 @dataclass
 class Config:
+    model_id: str
     prompts_path: str
+    control_related_prompts: str
+    control_unrelated_prompts: str
     lora_rank: int
     lora_alpha: float
     negative_guidance_scale: float
     steps: int
+    save_interval: int
     learning_rate: float
     lora_dropout: float
     output_dir: str
+    eval_num_prompts: int
+    eval_inference_steps: int
+
+
+def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, unrelated_prompts):
+    sys.path.insert(0, os.path.dirname(__file__))
+    from benchmarks.check_for_fire import VideoFireDetector
+
+    transformer.eval()
+    eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
+
+    prompt_sets = {
+        "concept": random.sample(concept_prompts, min(config.eval_num_prompts, len(concept_prompts))),
+        "related": random.sample(related_prompts, min(config.eval_num_prompts, len(related_prompts))),
+        "unrelated": random.sample(unrelated_prompts, min(config.eval_num_prompts, len(unrelated_prompts))),
+    }
+
+    with torch.no_grad():
+        for set_name, prompts in prompt_sets.items():
+            video_dir = os.path.join(eval_root, set_name)
+            os.makedirs(video_dir, exist_ok=True)
+            for i, prompt in enumerate(prompts):
+                result = pipe(
+                    prompt=prompt,
+                    num_frames=49,
+                    num_inference_steps=config.eval_inference_steps,
+                    generator=torch.Generator(device=pipe.device).manual_seed(42 + i),
+                )
+                video_path = os.path.join(video_dir, f"video_{i}.mp4")
+                export_to_video(result.frames[0], video_path, fps=8)
+                print(f"Saved eval video: {video_path}")
+
+    metrics = {}
+    for set_name in prompt_sets:
+        video_dir = os.path.join(eval_root, set_name)
+        detector = VideoFireDetector(video_dir=video_dir)
+        scores = detector.process_videos()
+        metrics[set_name] = scores
+
+    metrics_path = os.path.join(eval_root, "metrics.json")
+    with open(metrics_path, "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"Eval step {step}: {metrics}")
+
+    transformer.train()
+    transformer.requires_grad_(False)
 
 
 def main(config: Config):
     data = pd.read_csv(config.prompts_path)
     CONCEPT_PROMPTS = data["prompt"].tolist()
 
+    with open(config.control_related_prompts) as f:
+        RELATED_PROMPTS = [l.strip() for l in f if l.strip()]
+    with open(config.control_unrelated_prompts) as f:
+        UNRELATED_PROMPTS = [l.strip() for l in f if l.strip()]
+
     # @title 2. Setup Configuration
     # Using CogVideoX-2b (Fits on approx 12-16GB VRAM with optimizations)
-    MODEL_ID = "THUDM/CogVideoX-5b"
+    MODEL_ID = config.model_id
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DTYPE = torch.bfloat16 # CogVideoX works best with bf16
 
@@ -65,6 +121,9 @@ def main(config: Config):
     # 3. Inject LoRA
     transformer = get_peft_model(transformer, lora_config)
     transformer.print_trainable_parameters()
+
+    # Wire the PEFT-wrapped transformer back into the pipeline for eval generation
+    pipe.transformer = transformer
 
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
 
@@ -169,24 +228,32 @@ def main(config: Config):
 
         pbar.set_description(f"Loss: {loss.item():.4f}")
 
-        if (step + 1) % 200 == 0:
+        if (step + 1) % config.save_interval == 0:
             lora_output_dir = os.path.join(config.output_dir, f"cogvideox_erasure_lora_nudity_step{step + 1}")
             os.makedirs(lora_output_dir, exist_ok=True)
             transformer.save_pretrained(lora_output_dir)
             print(f"Checkpoint saved to: {lora_output_dir}")
+            evaluate(pipe, transformer, config, step + 1,
+                     CONCEPT_PROMPTS, RELATED_PROMPTS, UNRELATED_PROMPTS)
 
     print("Training Complete.")
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_nudity.csv")
+    parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
+    parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_fire.csv")
+    parser.add_argument("--control_related_prompts", type=str, default="prompts/cogvideox_fire_control_related.txt")
+    parser.add_argument("--control_unrelated_prompts", type=str, default="prompts/cogvideox_fire_control_unrelated.txt")
     parser.add_argument("--lora_rank", type=int, default=8)
     parser.add_argument("--lora_alpha", type=float, default=8.0)
     parser.add_argument("--negative_guidance_scale", type=float, default=2.0)
     parser.add_argument("--steps", type=int, default=1000)
+    parser.add_argument("--save_interval", type=int, default=200)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--lora_dropout", type=float, default=0.0)
     parser.add_argument("--output_dir", type=str, default=".")
+    parser.add_argument("--eval_num_prompts", type=int, default=3)
+    parser.add_argument("--eval_inference_steps", type=int, default=20)
     args = parser.parse_args()
     config = Config(**vars(args))
     main(config)
