@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=14:00:00
+#SBATCH --time=24:00:00
 
 # Load required modules
 # module load Python/3.10.4
@@ -57,3 +57,5 @@ python unlearn_model.py \
     --learning_rate "${LR:-1e-3}" \
     --lora_dropout "${LORA_DROPOUT:-0.0}" \
     --output_dir "$OUTPUT_DIR" \
+    --eval_num_prompts "${EVAL_NUM_PROMPTS:-3}" \
+    --eval_inference_steps "${EVAL_INFERENCE_STEPS:-50}"

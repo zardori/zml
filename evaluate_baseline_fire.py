@@ -114,7 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--control_unrelated_prompts", type=str, default="prompts/cogvideox_fire_control_unrelated.txt")
     parser.add_argument("--output_dir", type=str, default=".")
     parser.add_argument("--eval_num_prompts", type=int, default=3)
-    parser.add_argument("--eval_inference_steps", type=int, default=20)
+    parser.add_argument("--eval_inference_steps", type=int, default=50)
     args = parser.parse_args()
     config = Config(**vars(args))
     main(config)

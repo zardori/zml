@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgbcfg-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=14:00:00
+#SBATCH --time=3:00:00
 
 # Load required modules
 # module load Python/3.10.4
@@ -29,7 +29,7 @@ if [ "$(basename "$PWD")" != zml ]; then
 fi
 
 # Activate virtual environment
-source "$PLG_GROUPS_STORAGE"/plggtriplane/btcaf/zml/.venv/bin/activate
+# source "$PLG_GROUPS_STORAGE"/plggtriplane/btcaf/zml/.venv/bin/activate
 
 # Prepare logs directory
 mkdir -p logs
@@ -44,9 +44,11 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 export OUTPUT_DIR=outputs/unlearn_with_precomputed_latents_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
-python unlearn_model.py \
+uv run evaluate_baseline_fire.py \
     --model_id "${MODEL_ID:-THUDM/CogVideoX-5b}" \
     --prompts_path "${PROMPTS_PATH:-prompts/cogvideox_fire.csv}" \
     --control_related_prompts "${CONTROL_RELATED_PROMPTS:-prompts/cogvideox_fire_control_related.txt}" \
     --control_unrelated_prompts "${CONTROL_UNRELATED_PROMPTS:-prompts/cogvideox_fire_control_unrelated.txt}" \
     --output_dir "$OUTPUT_DIR" \
+    --eval_num_prompts "${EVAL_NUM_PROMPTS:-3}" \
+    --eval_inference_steps "${EVAL_INFERENCE_STEPS:-50}"

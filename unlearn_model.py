@@ -253,7 +253,7 @@ if __name__ == "__main__":
     parser.add_argument("--lora_dropout", type=float, default=0.0)
     parser.add_argument("--output_dir", type=str, default=".")
     parser.add_argument("--eval_num_prompts", type=int, default=3)
-    parser.add_argument("--eval_inference_steps", type=int, default=20)
+    parser.add_argument("--eval_inference_steps", type=int, default=50)
     args = parser.parse_args()
     config = Config(**vars(args))
     main(config)
