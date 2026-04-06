@@ -19,6 +19,7 @@ from dataclasses import dataclass
 class Config:
     model_id: str
     prompts_path: str
+    control_concept_prompts: str
     control_related_prompts: str
     control_unrelated_prompts: str
     lora_rank: int
@@ -81,10 +82,12 @@ def main(config: Config):
     data = pd.read_csv(config.prompts_path)
     CONCEPT_PROMPTS = data["prompt"].tolist()
 
+    with open(config.control_concept_prompts) as f:
+        CONTROL_CONCEPT_PROMPTS = [l.strip() for l in f if l.strip()]
     with open(config.control_related_prompts) as f:
-        RELATED_PROMPTS = [l.strip() for l in f if l.strip()]
+        CONTROL_RELATED_PROMPTS = [l.strip() for l in f if l.strip()]
     with open(config.control_unrelated_prompts) as f:
-        UNRELATED_PROMPTS = [l.strip() for l in f if l.strip()]
+        CONTROL_UNRELATED_PROMPTS = [l.strip() for l in f if l.strip()]
 
     # @title 2. Setup Configuration
     # Using CogVideoX-2b (Fits on approx 12-16GB VRAM with optimizations)
@@ -234,7 +237,7 @@ def main(config: Config):
             transformer.save_pretrained(lora_output_dir)
             print(f"Checkpoint saved to: {lora_output_dir}")
             evaluate(pipe, transformer, config, step + 1,
-                     CONCEPT_PROMPTS, RELATED_PROMPTS, UNRELATED_PROMPTS)
+                     CONTROL_CONCEPT_PROMPTS, CONTROL_RELATED_PROMPTS, CONTROL_UNRELATED_PROMPTS)
 
     print("Training Complete.")
 
@@ -242,6 +245,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
     parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_fire.csv")
+    parser.add_argument("--control_concept_prompts", type=str, default="prompts/cogvideox_fire_control_fire.txt")
     parser.add_argument("--control_related_prompts", type=str, default="prompts/cogvideox_fire_control_related.txt")
     parser.add_argument("--control_unrelated_prompts", type=str, default="prompts/cogvideox_fire_control_unrelated.txt")
     parser.add_argument("--lora_rank", type=int, default=8)
