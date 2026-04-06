@@ -89,6 +89,9 @@ def main(config: Config):
     height = 60
     width = 90
 
+    num_inference_steps = 50
+    scheduler.set_timesteps(num_inference_steps)
+
     pbar = tqdm(range(config.steps))
 
     for step in pbar:
@@ -99,29 +102,33 @@ def main(config: Config):
 
         optimizer.zero_grad()
 
-        # 1. Prepare 3D Latents (x_t)
-        # We keep this in (B, C, F, H, W) for the scheduler
+        # 1. Sample a random denoising step t (not the very first step)
+        t_idx = random.randint(1, num_inference_steps - 1)
+        t = scheduler.timesteps[t_idx]
+        timesteps = t.unsqueeze(0).expand(batch_size).to(DEVICE)
+
+        # 2. Start from pure noise x_T [B, C, F, H, W]
         latents = torch.randn(
             (batch_size, num_channels, num_frames, height, width),
             device=DEVICE,
             dtype=DTYPE
         )
 
-        # 2. Timesteps
-        timesteps = torch.randint(
-            0, scheduler.config.num_train_timesteps, (batch_size,),
-            device=DEVICE
-        ).long()
+        # 3. Partially denoise with the student model from T down to t
+        with torch.no_grad():
+            for ts in scheduler.timesteps:
+                if ts <= t:
+                    break
+                model_input = latents.permute(0, 2, 1, 3, 4)  # [B, C, F, H, W] -> [B, F, C, H, W]
+                noise_pred = transformer(
+                    hidden_states=model_input,
+                    encoder_hidden_states=concept_emb,
+                    timestep=ts.unsqueeze(0).expand(batch_size).to(DEVICE),
+                ).sample.permute(0, 2, 1, 3, 4)  # back to [B, C, F, H, W]
+                latents = scheduler.step(noise_pred, ts, latents).prev_sample
 
-        # 3. Add Noise
-        noise = torch.randn_like(latents)
-        noisy_latents = scheduler.add_noise(latents, noise, timesteps)
-
-        # --- FIX: PERMUTE DIMENSIONS FOR TRANSFORMER ---
-        # Convert [B, C, F, H, W] -> [B, F, C, H, W]
-        # The transformer expects Frames at index 1, Channels at index 2
-        model_input = noisy_latents.permute(0, 2, 1, 3, 4)
-        # -----------------------------------------------
+        # Convert to transformer format [B, F, C, H, W] for ESD loss computation
+        model_input = latents.permute(0, 2, 1, 3, 4)
 
         # -----------------------------------------------------------
         # TEACHER STEP (Frozen DiT)
