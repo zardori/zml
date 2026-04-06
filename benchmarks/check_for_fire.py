@@ -1,15 +1,21 @@
-from ultralytics import YOLOvv26
+from ultralytics import YOLO
 import cv2
 import os
 import argparse
 
+from huggingface_hub import hf_hub_download
+
 
 class VideoFireDetector:
     # Pretrained fire-detection YOLOv8 weights (fire / smoke classes)
-    MODEL_ID = "keremberke/yolov8n-fire-detection"
+    MODEL_ID = "SalahALHaismawi/yolov26-fire-detection"
 
     def __init__(self, video_dir: str, conf_threshold: float = 0.4):
-        self.model = YOLOvv26.from_pretrained("SalahALHaismawi/yolov26-fire-detection")
+        model_path = hf_hub_download(
+            repo_id=self.MODEL_ID, 
+            filename="best.pt"
+        )
+        self.model = YOLO(model_path)
         self.video_dir = video_dir
         self.conf_threshold = conf_threshold
         print("VideoFireDetector has been setup")
