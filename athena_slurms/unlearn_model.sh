@@ -40,7 +40,7 @@ mkdir -p "$OUTPUT_DIR"
 uv run unlearn_model.py \
     --model_id "${MODEL_ID:-THUDM/CogVideoX-5b}" \
     --prompts_path "${PROMPTS_PATH:-prompts/cogvideox_fire.csv}" \
-    --control_concept_prompts "${CONTROL_RELATED_PROMPTS:-prompts/cogvideox_fire_control_fire.txt}" \
+    --control_concept_prompts "${CONTROL_CONCEPT_PROMPTS:-prompts/cogvideox_fire_control_fire.txt}" \
     --control_related_prompts "${CONTROL_RELATED_PROMPTS:-prompts/cogvideox_fire_control_related.txt}" \
     --control_unrelated_prompts "${CONTROL_UNRELATED_PROMPTS:-prompts/cogvideox_fire_control_unrelated.txt}" \
     --lora_rank "${LORA_RANK:-8}" \
