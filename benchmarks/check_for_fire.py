@@ -1,4 +1,4 @@
-from ultralytics import YOLO
+from ultralytics import YOLOvv26
 import cv2
 import os
 import argparse
@@ -9,7 +9,7 @@ class VideoFireDetector:
     MODEL_ID = "keremberke/yolov8n-fire-detection"
 
     def __init__(self, video_dir: str, conf_threshold: float = 0.4):
-        self.model = YOLO(self.MODEL_ID)
+        self.model = YOLOvv26.from_pretrained("SalahALHaismawi/yolov26-fire-detection")
         self.video_dir = video_dir
         self.conf_threshold = conf_threshold
         print("VideoFireDetector has been setup")

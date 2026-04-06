@@ -34,9 +34,9 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
 
     prompt_sets = {
-        "concept": random.sample(concept_prompts, min(config.eval_num_prompts, len(concept_prompts))),
-        "related": random.sample(related_prompts, min(config.eval_num_prompts, len(related_prompts))),
-        "unrelated": random.sample(unrelated_prompts, min(config.eval_num_prompts, len(unrelated_prompts))),
+        "concept": concept_prompts[:config.eval_num_prompts],
+        "related": related_prompts[:config.eval_num_prompts],
+        "unrelated": unrelated_prompts[:config.eval_num_prompts],
     }
 
     with torch.no_grad():
@@ -109,7 +109,7 @@ def main(config: Config):
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
-    parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_fire.csv")
+    parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_fire_control_fire.csv")
     parser.add_argument("--control_related_prompts", type=str, default="prompts/cogvideox_fire_control_related.txt")
     parser.add_argument("--control_unrelated_prompts", type=str, default="prompts/cogvideox_fire_control_unrelated.txt")
     parser.add_argument("--output_dir", type=str, default=".")
