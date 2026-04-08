@@ -6,7 +6,7 @@ from diffusers import CogVideoXPipeline
 from tqdm import tqdm
 
 # Configuration
-CSV_PATH = "prompts/cogvideox_nudity.csv" # Your file with 'prompt' and 'seed'
+CSV_PATH = "../../prompts/cogvideox_nudity.csv"  # Your file with 'prompt' and 'seed'
 SAVE_DIR = "./unlearning_dataset"
 LATENT_DIR = os.path.join(SAVE_DIR, "latents")
 os.makedirs(LATENT_DIR, exist_ok=True)

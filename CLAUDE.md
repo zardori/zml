@@ -4,96 +4,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. Currently, specifically tries erasing nudity concepts using the ESD (Erased Stable Diffusion) method with LoRA fine-tuning. The real challenge is to erase the target concept without harming the model's performance. Experiments are run on PLGrid HPC infrastructure via SLURM. 
+The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. Previously we tried to erase the "nudity" concept, now we focus on the "fire" concept. The real challenge is to erase the target concept without harming the model's performance. The project uses python 3.12 and uv for python packages. Experiments are run on PLGrid HPC infrastructure athena cluster via SLURM.
 
-## Environment Setup
-
-```bash
-# Install dependencies using uv
-uv sync
-
-# Or with pip
-pip install -r requirements.txt
+## Desired Repository Structure
+```
+zml/
+├── zml/                       # shared "library" code
+│   ├── unlearn/               # scripts for unlearning
+│   ├── precompute/            # scripts for precomputing latents used in unlearning
+│   └── eval/                  # scripts and utils for evaluation
+├── experiments/               # one folder per experiment run
+│   ├── exp001_esd_nudity/
+│   │   ├── config.yaml        # hyperparameters, dataset info, etc.
+│   │   ├── results            # generated videos, evaluation outputs, etc.
+│   │   └── notes.md           # what was tried, what happened
+│   ├── exp002_esd_fire_lora8/
+│   └── ...
+├── scripts/                   # thin generic entrypoints (call zml/)
+│   ├── unlearn.py
+│   ├── precompute.py
+│   └── eval.py
+├── slurm/                     # generic SLURM templates
+│   ├── unlearn.sh
+│   ├── precompute.sh
+│   └── eval.sh
+└── prompts/                   # prompts used in experiments
 ```
 
-Python 3.12 is required (see `.python-version`).
+### Desired Research Workflow
 
-## Running Scripts
+1. **Prepare Unlearning methods** (`zml/unlearn`): Add code for different unlearning methods there.
+2. **Prepare Evaluation methods** (`zml/eval`): Prepare code for different evaluation methods there. Some functions from here should be used during unlearning for live evaluation.
+3. **Prepare Precompute methods** (optional) (`zml/precompute`): If we can speed up unlearning, by precomputing some latents or other intermediate results, we add code here.
+4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
+5. **Prepare SLURM templates** (`slurm/`): These should be generic templetes, one for each type of task. They should call thin entrypoints.
+6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. Generate new prompt sets if needed.
+7. **Run experiments** (`submit_to_athena.sh`): Run experiments on athena cluster. Pass proper slurm script and config file as arguments to the script. (for now claude should not submit any jobs by itself, project owners will do it manually)
+8. **Collect results** (`pull_from_athena.sh`): Run to download results from athena cluster.
+9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 
-All main scripts are at the repository root and accept CLI arguments:
+### Current state
+We made some experiments using `zml/unlearn/unlearn_model.py` and `zml/unlearn/unlearn_with_precomputed_latents.py`, we tried to erase the "nudity" concept, but the results were not good – the model was failing to forget the concept or was breaking on unrelated prompts. We thought that maybe the "fire" concept would be easier to erase, because it is better defined. However, the results were similar.
 
-```bash
-# Generate videos with the base (unmodified) model
-python generate_with_baseline.py --prompts_file prompts/our_promptset.txt --output_dir outputs/baseline --num_inference_steps 50 --seed 42
-
-# Generate videos with a fine-tuned LoRA model
-python generate_with_finetunned.py --model_checkpoint checkpoints/step_200 --prompts_file prompts/our_promptset.txt --output_dir outputs/finetuned --limit_prompts 10
-
-# Run unlearning (basic ESD)
-python unlearn_model.py
-
-# Run unlearning with concept preservation
-python unlearn_model_preserve.py
-
-# Run unlearning with pre-computed latents
-python unlearn_with_precomputed_latents.py
-
-# Pre-compute latent trajectories for training
-python generate_data.py
-
-# Check for nudity in generated videos
-python benchmarks/check_for_nudity.py
-```
-
-## Submitting SLURM Jobs (PLGrid/Athena)
-
-SLURM scripts are in `athena_slurms/`. Use `sbatch` to submit:
-
-```bash
-sbatch athena_slurms/unlearn_model.sh
-sbatch athena_slurms/generate_baseline_with_seeds.sh
-sbatch athena_slurms/generate_finetuned_with_seeds.sh   # array job over checkpoints
-sbatch athena_slurms/unlearn_model_gridsearch.sh        # hyperparameter sweep (6 configs)
-sbatch athena_slurms/unlearn_with_precomputed_latents.sh
-```
-
-## Architecture
-
-### Core Workflow
-
-1. **Data prep** (`generate_data.py`): Loads prompts, encodes with CogVideoX-5b, saves latent trajectories at each diffusion timestep + metadata JSON. Enables efficient training without re-encoding.
-
-2. **Unlearning** (multiple scripts): Loads CogVideoX-5b transformer, injects LoRA adapters via PEFT, runs ESD training loop:
-   - Unconditional noise prediction (teacher)
-   - Concept noise prediction (to erase)
-   - Optional: preservation prediction to maintain other capabilities
-   - Saves LoRA checkpoints every 200 steps to `checkpoints/`
-
-3. **Generation** (`generate_with_baseline.py`, `generate_with_finetunned.py`): Loads prompts from CSV or TXT, generates MP4 videos, saves to output directory named after the task.
-
-4. **Evaluation** (`benchmarks/check_for_nudity.py`): Uses NudeNet to detect nudity across video frames, computes normalized detection rates. Also uses VBench prompts from `prompts/vbench_prompts/`.
-
-### Unlearning Script Variants
-
-| Script | Description |
-|--------|-------------|
-| `unlearn_model.py` | Basic ESD with LoRA |
-| `unlearn_model_preserve.py` | ESD + concept preservation loss |
-| `unlearn_with_precomputed_latents.py` | Uses pre-computed latents; supports `uniform` and `weighted` (temperature-based) timestep sampling strategies |
-
-### Key Parameters
-
-- **Base model**: `THUDM/CogVideoX-5b` (transformer)
-- **LoRA rank/alpha**: grid-searched over `[8, 12]`
-- **Negative guidance scale**: grid-searched over `[2.0, 4.0, 6.0]`
-- **Checkpoint interval**: every 200 training steps
-- **HPC resources**: 1× A100 GPU, 128 GB RAM, 16 CPUs, 8–14h wall-time
-
-### Directory Conventions
-
-- `outputs/` — generated videos (gitignored), subdirectory name matches the task/run
-- `checkpoints/` — saved LoRA adapters (gitignored)
-- `logs/` — SLURM job logs (gitignored)
-- `prompts/` — prompt CSV/TXT files used for generation and training
-- `athena_slurms/` — SLURM job scripts for HPC
-- `benchmarks/` — evaluation utilities
+Before further research we decided to reorganize the repository to make it easier to work. We moved some code, but still need to add new slurms and thin entrypoints, as well as establish new experiment config scheme and scripts for comunication with athena.

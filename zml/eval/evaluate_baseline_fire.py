@@ -3,15 +3,9 @@ import sys
 from argparse import ArgumentParser
 
 import torch
-import torch.nn.functional as F
-from diffusers import CogVideoXPipeline, CogVideoXDDIMScheduler
-from diffusers.models.embeddings import get_3d_rotary_pos_embed
-from peft import LoraConfig, get_peft_model, PeftModel
-from tqdm.auto import tqdm
-import gc
+from diffusers import CogVideoXPipeline
 from diffusers.utils import export_to_video
 import pandas as pd
-import random
 import json
 from dataclasses import dataclass
 
@@ -28,7 +22,7 @@ class Config:
 
 def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, unrelated_prompts):
     sys.path.insert(0, os.path.dirname(__file__))
-    from benchmarks.check_for_fire import VideoFireDetector
+    from zml.benchmarks.check_for_fire import VideoFireDetector
 
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
