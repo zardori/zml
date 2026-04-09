@@ -1,4 +1,6 @@
 import os
+import sys
+from argparse import ArgumentParser
 
 import torch
 import torch.nn.functional as F
@@ -31,6 +33,7 @@ class Config:
 
 
 def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, unrelated_prompts):
+    sys.path.insert(0, os.path.dirname(__file__))
     from zml.benchmarks.check_for_fire import VideoFireDetector
 
     transformer.eval()
@@ -236,3 +239,23 @@ def main(config: Config):
 
     print("Training Complete.")
 
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
+    parser.add_argument("--prompts_path", type=str, default="prompts/cogvideox_fire.csv")
+    parser.add_argument("--control_concept_prompts", type=str, default="prompts/cogvideox_fire_control_fire.txt")
+    parser.add_argument("--control_related_prompts", type=str, default="prompts/cogvideox_fire_control_related.txt")
+    parser.add_argument("--control_unrelated_prompts", type=str, default="prompts/cogvideox_fire_control_unrelated.txt")
+    parser.add_argument("--lora_rank", type=int, default=8)
+    parser.add_argument("--lora_alpha", type=float, default=8.0)
+    parser.add_argument("--negative_guidance_scale", type=float, default=2.0)
+    parser.add_argument("--steps", type=int, default=1000)
+    parser.add_argument("--save_interval", type=int, default=200)
+    parser.add_argument("--learning_rate", type=float, default=1e-3)
+    parser.add_argument("--lora_dropout", type=float, default=0.0)
+    parser.add_argument("--output_dir", type=str, default=".")
+    parser.add_argument("--eval_num_prompts", type=int, default=3)
+    parser.add_argument("--eval_inference_steps", type=int, default=50)
+    args = parser.parse_args()
+    config = Config(**vars(args))
+    main(config)
