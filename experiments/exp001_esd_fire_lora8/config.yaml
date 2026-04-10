@@ -8,7 +8,7 @@ lora_alpha: 8.0
 negative_guidance_scale: 2.0
 steps: 1000
 save_interval: 200
-learning_rate: 0.001
+learning_rate: 0.0002
 lora_dropout: 0.0
 eval_num_prompts: 3
 eval_inference_steps: 50
