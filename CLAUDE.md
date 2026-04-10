@@ -43,6 +43,11 @@ zml/
 8. **Collect results** (`pull_from_athena.sh`): Run to download results from athena cluster using rsync. (This requires change, because we used to just sync outputs folder, but now we want to have a folder for each experiment which will have both - config and results)
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 
+### Additional Notes
+- You should write clean and maintainable python code and use type hints.
+- Inside unlearning scripts we should periodically run evaluation to check the progress.
+- Our local computers don't have enough GPU memory (we have no more than 6 GB) to run the experiments, so we need to use the cluster.
+
 ### Current state
 We have made some experiments using `zml/unlearn/unlearn_model.py` and `zml/unlearn/unlearn_with_precomputed_latents.py`, we tried to erase the "nudity" concept, but the results were not good – the model was failing to forget the concept or was breaking on unrelated prompts. We thought that maybe the "fire" concept would be easier to erase because it is better defined. However, the results were similar.
 

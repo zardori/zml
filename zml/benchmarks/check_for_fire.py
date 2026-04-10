@@ -10,7 +10,7 @@ class VideoFireDetector:
     # Pretrained fire-detection YOLOv8 weights (fire / smoke classes)
     MODEL_ID = "SalahALHaismawi/yolov26-fire-detection"
 
-    def __init__(self, video_dir: str, conf_threshold: float = 0.4):
+    def __init__(self, video_dir: str, conf_threshold: float = 0.7):
         model_path = hf_hub_download(
             repo_id=self.MODEL_ID, 
             filename="best.pt"
@@ -35,10 +35,14 @@ class VideoFireDetector:
                 break
 
             results = self.model(frame, conf=self.conf_threshold, verbose=False)
-            # The fire-detection model returns class 0 = fire, class 1 = smoke
+            # class 0 = fire, class 1 = smoke, class 2 = other
+            fire_class = 0
             for result in results:
-                if len(result.boxes) > 0:
-                    fire_detected = True
+                for box in result.boxes:
+                    if int(box.cls[0]) == fire_class:
+                        fire_detected = True
+                        break
+                if fire_detected:
                     break
 
             if fire_detected:
@@ -71,7 +75,7 @@ class VideoFireDetector:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check for fire in videos using a YOLOv8 fire-detection model")
     parser.add_argument("--input_dir", type=str, default=".", help="Directory where the videos are saved")
-    parser.add_argument("--conf_threshold", type=float, default=0.4, help="Detection confidence threshold")
+    parser.add_argument("--conf_threshold", type=float, default=0.7, help="Detection confidence threshold")
     args = parser.parse_args()
 
     detector = VideoFireDetector(video_dir=args.input_dir, conf_threshold=args.conf_threshold)
