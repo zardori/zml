@@ -9,26 +9,26 @@ The goal of this research project is to propose a method for effective concept u
 ## Desired Repository Structure
 ```
 zml/
-├── zml/                       # shared "library" code
-│   ├── unlearn/               # scripts for unlearning
-│   ├── precompute/            # scripts for precomputing latents used in unlearning
-│   └── eval/                  # scripts and utils for evaluation
-├── experiments/               # one folder per experiment run
-│   ├── exp001_esd_nudity/
-│   │   ├── config.yaml        # hyperparameters, dataset info, etc.
-│   │   ├── results            # generated videos, evaluation outputs, etc.
-│   │   └── notes.md           # what was tried, what happened
-│   ├── exp002_esd_fire_lora8/
-│   └── ...
-├── scripts/                   # thin generic entrypoints (call zml/)
-│   ├── unlearn.py
-│   ├── precompute.py
-│   └── eval.py
-├── slurm/                     # generic SLURM templates
-│   ├── unlearn.sh
-│   ├── precompute.sh
-│   └── eval.sh
-└── prompts/                   # prompts used in experiments
+├── zml/                         # shared "library" code
+│   ├── unlearn/                 # scripts for unlearning
+│   ├── precompute/              # scripts for precomputing latents used in unlearning
+│   └── eval/                    # scripts and utils for evaluation
+├── experiments/                 # one folder per experiment run
+│   ├── exp001_esd_nudity/       
+│   │   ├── config.yaml          # hyperparameters, dataset info, etc.
+│   │   ├── outputs_{TIMESTAMP}  # generated videos, evaluation results, etc.
+│   │   └── notes.md             # what was tried, what happened
+│   ├── exp002_esd_fire_lora8/   
+│   └── ...                      
+├── scripts/                     # thin generic entrypoints (call zml/)
+│   ├── unlearn.py               
+│   ├── precompute.py            
+│   └── eval.py                  
+├── slurm/                       # generic SLURM templates
+│   ├── unlearn.sh               
+│   ├── precompute.sh            
+│   └── eval.sh                  
+└── prompts/                     # prompts used in experiments
 ```
 
 ### Desired Research Workflow
