@@ -30,11 +30,6 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-EXP_DIR=$(dirname "${CONFIG:?CONFIG env var is required (e.g. experiments/exp001_esd_fire_lora8/config.yaml)}")
-OUTPUT_DIR="${EXP_DIR}/outputs_${TIMESTAMP}"
-mkdir -p "$OUTPUT_DIR"
-
 uv run scripts/unlearn.py \
     --config "$CONFIG" \
     --output_dir "$OUTPUT_DIR"
