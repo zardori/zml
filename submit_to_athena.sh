@@ -39,7 +39,10 @@ if [[ ${#WARNINGS[@]} -gt 0 ]]; then
     [[ $REPLY =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 fi
 
-SBATCH_CMD=(sbatch --export=ALL,"CONFIG=${CONFIG}" "${SLURM_SCRIPT}")
+EXP_DIR=$(dirname "${CONFIG:?CONFIG env var is required (e.g. experiments/exp001_esd_fire_lora8/config.yaml)}")
+LOGS_DIR="${EXP_DIR}/logs_${TIMESTAMP}"
+
+SBATCH_CMD=(sbatch --output="${LOGS_DIR}/unlearn_%j.out" --error="${LOGS_DIR}/unlearn_%j.err" --export=ALL,"CONFIG=${CONFIG}" "${SLURM_SCRIPT}")
 REMOTE_CMD=$(printf '%q ' "${SBATCH_CMD[@]}")
 
 echo "Submitting on Athena..."
