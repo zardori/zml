@@ -22,6 +22,7 @@ outputs/
 checkpoints/
 logs/
 experiments/*/outputs_*/
+experiments/*/logs_*/
 
 # Dataset
 unlearning_dataset
