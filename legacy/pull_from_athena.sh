@@ -2,8 +2,8 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--logs-only] [--include-adapters]"
-    echo "  --logs-only        Download only logs, skip experiment outputs"
+    echo "Usage: $0 [--logs-only] [--skip-adapters]"
+    echo "  --logs-only        Download only logs, skip outputs"
     echo "  --include-adapters Include .safetensors files when downloading outputs (excluded by default)"
     exit 1
 }
@@ -28,7 +28,7 @@ fi
 # shellcheck source=athena.conf.example
 source "$CONFIG_FILE"
 
-mkdir -p experiments logs
+mkdir -p outputs logs
 
 if [[ "$LOGS_ONLY" == false ]]; then
     RSYNC_OPTS=(-avz --progress)
@@ -36,12 +36,8 @@ if [[ "$LOGS_ONLY" == false ]]; then
         RSYNC_OPTS+=(--exclude='*.safetensors' --exclude='adapter_config.json')
         echo "Skipping adapter files (*.safetensors, adapter_config.json). Use --include-adapters to download them."
     fi
-
-    echo "Pulling experiment outputs from all members..."
-    for RDIR in "${REMOTE_DIRS[@]}"; do
-        echo "  <- ${ATHENA_HOST}:${RDIR}/experiments/"
-        rsync "${RSYNC_OPTS[@]}" "${ATHENA_HOST}:${RDIR}/experiments/" ./experiments/
-    done
+    echo "Pulling outputs..."
+    rsync "${RSYNC_OPTS[@]}" "${ATHENA_HOST}:${REMOTE_DIR}/outputs/" ./outputs/
 fi
 
 echo "Pulling logs..."

@@ -1,6 +1,6 @@
 import os
 
-file_path = "prompts/vbench_prompts/cogvideox_nudity.txt"
+file_path = "../prompts/vbench_prompts/cogvideox_nudity.txt"
 with open(file_path, 'r') as f:
     prompt_list = f.readlines()
     prompt_list = [prompt.strip() for prompt in prompt_list]

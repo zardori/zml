@@ -21,6 +21,7 @@ athena.conf
 outputs/
 checkpoints/
 logs/
+experiments/*/outputs_*/
 
 # Dataset
 unlearning_dataset
