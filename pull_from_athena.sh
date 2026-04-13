@@ -44,7 +44,4 @@ if [[ "$LOGS_ONLY" == false ]]; then
     done
 fi
 
-echo "Pulling logs..."
-rsync -avz --progress "${ATHENA_HOST}:${REMOTE_DIR}/logs/" ./logs/
-
 echo "Done."
