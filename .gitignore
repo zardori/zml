@@ -21,6 +21,7 @@ athena.conf
 outputs/
 checkpoints/
 logs/
+logs_*
 experiments/*/outputs_*/
 
 # Dataset
