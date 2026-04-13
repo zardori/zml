@@ -21,6 +21,7 @@ athena.conf
 outputs/
 checkpoints/
 logs/
+logs_*
 experiments/*/outputs_*/
 experiments/*/logs_*/
 
@@ -29,3 +30,7 @@ unlearning_dataset
 
 # macOS
 .DS_Store
+
+# local files
+*.local.*
+*.local

@@ -34,7 +34,7 @@ class Config:
 
 def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, unrelated_prompts):
     sys.path.insert(0, os.path.dirname(__file__))
-    from zml.benchmarks.check_for_fire import VideoFireDetector
+    from zml.eval.check_for_fire import VideoFireDetector
 
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
