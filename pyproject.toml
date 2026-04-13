@@ -20,6 +20,7 @@ dependencies = [
     "tqdm>=4.67.3",
     "transformers>=5.0.0",
     "ultralytics>=8.4.33",
+    "mlflow>=2.0.0",
 ]
 
 [tool.uv]

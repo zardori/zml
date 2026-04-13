@@ -25,6 +25,9 @@ logs_*
 experiments/*/outputs_*/
 experiments/*/logs_*/
 
+# MLflow tracking data
+mlruns/
+
 # Dataset
 unlearning_dataset
 

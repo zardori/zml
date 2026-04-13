@@ -44,4 +44,17 @@ if [[ "$LOGS_ONLY" == false ]]; then
     done
 fi
 
+echo "Pulling MLflow tracking data..."
+for RDIR in "${REMOTE_DIRS[@]}"; do
+    echo "  <- ${ATHENA_HOST}:${RDIR}/mlruns/"
+    rsync_exit=0
+    # Exit code 23 means partial transfer (e.g. source path missing) — safe to ignore
+    rsync -avz --progress "${ATHENA_HOST}:${RDIR}/mlruns/" ./mlruns/ || rsync_exit=$?
+    if [[ $rsync_exit -eq 23 ]]; then
+        echo "  (no mlruns/ on athena yet, skipping)"
+    elif [[ $rsync_exit -ne 0 ]]; then
+        exit $rsync_exit
+    fi
+done
+
 echo "Done."

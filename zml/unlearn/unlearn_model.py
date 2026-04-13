@@ -1,5 +1,6 @@
 import os
 
+import mlflow
 import torch
 import torch.nn.functional as F
 from diffusers import CogVideoXPipeline
@@ -68,6 +69,9 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"Eval step {step}: {metrics}")
+
+    for set_name, scores in metrics.items():
+        mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", scores["fire_detection_rate"], step=step)
 
     transformer.train()
     transformer.requires_grad_(False)
@@ -224,6 +228,7 @@ def main(config: Config):
         loss.backward()
         optimizer.step()
 
+        mlflow.log_metric("train/loss", loss.item(), step=step)
         pbar.set_description(f"Loss: {loss.item():.4f}")
 
         if (step + 1) % config.save_interval == 0:
