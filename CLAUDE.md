@@ -49,10 +49,4 @@ zml/
 - You should avoid using too long functions or loops. If some logic is easily separable, extract it to a smaller function. However, be sane and don't force breaking code into functions where it is not natural.
 - Inside unlearning scripts we should periodically run evaluation to check the progress.
 - Our local computers don't have enough GPU memory (we have no more than 6 GB) to run the experiments, so we need to use the cluster.
-
-### Current state
-We have made some experiments using `zml/unlearn/unlearn_model.py` and `zml/unlearn/unlearn_with_precomputed_latents.py`, we tried to erase the "nudity" concept, but the results were not good – the model was failing to forget the concept or was breaking on unrelated prompts. We thought that maybe the "fire" concept would be easier to erase because it is better defined. However, the results were similar.
-
-Before further research we decided to reorganize the repository to make it easier to work. We moved some code, but still need to add new slurms and thin entrypoints, as well as establish a new experiment config scheme and scripts for communication with athena.
-
-Your first task is to help us gradually reorganize the repository.
+- There are three people working on this project.
