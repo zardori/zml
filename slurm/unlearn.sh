@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:1
-#SBATCH --account=plgbcfg-gpu-a100
+#SBATCH --account=plgunhype-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --time=24:00:00
 
