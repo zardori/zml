@@ -46,7 +46,8 @@ zml/
 ### Additional Notes
 - You should write clean and maintainable python code and use type hints.
 - You should try to extract numeric constants to constants put at the top of the scripts, especially for values that need to be tuned
-- You should avoid using too long functions or loops. If some logic is easily separable, extract it to a smaller function. However, be sane and don't force breaking code into functions where it is not natural.
+- You should avoid using too long functions or loops. If some logic is easily separable, extract it to a smaller function or class. However, be sane and don't force breaking code into functions or classes where it is not natural.
+- It's usually better to pass and return dataclasses instead of dictionaries
 - Inside unlearning scripts we should periodically run evaluation to check the progress.
 - Our local computers don't have enough GPU memory (we have no more than 6 GB) to run the experiments, so we need to use the cluster.
 - There are three people working on this project.
