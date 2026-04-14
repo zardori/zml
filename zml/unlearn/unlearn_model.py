@@ -1,6 +1,7 @@
 import os
 
 import mlflow
+import numpy as np
 import torch
 import torch.nn.functional as F
 from diffusers import CogVideoXPipeline
@@ -63,7 +64,13 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
         video_dir = os.path.join(eval_root, set_name)
         fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
         clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
-        metrics[set_name] = {**fire_scores, **clip_scores}
+        clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
+        metrics[set_name] = {
+            **fire_scores,
+            "clip_scores": clip_scores,
+            "clip_score_mean": float(clip_arr.mean()),
+            "clip_score_std": float(clip_arr.std()),
+        }
 
     metrics_path = os.path.join(eval_root, "metrics.json")
     with open(metrics_path, "w") as f:

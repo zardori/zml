@@ -37,3 +37,6 @@ unlearning_dataset
 # local files
 *.local.*
 *.local
+
+# Sharing images with claude
+screenshots/

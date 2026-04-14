@@ -78,8 +78,8 @@ class VideoClipScorer:
         per_frame_scores = (image_features @ text_features.T).squeeze(-1)  # (N,)
         return per_frame_scores.mean().item()
 
-    def process_videos(self) -> dict[str, float]:
-        """Returns mean CLIP score over all videos in video_dir."""
+    def process_videos(self) -> list[float]:
+        """Returns per-video CLIP scores for all videos in video_dir."""
         video_files = sorted(
             [f for f in os.listdir(self.video_dir) if f.endswith((".mp4", ".avi", ".mov"))],
             key=lambda f: int(f.split("_")[1].split(".")[0]),
@@ -87,7 +87,7 @@ class VideoClipScorer:
 
         if not video_files:
             print(f"No video files found in {self.video_dir}")
-            return {"clip_score_mean": 0.0, "clip_score_std": 0.0, "total_videos": 0}
+            return []
 
         n = min(len(video_files), len(self.prompts))
         if n < len(video_files):
@@ -105,12 +105,7 @@ class VideoClipScorer:
             gc.collect()
             torch.cuda.empty_cache()
 
-        scores_arr = np.array(scores)
-        return {
-            "clip_score_mean": float(scores_arr.mean()),
-            "clip_score_std": float(scores_arr.std()),
-            "total_videos": n,
-        }
+        return scores
 
 
 if __name__ == "__main__":
@@ -130,5 +125,7 @@ if __name__ == "__main__":
         num_frames=args.num_frames,
         device=args.device,
     )
-    result = scorer.process_videos()
-    print(result)
+    scores = scorer.process_videos()
+    if scores:
+        arr = np.array(scores)
+        print({"scores": scores, "mean": float(arr.mean()), "std": float(arr.std())})
