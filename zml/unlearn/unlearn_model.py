@@ -1,6 +1,7 @@
 import os
 
 import mlflow
+import numpy as np
 import torch
 import torch.nn.functional as F
 from diffusers import CogVideoXPipeline
@@ -11,6 +12,8 @@ import pandas as pd
 import random
 import json
 from dataclasses import dataclass
+from zml.eval.check_for_fire import VideoFireDetector
+from zml.eval.clip_score import VideoClipScorer
 
 @dataclass
 class Config:
@@ -32,8 +35,6 @@ class Config:
 
 
 def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, unrelated_prompts):
-    from zml.eval.check_for_fire import VideoFireDetector
-
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
 
@@ -59,11 +60,17 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
                 print(f"Saved eval video: {video_path}")
 
     metrics = {}
-    for set_name in prompt_sets:
+    for set_name, prompts in prompt_sets.items():
         video_dir = os.path.join(eval_root, set_name)
-        detector = VideoFireDetector(video_dir=video_dir)
-        scores = detector.process_videos()
-        metrics[set_name] = scores
+        fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
+        clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
+        clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
+        metrics[set_name] = {
+            **fire_scores,
+            "clip_scores": clip_scores,
+            "clip_score_mean": float(clip_arr.mean()),
+            "clip_score_std": float(clip_arr.std()),
+        }
 
     metrics_path = os.path.join(eval_root, "metrics.json")
     with open(metrics_path, "w") as f:
@@ -72,6 +79,7 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
 
     for set_name, scores in metrics.items():
         mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", scores["fire_detection_rate"], step=step)
+        mlflow.log_metric(f"eval/{set_name}_clip_score_mean", scores["clip_score_mean"], step=step)
 
     transformer.train()
     transformer.requires_grad_(False)
