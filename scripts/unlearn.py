@@ -16,8 +16,14 @@ if __name__ == "__main__":
     with open(args.config) as f:
         params = yaml.safe_load(f)
 
-    # Group runs by experiment folder name (e.g. exp002_esd_fire_lora8)
-    experiment_name = Path(args.config).parent.name
+    # Group runs by experiment folder name (e.g. exp002_esd_fire_lora8).
+    # For grid runs the config lives at experiments/exp/grid/run_001/config.yaml,
+    # so walk up past the grid/ level to get the experiment name.
+    config_path = Path(args.config)
+    if config_path.parent.parent.name == "grid":
+        experiment_name = config_path.parent.parent.parent.name
+    else:
+        experiment_name = config_path.parent.name
     mlflow.set_experiment(experiment_name)
 
     with mlflow.start_run():
