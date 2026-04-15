@@ -87,8 +87,8 @@ def submit_scalar(athena_host: str, remote_dir: str, slurm_script: str, config_p
     remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && git pull && {sbatch_cmd}"
     print(f"Submitting on Athena...")
     print(f"  Command: {sbatch_cmd}")
-    result = subprocess.run(["ssh", athena_host, remote_cmd], check=True, capture_output=True, text=True)
-    print(result.stdout.strip())
+    subprocess.run(["ssh", athena_host, remote_cmd], check=True)
+
 
 
 def _write_config_and_submit(
@@ -111,8 +111,7 @@ def _write_config_and_submit(
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && {write_cmd} && {sbatch_cmd}"
-    result = subprocess.run(["ssh", athena_host, remote_cmd], check=True, capture_output=True, text=True)
-    return result.stdout.strip()
+    subprocess.run(["ssh", athena_host, remote_cmd], check=True)
 
 
 def submit_grid(
