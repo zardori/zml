@@ -36,7 +36,8 @@ if __name__ == "__main__":
         mlflow.log_params(params)
         mlflow.log_artifact(args.config)
         wandb.init(
-            project="zml-unlearn",
+            project="zml",
+            entity="zardori-zml",
             name=experiment_name,
             config=params,
         )
