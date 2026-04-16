@@ -1,6 +1,7 @@
 import os
 
 import mlflow
+import wandb
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -80,6 +81,14 @@ def evaluate(pipe, transformer, config, step, concept_prompts, related_prompts, 
     for set_name, scores in metrics.items():
         mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", scores["fire_detection_rate"], step=step)
         mlflow.log_metric(f"eval/{set_name}_clip_score_mean", scores["clip_score_mean"], step=step)
+
+    wandb.log(
+        {f"eval/{set_name}_{k}": v
+         for set_name, scores in metrics.items()
+         for k, v in [("fire_detection_rate", scores["fire_detection_rate"]),
+                      ("clip_score_mean", scores["clip_score_mean"])]},
+        step=step,
+    )
 
     transformer.train()
     transformer.requires_grad_(False)
@@ -237,6 +246,7 @@ def main(config: Config):
         optimizer.step()
 
         mlflow.log_metric("train/loss", loss.item(), step=step)
+        wandb.log({"train/loss": loss.item()}, step=step)
         pbar.set_description(f"Loss: {loss.item():.4f}")
 
         if (step + 1) % config.save_interval == 0:
