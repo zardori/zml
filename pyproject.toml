@@ -21,14 +21,23 @@ dependencies = [
     "transformers>=5.0.0",
     "ultralytics>=8.4.33",
     "mlflow>=2.0.0",
+    "wandb>=0.19.0",
+    "dover @ git+https://github.com/QualityAssessment/DOVER.git",
+    "decord>=0.6.0",
 ]
 
 [tool.uv]
 package = true
+override-dependencies = [
+    "torch>=2.10.0",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["zml"]

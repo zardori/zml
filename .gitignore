@@ -28,6 +28,10 @@ experiments/*/grid/
 
 # MLflow tracking data
 mlruns/
+mlflow.db
+
+# wandb experiment tracking
+wandb/
 
 # Dataset
 unlearning_dataset

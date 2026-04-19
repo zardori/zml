@@ -14,11 +14,19 @@ zml/
 │   ├── precompute/              # scripts for precomputing latents used in unlearning
 │   └── eval/                    # scripts and utils for evaluation
 ├── experiments/                 # one folder per experiment run
-│   ├── exp001_esd_nudity/       
+│   ├── exp001_esd_nudity/        # single-run experiment
 │   │   ├── config.yaml          # hyperparameters, dataset info, etc.
 │   │   ├── outputs_{TIMESTAMP}  # generated videos, evaluation results, etc.
 │   │   └── notes.md             # what was tried, what happened
-│   ├── exp002_esd_fire_lora8/   
+│   ├── exp005_esd_fire_grid/     # grid-search experiment (alternative pattern)
+│   │   ├── config.yaml          # base config with list values for swept params
+│   │   └── grid/                # one subfolder per hyperparameter combination
+│   │       ├── run_001/
+│   │       │   ├── config.yaml  # concrete config for this run (all values scalar)
+│   │       │   ├── logs/        # SLURM stdout/stderr logs
+│   │       │   └── outputs/     # checkpoints and per-step eval results
+│   │       ├── run_002/
+│   │       └── ...
 │   └── ...                      
 ├── scripts/                     # thin generic entrypoints (call zml/)
 │   ├── unlearn.py               
