@@ -7,9 +7,9 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=128G
 #SBATCH --gres=gpu:1
-#SBATCH --account=plgbcfg-gpu-a100
+#SBATCH --account=plgunhype-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=8:00:00
+#SBATCH --time=12:00:00
 
 # From plg[nick] extract nick
 CUT_USER=${USER:3}
@@ -46,13 +46,15 @@ export OUTPUT_DIR=outputs/experiment_baseline_${TIMESTAMP}
 mkdir -p "$OUTPUT_DIR"
 
 # Specify parameters for generation
-SEEDED_PROMPT_FILE=prompts/cogvideox_nudity.csv
+SEEDED_PROMPT_FILE=prompts/cogvideox_fire.csv
 NUM_FRAMES=49
-NUM_STEPS=30
+NUM_STEPS=60
 GUIDANCE_SCALE=6.0
 FPS=8
 
-python generate_with_baseline.py \
+pwd
+
+python zml/eval/generate_with_baseline.py \
     --output_dir "$OUTPUT_DIR" \
     --seeded_prompt_file "$SEEDED_PROMPT_FILE" \
     --num_frames $NUM_FRAMES \
