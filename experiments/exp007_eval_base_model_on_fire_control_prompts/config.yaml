@@ -1,0 +1,7 @@
+model_id: THUDM/CogVideoX-5b
+lora_checkpoint_dir: null
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+eval_inference_steps: 50
+
