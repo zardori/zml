@@ -17,13 +17,25 @@ from zml.eval.dover_scorer import VideoDoverScorer
 @dataclass
 class Config:
     model_id: str
-    control_concept_prompts: str  # CSV: prompt,seed columns
-    control_related_prompts: str  # CSV: prompt,seed columns
-    control_unrelated_prompts: str  # CSV: prompt,seed columns
     output_dir: str
-    eval_num_prompts: int
     eval_inference_steps: int
+    eval_num_prompts: int | None = None  # None means use all prompts
     lora_checkpoint_dir: str | None = None
+    # Generic single-set evaluation; appears under the key "prompts" in metrics.
+    prompts_path: str | None = None
+    # Named subsets — any combination is valid, each appears under its own key.
+    control_concept_prompts: str | None = None
+    control_related_prompts: str | None = None
+    control_unrelated_prompts: str | None = None
+
+    def __post_init__(self) -> None:
+        if not any([
+            self.prompts_path,
+            self.control_concept_prompts,
+            self.control_related_prompts,
+            self.control_unrelated_prompts,
+        ]):
+            raise ValueError("At least one prompt CSV must be provided.")
 
 
 def _load_prompts_csv(path: str) -> tuple[list[str], list[int]]:
@@ -76,9 +88,18 @@ def _score_videos(video_dir: str, prompts: list[str]) -> dict:
 
 
 def main(config: Config) -> dict:
-    concept_prompts, concept_seeds = _load_prompts_csv(config.control_concept_prompts)
-    related_prompts, related_seeds = _load_prompts_csv(config.control_related_prompts)
-    unrelated_prompts, unrelated_seeds = _load_prompts_csv(config.control_unrelated_prompts)
+    csv_sources = {
+        "prompts": config.prompts_path,
+        "concept": config.control_concept_prompts,
+        "related": config.control_related_prompts,
+        "unrelated": config.control_unrelated_prompts,
+    }
+    prompt_sets: dict[str, tuple[list[str], list[int]]] = {}
+    for name, path in csv_sources.items():
+        if path is not None:
+            prompts, seeds = _load_prompts_csv(path)
+            n = config.eval_num_prompts
+            prompt_sets[name] = (prompts[:n], seeds[:n])
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=torch.bfloat16).to(device)
@@ -90,13 +111,6 @@ def main(config: Config) -> dict:
         print(f"Loaded LoRA checkpoint from {config.lora_checkpoint_dir}")
 
     pipe.transformer.eval()
-
-    n = config.eval_num_prompts
-    prompt_sets = {
-        "concept": (concept_prompts[:n], concept_seeds[:n]),
-        "related": (related_prompts[:n], related_seeds[:n]),
-        "unrelated": (unrelated_prompts[:n], unrelated_seeds[:n]),
-    }
 
     os.makedirs(config.output_dir, exist_ok=True)
     metrics = {}
