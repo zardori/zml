@@ -5,7 +5,17 @@ import mlflow
 import wandb
 import yaml
 
-from zml.unlearn.unlearn_model import Config, main
+
+METHODS = {
+    "esd": "zml.unlearn.unlearn_model",
+    "esd_preservation": "zml.unlearn.esd_with_preservation",
+}
+
+
+def _load_method(method: str):
+    import importlib
+    module = importlib.import_module(METHODS[method])
+    return module.Config, module.main
 
 
 if __name__ == "__main__":
@@ -16,6 +26,10 @@ if __name__ == "__main__":
 
     with open(args.config) as f:
         params = yaml.safe_load(f)
+
+    method = params.pop("method", "esd")
+    if method not in METHODS:
+        raise ValueError(f"Unknown method '{method}'. Valid options: {list(METHODS)}")
 
     # Group runs by experiment folder name (e.g. exp002_esd_fire_lora8).
     # For grid runs the config lives at experiments/exp/grid/run_001/config.yaml,
@@ -32,14 +46,16 @@ if __name__ == "__main__":
     mlflow.set_tracking_uri("mlruns")
     mlflow.set_experiment(experiment_name)
 
+    Config, main = _load_method(method)
+
     with mlflow.start_run():
-        mlflow.log_params(params)
+        mlflow.log_params({**params, "method": method})
         mlflow.log_artifact(args.config)
         wandb.init(
             project="zml",
             entity="zardori-zml",
             name=experiment_name,
-            config=params,
+            config={**params, "method": method},
         )
         wandb.save(args.config)
         config = Config(**params, output_dir=args.output_dir)
