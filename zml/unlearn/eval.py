@@ -13,6 +13,16 @@ from zml.eval.clip_score import VideoClipScorer
 from zml.eval.dover_scorer import VideoDoverScorer
 
 
+def _round_metrics(obj: object, ndigits: int = 2) -> object:
+    if isinstance(obj, float):
+        return round(obj, ndigits)
+    if isinstance(obj, list):
+        return [_round_metrics(v, ndigits) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _round_metrics(v, ndigits) for k, v in obj.items()}
+    return obj
+
+
 class EvalConfig(Protocol):
     output_dir: str
     eval_num_prompts: int
@@ -76,20 +86,21 @@ def evaluate(
             "dover_aesthetic_std": float(aes_arr.std()),
         }
 
+    rounded_metrics = _round_metrics(metrics)
     metrics_path = os.path.join(eval_root, "metrics.json")
     with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
-    print(f"Eval step {step}: {metrics}")
+        json.dump(rounded_metrics, f, indent=2)
+    print(f"Eval step {step}: {rounded_metrics}")
 
     for set_name, scores in metrics.items():
-        mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", scores["fire_detection_rate"], step=step)
-        mlflow.log_metric(f"eval/{set_name}_clip_score_mean", scores["clip_score_mean"], step=step)
-        mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", scores["dover_technical_mean"], step=step)
-        mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", scores["dover_aesthetic_mean"], step=step)
+        mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
+        mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
+        mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
+        mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
 
     wandb.log(
         {
-            f"eval/{set_name}_{k}": v
+            f"eval/{set_name}_{k}": round(v, 2)
             for set_name, scores in metrics.items()
             for k, v in [
                 ("fire_detection_rate", scores["fire_detection_rate"]),
