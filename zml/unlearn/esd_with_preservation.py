@@ -21,7 +21,7 @@ class Config:
     control_concept_prompts: str
     control_related_prompts: str
     control_unrelated_prompts: str
-    preservation_prompts_paths: list[str]
+    preservation_prompts_path: str
     preservation_weight: float
     lora_rank: int
     lora_alpha: float
@@ -41,16 +41,12 @@ def _load_prompts_from_file(path: str) -> list[str]:
 
 
 def main(config: Config) -> None:
-    data = pd.read_csv(config.prompts_path)
-    concept_prompts = data["prompt"].tolist()
-
     control_concept_prompts = _load_prompts_from_file(config.control_concept_prompts)
     control_related_prompts = _load_prompts_from_file(config.control_related_prompts)
     control_unrelated_prompts = _load_prompts_from_file(config.control_unrelated_prompts)
 
-    preservation_prompts: list[str] = []
-    for path in config.preservation_prompts_paths:
-        preservation_prompts.extend(_load_prompts_from_file(path))
+    concept_prompts = pd.read_csv(config.prompts_path)["prompt"].tolist()
+    preservation_prompts = pd.read_csv(config.preservation_prompts_path)["prompt"].tolist()
 
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     DTYPE = torch.bfloat16
