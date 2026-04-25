@@ -123,7 +123,8 @@ def submit_grid(
 ) -> None:
     combos = expand_grid(config)
     exp_dir = str(Path(config_path).parent)
-    grid_base = f"{exp_dir}/grid"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    grid_base = f"{exp_dir}/grid_{timestamp}"
     grid_keys = [k for k, v in config.items() if isinstance(v, list)]
 
     print(f"Grid search: {len(combos)} runs (Cartesian product of: {', '.join(grid_keys)})")

@@ -1,5 +1,5 @@
 model_id: THUDM/CogVideoX-5b
-prompts_path: prompts/cogvideox_fire.csv
+prompts_path: prompts/cogvideox_fire_100.csv
 control_concept_prompts: prompts/cogvideox_fire_control_fire.txt
 control_related_prompts: prompts/cogvideox_fire_control_related.txt
 control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.txt
