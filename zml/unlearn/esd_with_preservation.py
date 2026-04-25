@@ -12,6 +12,7 @@ from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
 from zml.unlearn.eval import evaluate
+from zml.utils import set_seed
 
 
 @dataclass
@@ -33,6 +34,7 @@ class Config:
     output_dir: str
     eval_num_prompts: int
     eval_inference_steps: int
+    global_seed: int | None = None
 
 
 def _load_prompts_from_file(path: str) -> list[str]:
@@ -41,6 +43,9 @@ def _load_prompts_from_file(path: str) -> list[str]:
 
 
 def main(config: Config) -> None:
+    if config.global_seed is not None:
+        set_seed(config.global_seed)
+
     control_concept_prompts = _load_prompts_from_file(config.control_concept_prompts)
     control_related_prompts = _load_prompts_from_file(config.control_related_prompts)
     control_unrelated_prompts = _load_prompts_from_file(config.control_unrelated_prompts)

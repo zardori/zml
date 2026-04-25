@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 import pandas as pd
 
 from zml.unlearn.eval import evaluate
+from zml.utils import set_seed
 
 @dataclass
 class Config:
@@ -30,10 +31,13 @@ class Config:
     output_dir: str
     eval_num_prompts: int
     eval_inference_steps: int
-
+    global_seed: int | None = None
 
 
 def main(config: Config):
+    if config.global_seed is not None:
+        set_seed(config.global_seed)
+
     data = pd.read_csv(config.prompts_path)
     CONCEPT_PROMPTS = data["prompt"].tolist()
 
