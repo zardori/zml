@@ -31,7 +31,7 @@ export DIFFUSERS_CACHE=$HF_HOME
 # -------------------------
 # Define output directory
 # -------------------------
-export INPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/finetunned_v2_cog/finetunned_v2_cog_outputs_our_promptset
+export INPUT_DIR=$PLG_GROUPS_STORAGE/plggtriplane/poblos/zml/outputs/experiment_baseline_20260416_085008
 mkdir -p $INPUT_DIR
 
 # -------------------------

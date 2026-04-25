@@ -37,6 +37,7 @@ def evaluate(
     concept_prompts: list[str],
     related_prompts: list[str],
     unrelated_prompts: list[str],
+    anchor_prompts: list[str],
 ) -> None:
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
@@ -45,6 +46,7 @@ def evaluate(
         "concept": concept_prompts[: config.eval_num_prompts],
         "related": related_prompts[: config.eval_num_prompts],
         "unrelated": unrelated_prompts[: config.eval_num_prompts],
+        "anchor": anchor_prompts[: config.eval_num_prompts],
     }
 
     with torch.no_grad():
