@@ -9,6 +9,7 @@ import yaml
 METHODS = {
     "esd": "zml.unlearn.unlearn_model",
     "esd_preservation": "zml.unlearn.esd_with_preservation",
+    "esd_preservation_anchor": "zml.unlearn.esd_with_preservation_and_anchor",
 }
 
 
