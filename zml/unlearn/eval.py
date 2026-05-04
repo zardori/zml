@@ -44,12 +44,12 @@ def evaluate(
 
     prompt_sets = {
         "concept": concept_prompts[: config.eval_num_prompts],
-        "related": related_prompts[: config.eval_num_prompts],
+        # "related": related_prompts[: config.eval_num_prompts],
         "unrelated": unrelated_prompts[: config.eval_num_prompts],
         "anchor": anchor_prompts[: config.eval_num_prompts],
     } if anchor_prompts else {
         "concept": concept_prompts[: config.eval_num_prompts],
-        "related": related_prompts[: config.eval_num_prompts],
+        # "related": related_prompts[: config.eval_num_prompts],
         "unrelated": unrelated_prompts[: config.eval_num_prompts],
     }
 
