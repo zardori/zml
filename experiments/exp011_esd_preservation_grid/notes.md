@@ -1,0 +1,1 @@
+Większość rozjebanych (albo oba rozjebane, albo ogień został), 11 najlepsze (ogień rozjebany, unrelated delikatnie popsute), części runów brakuje bo się wywaliły
