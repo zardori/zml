@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --account=plgunhype-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
-#SBATCH --time=1-8:00:00
+#SBATCH --time=2-0:00:00
 
 module load CUDA/12.0.0
 
