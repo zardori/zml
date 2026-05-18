@@ -4,8 +4,6 @@ prompts_path: prompts/cogvideox_fire_100.csv
 control_concept_prompts: prompts/cogvideox_fire_control_fire.txt
 control_related_prompts: prompts/cogvideox_fire_control_related.txt
 control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.txt
-preservation_prompts_path: prompts/cogvideox_fire_preservation.csv
-preservation_weight: 1.0
 lora_rank: 8
 lora_alpha: 8.0
 steps: 1000
