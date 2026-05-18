@@ -4,9 +4,7 @@ prompts_path: prompts/cogvideox_fire_100.csv
 control_concept_prompts: prompts/cogvideox_fire_control_fire.txt
 control_related_prompts: prompts/cogvideox_fire_control_related.txt
 control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.txt
-control_anchor_prompts: prompts/cogvideox_fire_control_anchor.txt
 preservation_prompts_path: prompts/cogvideox_fire_preservation.csv
-anchor_prompts_path: prompts/cogvideox_fire_anchor.csv
 preservation_weight: 1.0
 lora_rank: 8
 lora_alpha: 8.0
@@ -17,3 +15,4 @@ eval_num_prompts: 5
 eval_inference_steps: 50
 negative_guidance_scale: [0.5, 1.0, 1.5, 2.0]
 learning_rate: [0.0002, 0.0005, 0.001]
+global_seed: 42
