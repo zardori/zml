@@ -47,7 +47,7 @@ zml/
 4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
 5. **Prepare SLURM templates** (`slurm/`): These should be generic templetes, one for each type of task. They should call thin entrypoints.
 6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed.
-7. **Run experiments** (`submit_to_athena.sh`): Run experiments on athena cluster. Pass proper slurm script and config file as arguments to the script. The script works by running git pull on athena, so ensure that all necessary content is committed. (for now claude should not submit any jobs by itself, project owners will do it manually)
+7. **Run experiments** (`submit_to_athena.py`): Run experiments on athena cluster. Pass proper slurm script and config file as arguments to the script. The script works by running git pull on athena, so ensure that all necessary content is committed. (for now claude should not submit any jobs by itself, project owners will do it manually)
 8. **Collect results** (`pull_from_athena.sh`): Run to download results from athena cluster using rsync. (This requires change, because we used to just sync outputs folder, but now we want to have a folder for each experiment which will have both - config and results)
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 

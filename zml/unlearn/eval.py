@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Protocol
+from typing import Callable, Protocol
 
 import mlflow
 import numpy as np
@@ -38,7 +38,9 @@ def evaluate(
     related_prompts: list[str],
     unrelated_prompts: list[str],
     anchor_prompts: list[str] | None = None,
+    prepare_for_prompt: Callable[[str], None] | None = None,
 ) -> None:
+    was_training = transformer.training
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
 
@@ -58,6 +60,8 @@ def evaluate(
             video_dir = os.path.join(eval_root, set_name)
             os.makedirs(video_dir, exist_ok=True)
             for i, prompt in enumerate(prompts):
+                if prepare_for_prompt is not None:
+                    prepare_for_prompt(prompt)
                 result = pipe(
                     prompt=prompt,
                     num_frames=49,
@@ -118,5 +122,6 @@ def evaluate(
         step=step,
     )
 
-    transformer.train()
+    if was_training:
+        transformer.train()
     transformer.requires_grad_(False)

@@ -46,3 +46,6 @@ unlearning_dataset
 
 # Sharing images with claude
 screenshots/
+
+# Other
+*.pdf
