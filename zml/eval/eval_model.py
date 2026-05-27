@@ -11,7 +11,7 @@ from peft import PeftModel
 
 from zml.eval.check_for_fire import VideoFireDetector
 from zml.eval.clip_score import VideoClipScorer
-from zml.eval.dover_scorer import VideoDoverScorer
+#from zml.eval.dover_scorer import VideoDoverScorer
 
 
 @dataclass
@@ -67,23 +67,23 @@ def _generate_videos(
 def _score_videos(video_dir: str, prompts: list[str]) -> dict:
     fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
     clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
-    dover_scores = VideoDoverScorer(video_dir=video_dir).process_videos()
+    # dover_scores = VideoDoverScorer(video_dir=video_dir).process_videos()
 
     clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
-    tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
-    aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
+    # tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
+    # aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
 
     return {
         **fire_scores,
         "clip_scores": clip_scores,
         "clip_score_mean": float(clip_arr.mean()),
         "clip_score_std": float(clip_arr.std()),
-        "dover_technical_scores": dover_scores["technical"],
-        "dover_technical_mean": float(tech_arr.mean()),
-        "dover_technical_std": float(tech_arr.std()),
-        "dover_aesthetic_scores": dover_scores["aesthetic"],
-        "dover_aesthetic_mean": float(aes_arr.mean()),
-        "dover_aesthetic_std": float(aes_arr.std()),
+        #"dover_technical_scores": dover_scores["technical"],
+        #"dover_technical_mean": float(tech_arr.mean()),
+        #"dover_technical_std": float(tech_arr.std()),
+        #"dover_aesthetic_scores": dover_scores["aesthetic"],
+        #"dover_aesthetic_mean": float(aes_arr.mean()),
+        #"dover_aesthetic_std": float(aes_arr.std()),
     }
 
 

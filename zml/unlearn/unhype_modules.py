@@ -158,7 +158,7 @@ class Hypernetwork(nn.Module):
         lora_shapes: list[LoRAShape],
         rank: int,
         hidden_dim: int = 512,
-        num_layers: int = 2,
+        num_layers: int = 0,
         step_embedding_dim: int = 128,
         max_step: int = 50,
     ) -> None:

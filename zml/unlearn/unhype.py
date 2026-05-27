@@ -164,10 +164,11 @@ def main(config: Config) -> None:
     print("Starting UnHype training...")
     pbar = tqdm(range(config.steps))
     for step in pbar:
+        print(step)
         target_prompt, mapping_prompt = random.choice(target_mapping)
         retain_prompt = random.choice(retain_prompts)
         s = random.randint(0, S - 1)
-
+        print(progress := f"Step {step + 1}/{config.steps}, s={s}, target='{target_prompt}', mapping='{mapping_prompt}', retain='{retain_prompt}'")
         c_target_clip = encode_clip(target_prompt)
         c_retain_clip = encode_clip(retain_prompt)
 
@@ -185,6 +186,7 @@ def main(config: Config) -> None:
         timesteps = t.unsqueeze(0).expand(BATCH_SIZE).to(device)
         latents = torch.randn(latent_shape, device=device, dtype=dtype)
 
+        print(f"Simulating unlearning trajectory up to step s={s} (t={t.item()})...")
         with torch.no_grad():
             for ts in scheduler.timesteps:
                 if ts <= t:
@@ -199,7 +201,7 @@ def main(config: Config) -> None:
                 latents = scheduler.step(noise_pred, ts, latents).prev_sample
 
         model_input = latents.permute(0, 2, 1, 3, 4)
-
+        print("Computing losses and updating hypernetwork...")
         with torch.no_grad():
             with disable_hyper_adapters(transformer):
                 eps_target_concept = transformer(
@@ -222,9 +224,10 @@ def main(config: Config) -> None:
             timestep=timesteps,
         ).sample
         loss_task = F.mse_loss(eps_pred.float(), eps_steered_target.float())
-
-        grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=True)[0]
-        target_step = -config.simulated_lr * grad_theta
+        print(f"Task loss: {loss_task.item():.4f}")
+        with torch.no_grad():
+            grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=False)[0]
+            target_step = (-config.simulated_lr * grad_theta).detach()
         predicted_step = theta_s_plus_1 - theta_s
         loss_remove = F.mse_loss(predicted_step.float(), target_step.float())
 
@@ -251,7 +254,7 @@ def main(config: Config) -> None:
         pbar.set_description(
             f"task={metrics['train/loss_task']:.4f} rem={metrics['train/loss_remove']:.4e} ret={metrics['train/loss_retain']:.4e}"
         )
-
+        print(progress + ", " + ", ".join(f"{k}={v:.4f}" for k, v in metrics.items()))
         if (step + 1) % config.save_interval == 0:
             ckpt_dir = os.path.join(config.output_dir, f"unhype_step{step + 1}")
             os.makedirs(ckpt_dir, exist_ok=True)

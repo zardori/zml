@@ -13,9 +13,9 @@ simulated_lr: 0.001
 negative_guidance_scale: 1.0
 removal_weight: 1.0
 retain_weight: 1.0
-hypernet_hidden_dim: 512
-hypernet_num_layers: 2
-hypernet_step_embedding_dim: 128
+hypernet_hidden_dim: 4    
+hypernet_num_layers: 1        
+hypernet_step_embedding_dim: 16
 learning_rate: 0.0001
 steps: 300
 save_interval: 100

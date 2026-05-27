@@ -5,21 +5,24 @@ import mlflow
 import wandb
 import yaml
 
+from zml.unlearn.unlearn_model import Config as EsdConfig, main as esd_main
+from zml.unlearn.esd_with_preservation import Config as EsdPreservationConfig, main as esd_preservation_main
+from zml.unlearn.esd_with_preservation_and_anchor import Config as EsdPreservationAnchorConfig, main as esd_preservation_anchor_main
+from zml.unlearn.unlearn_model_normalized import Config as EsdNormalizedConfig, main as esd_normalized_main
+from zml.unlearn.unhype import Config as UnhypeConfig, main as unhype_main
+
 
 METHODS = {
-    "esd": "zml.unlearn.unlearn_model",
-    "esd_preservation": "zml.unlearn.esd_with_preservation",
-    "esd_preservation_anchor": "zml.unlearn.esd_with_preservation_and_anchor",
-    "esd_normalized": "zml.unlearn.unlearn_model_normalized",
-    "unhype": "zml.unlearn.unhype",
+    "esd": (EsdConfig, esd_main),
+    "esd_preservation": (EsdPreservationConfig, esd_preservation_main),
+    "esd_preservation_anchor": (EsdPreservationAnchorConfig, esd_preservation_anchor_main),
+    "esd_normalized": (EsdNormalizedConfig, esd_normalized_main),
+    "unhype": (UnhypeConfig, unhype_main),
 }
 
 
 def _load_method(method: str):
-    import importlib
-    module = importlib.import_module(METHODS[method])
-    return module.Config, module.main
-
+    return METHODS[method]
 
 if __name__ == "__main__":
     parser = ArgumentParser()

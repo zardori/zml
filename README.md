@@ -186,3 +186,6 @@ learning_rate: [0.0002, 0.0005]
 6. **Download** — `./pull_from_athena.sh`
 7. **Analyze** — inspect `experiments/expXXX_NAME/outputs_*/` (or `grid/run_XXX/outputs/`) for videos and `metrics.json`
 8. **Iterate** — adjust config, create a new experiment folder, repeat
+
+# HOW TO RUN THIS ON HELIOS
+Commands in setup_for_helios.sh
