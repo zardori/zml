@@ -10,7 +10,7 @@ import torch
 
 from zml.eval.check_for_fire import VideoFireDetector
 from zml.eval.clip_score import VideoClipScorer
-from zml.eval.dover_scorer import VideoDoverScorer
+from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
 
 
 def _round_metrics(obj: object, ndigits: int = 2) -> object:
@@ -77,7 +77,11 @@ def evaluate(
         video_dir = os.path.join(eval_root, set_name)
         fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
         clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
-        dover_scores = VideoDoverScorer(video_dir=video_dir).process_videos()
+        dover_scores = (
+            VideoDoverScorer(video_dir=video_dir).process_videos()
+            if DOVER_AVAILABLE
+            else {"technical": [], "aesthetic": []}
+        )
 
         clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
         tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
@@ -105,22 +109,28 @@ def evaluate(
     for set_name, scores in metrics.items():
         mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
         mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
-        mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
-        mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
+        if DOVER_AVAILABLE:
+            mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
+            mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
 
-    wandb.log(
-        {
+    wandb_metrics = {
+        f"eval/{set_name}_{k}": round(v, 2)
+        for set_name, scores in metrics.items()
+        for k, v in [
+            ("fire_detection_rate", scores["fire_detection_rate"]),
+            ("clip_score_mean", scores["clip_score_mean"]),
+        ]
+    }
+    if DOVER_AVAILABLE:
+        wandb_metrics.update({
             f"eval/{set_name}_{k}": round(v, 2)
             for set_name, scores in metrics.items()
             for k, v in [
-                ("fire_detection_rate", scores["fire_detection_rate"]),
-                ("clip_score_mean", scores["clip_score_mean"]),
                 ("dover_technical_mean", scores["dover_technical_mean"]),
                 ("dover_aesthetic_mean", scores["dover_aesthetic_mean"]),
             ]
-        },
-        step=step,
-    )
+        })
+    wandb.log(wandb_metrics, step=step)
 
     if was_training:
         transformer.train()

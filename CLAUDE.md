@@ -51,6 +51,9 @@ zml/
 8. **Collect results** (`pull_from_athena.sh`): Run to download results from athena cluster using rsync. (This requires change, because we used to just sync outputs folder, but now we want to have a folder for each experiment which will have both - config and results)
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 
+### Current Goals
+- Add workflow for running experiments on helios cluster (it has more powerful GPUs than athena, but there is arm architecture on nodes, which makes it more challenging to use than athena)
+
 ### Additional Notes
 - You should write clean and maintainable python code and use type hints.
 - You should try to extract numeric constants to constants put at the top of the scripts, especially for values that need to be tuned

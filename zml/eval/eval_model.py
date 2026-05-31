@@ -11,7 +11,7 @@ from peft import PeftModel
 
 from zml.eval.check_for_fire import VideoFireDetector
 from zml.eval.clip_score import VideoClipScorer
-from zml.eval.dover_scorer import VideoDoverScorer
+from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
 
 
 @dataclass
@@ -67,7 +67,11 @@ def _generate_videos(
 def _score_videos(video_dir: str, prompts: list[str]) -> dict:
     fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
     clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
-    dover_scores = VideoDoverScorer(video_dir=video_dir).process_videos()
+    dover_scores = (
+        VideoDoverScorer(video_dir=video_dir).process_videos()
+        if DOVER_AVAILABLE
+        else {"technical": [], "aesthetic": []}
+    )
 
     clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
     tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])

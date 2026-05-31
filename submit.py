@@ -1,20 +1,25 @@
 #!/usr/bin/env -S uv run
-"""Submit experiment to Athena HPC cluster, with optional grid search.
+"""Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit_to_athena.py <slurm_script> <config>
+    submit.py [--cluster CLUSTER] <slurm_script> <config>
 
 Arguments:
     slurm_script   Path to SLURM script relative to remote dir (e.g. slurm/unlearn.sh)
     config         Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)
 
+Options:
+    --cluster      Cluster name; reads <cluster>.conf for connection details (default: athena)
+
 Example:
-    ./submit_to_athena.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
 
 If the config contains any list-valued fields, a grid search is performed: one sbatch job
 is submitted per combination in the Cartesian product of all list fields.
 """
 
+import argparse
 import shlex
 import subprocess
 import sys
@@ -25,11 +30,22 @@ from pathlib import Path
 import yaml
 
 
-ATHENA_CONF = Path(__file__).parent / "athena.conf"
+SCRIPTS_DIR = Path(__file__).parent
 
 
-def load_athena_conf(conf_path: Path) -> dict[str, str]:
-    script = f'source {shlex.quote(str(conf_path))} && echo "ATHENA_HOST=$ATHENA_HOST" && echo "REMOTE_DIR=$REMOTE_DIR"'
+def load_cluster_conf(cluster: str) -> dict[str, str]:
+    conf_path = SCRIPTS_DIR / "cluster.conf"
+    if not conf_path.exists():
+        print(f"Error: {conf_path} not found. Copy cluster.conf.example to cluster.conf.", file=sys.stderr)
+        sys.exit(1)
+    script = f"""
+source {shlex.quote(str(conf_path))}
+case {shlex.quote(cluster)} in
+    athena) echo "HOST=$ATHENA_HOST" && echo "REMOTE_DIR=$ATHENA_REMOTE_DIR" ;;
+    helios) echo "HOST=$HELIOS_HOST" && echo "REMOTE_DIR=$HELIOS_REMOTE_DIR" ;;
+    *) echo "Error: unknown cluster '{cluster}'" >&2; exit 1 ;;
+esac
+"""
     result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
     conf: dict[str, str] = {}
     for line in result.stdout.splitlines():
@@ -71,7 +87,7 @@ def expand_grid(config: dict) -> list[dict]:
     return combos
 
 
-def submit_scalar(athena_host: str, remote_dir: str, slurm_script: str, config_path: str) -> None:
+def submit_scalar(host: str, remote_dir: str, slurm_script: str, config_path: str, cluster: str) -> None:
     exp_dir = str(Path(config_path).parent)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     logs_dir = f"{exp_dir}/logs_{timestamp}"
@@ -85,22 +101,21 @@ def submit_scalar(athena_host: str, remote_dir: str, slurm_script: str, config_p
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && git pull && {sbatch_cmd}"
-    print(f"Submitting on Athena...")
+    print(f"Submitting on {cluster}...")
     print(f"  Command: {sbatch_cmd}")
-    subprocess.run(["ssh", athena_host, remote_cmd], check=True)
-
+    subprocess.run(["ssh", host, remote_cmd], check=True)
 
 
 def _write_config_and_submit(
-    athena_host: str,
+    host: str,
     remote_dir: str,
     slurm_script: str,
     config_remote_path: str,
     output_dir: str,
     logs_dir: str,
     config_yaml: str,
-) -> str:
-    """Write an expanded config to remote, submit one sbatch job, return the job output."""
+) -> None:
+    """Write an expanded config to remote and submit one sbatch job."""
     escaped = config_yaml.replace("'", "'\\''")
     write_cmd = f"mkdir -p $(dirname {config_remote_path}) {output_dir} {logs_dir} && printf '%s' '{escaped}' > {config_remote_path}"
     sbatch_cmd = (
@@ -111,15 +126,16 @@ def _write_config_and_submit(
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && {write_cmd} && {sbatch_cmd}"
-    subprocess.run(["ssh", athena_host, remote_cmd], check=True)
+    subprocess.run(["ssh", host, remote_cmd], check=True)
 
 
 def submit_grid(
-    athena_host: str,
+    host: str,
     remote_dir: str,
     slurm_script: str,
     config_path: str,
     config: dict,
+    cluster: str,
 ) -> None:
     combos = expand_grid(config)
     exp_dir = str(Path(config_path).parent)
@@ -132,13 +148,13 @@ def submit_grid(
         varied = {k: combo[k] for k in grid_keys}
         print(f"  run_{i:03d}: {varied}")
 
-    reply = input(f"\nSubmit all {len(combos)} jobs? [y/N] ").strip().lower()
+    reply = input(f"\nSubmit all {len(combos)} jobs on {cluster}? [y/N] ").strip().lower()
     if reply != "y":
         print("Aborted.")
         sys.exit(1)
 
-    print("\nPulling latest on Athena...")
-    subprocess.run(["ssh", athena_host, f"cd {remote_dir} && git pull"], check=True)
+    print(f"\nPulling latest on {cluster}...")
+    subprocess.run(["ssh", host, f"cd {remote_dir} && git pull"], check=True)
 
     for i, combo in enumerate(combos, start=1):
         run_dir = f"{grid_base}/run_{i:03d}"
@@ -147,34 +163,31 @@ def submit_grid(
         logs_dir = f"{run_dir}/logs"
         config_yaml = yaml.dump(combo, default_flow_style=False, sort_keys=False)
 
-        job_output = _write_config_and_submit(
-            athena_host, remote_dir, slurm_script,
+        _write_config_and_submit(
+            host, remote_dir, slurm_script,
             config_remote, output_dir, logs_dir, config_yaml,
         )
-        print(f"  run_{i:03d}: {job_output}")
+        print(f"  run_{i:03d}: submitted")
 
     print(f"\nSubmitted {len(combos)} jobs. Grid configs and outputs: {grid_base}/")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Submit experiment to HPC cluster.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--cluster", default="athena", help="Cluster name (reads <cluster>.conf, default: athena)")
+    parser.add_argument("slurm_script", help="Path to SLURM script relative to remote dir")
+    parser.add_argument("config", help="Path to experiment config YAML")
+    return parser.parse_args()
+
+
 def main() -> None:
-    if len(sys.argv) != 3:
-        print(
-            "Usage: submit_to_athena.py <slurm_script> <config>\n\n"
-            "  slurm_script   Path to SLURM script (e.g. slurm/unlearn.sh)\n"
-            "  config         Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)\n",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    args = parse_args()
 
-    slurm_script = sys.argv[1]
-    config_path = sys.argv[2]
-
-    if not ATHENA_CONF.exists():
-        print(f"Error: {ATHENA_CONF} not found.", file=sys.stderr)
-        sys.exit(1)
-
-    conf = load_athena_conf(ATHENA_CONF)
-    athena_host = conf["ATHENA_HOST"]
+    conf = load_cluster_conf(args.cluster)
+    host = conf["HOST"]
     remote_dir = conf["REMOTE_DIR"]
 
     warnings = check_git_state()
@@ -185,12 +198,12 @@ def main() -> None:
             print("Aborted.")
             sys.exit(1)
 
-    config = load_config(config_path)
+    config = load_config(args.config)
 
     if any(isinstance(v, list) for v in config.values()):
-        submit_grid(athena_host, remote_dir, slurm_script, config_path, config)
+        submit_grid(host, remote_dir, args.slurm_script, args.config, config, args.cluster)
     else:
-        submit_scalar(athena_host, remote_dir, slurm_script, config_path)
+        submit_scalar(host, remote_dir, args.slurm_script, args.config, args.cluster)
 
 
 if __name__ == "__main__":
