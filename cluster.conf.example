@@ -1,0 +1,19 @@
+SLURM_USERS="plgzardori,plgbtcaf,plgpoblos"
+
+# Athena cluster
+ATHENA_HOST="athena.cyfronet.pl"
+ATHENA_REMOTE_DIR="/net/pr2/projects/plgrid/plggtriplane/zardori/zml"
+ATHENA_REMOTE_DIRS=(
+    "/net/pr2/projects/plgrid/plggtriplane/zardori/zml"
+    "/net/pr2/projects/plgrid/plggtriplane/btcaf/zml"
+    "/net/pr2/projects/plgrid/plggtriplane/poblos/zml"
+)
+
+# Helios cluster
+HELIOS_HOST="helios.cyfronet.pl"
+HELIOS_REMOTE_DIR="/net/scratch/hscra/plgrid/plgzardori/zml"
+HELIOS_REMOTE_DIRS=(
+    "/net/scratch/hscra/plgrid/plgzardori/zml"
+    "/net/scratch/hscra/plgrid/plgbtcaf/zml"
+    "/net/scratch/hscra/plgrid/plgpoblos/zml"
+)
