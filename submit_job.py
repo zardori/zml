@@ -87,14 +87,23 @@ def expand_grid(config: dict) -> list[dict]:
     return combos
 
 
-def submit_scalar(host: str, remote_dir: str, slurm_script: str, config_path: str, cluster: str) -> None:
+def submit_scalar(
+    host: str,
+    remote_dir: str,
+    slurm_script: str,
+    config_path: str,
+    cluster: str,
+    slurm_time: str | None = None,
+) -> None:
     exp_dir = str(Path(config_path).parent)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     logs_dir = f"{exp_dir}/logs_{timestamp}"
     output_dir = f"{exp_dir}/outputs_{timestamp}"
 
+    time_flag = f" --time={slurm_time}" if slurm_time else ""
     sbatch_cmd = (
         f"sbatch"
+        f"{time_flag}"
         f" --output={logs_dir}/unlearn_%j.out"
         f" --error={logs_dir}/unlearn_%j.err"
         f" --export=ALL,CONFIG={config_path},OUTPUT_DIR={output_dir}"
@@ -114,12 +123,15 @@ def _write_config_and_submit(
     output_dir: str,
     logs_dir: str,
     config_yaml: str,
+    slurm_time: str | None = None,
 ) -> None:
     """Write an expanded config to remote and submit one sbatch job."""
     escaped = config_yaml.replace("'", "'\\''")
     write_cmd = f"mkdir -p $(dirname {config_remote_path}) {output_dir} {logs_dir} && printf '%s' '{escaped}' > {config_remote_path}"
+    time_flag = f" --time={slurm_time}" if slurm_time else ""
     sbatch_cmd = (
         f"sbatch"
+        f"{time_flag}"
         f" --output={logs_dir}/unlearn_%j.out"
         f" --error={logs_dir}/unlearn_%j.err"
         f" --export=ALL,CONFIG={config_remote_path},OUTPUT_DIR={output_dir}"
@@ -136,6 +148,7 @@ def submit_grid(
     config_path: str,
     config: dict,
     cluster: str,
+    slurm_time: str | None = None,
 ) -> None:
     combos = expand_grid(config)
     exp_dir = str(Path(config_path).parent)
@@ -166,6 +179,7 @@ def submit_grid(
         _write_config_and_submit(
             host, remote_dir, slurm_script,
             config_remote, output_dir, logs_dir, config_yaml,
+            slurm_time=slurm_time,
         )
         print(f"  run_{i:03d}: submitted")
 
@@ -199,11 +213,12 @@ def main() -> None:
             sys.exit(1)
 
     config = load_config(args.config)
+    slurm_time: str | None = config.pop("slurm_time", None)
 
     if any(isinstance(v, list) for v in config.values()):
-        submit_grid(host, remote_dir, args.slurm_script, args.config, config, args.cluster)
+        submit_grid(host, remote_dir, args.slurm_script, args.config, config, args.cluster, slurm_time=slurm_time)
     else:
-        submit_scalar(host, remote_dir, args.slurm_script, args.config, args.cluster)
+        submit_scalar(host, remote_dir, args.slurm_script, args.config, args.cluster, slurm_time=slurm_time)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ METHODS = {
     "esd_preservation_anchor": "zml.unlearn.esd_with_preservation_and_anchor",
     "esd_normalized": "zml.unlearn.unlearn_model_normalized",
     "unhype": "zml.unlearn.unhype",
+    "smoke_test": "zml.unlearn.smoke_test",
 }
 
 
@@ -31,6 +32,7 @@ if __name__ == "__main__":
         params = yaml.safe_load(f)
 
     method = params.pop("method", "esd")
+    params.pop("slurm_time", None)  # infra key, not a training param
     if method not in METHODS:
         raise ValueError(f"Unknown method '{method}'. Valid options: {list(METHODS)}")
 
