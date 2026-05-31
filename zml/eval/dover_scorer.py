@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import gc
 import os
@@ -9,8 +11,12 @@ import torch
 import yaml
 from huggingface_hub import hf_hub_download
 
-from dover.datasets import UnifiedFrameSampler, spatial_temporal_view_decomposition
-from dover.models import DOVER
+try:
+    from dover.datasets import UnifiedFrameSampler, spatial_temporal_view_decomposition
+    from dover.models import DOVER
+    DOVER_AVAILABLE = True
+except Exception:
+    DOVER_AVAILABLE = False
 
 DOVER_REPO_ID = "teowu/DOVER"
 DOVER_WEIGHTS_FILE = "DOVER.pth"

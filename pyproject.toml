@@ -22,8 +22,8 @@ dependencies = [
     "ultralytics>=8.4.33",
     "mlflow>=2.0.0",
     "wandb>=0.19.0",
-#    "dover @ git+https://github.com/QualityAssessment/DOVER.git",
-#    "decord>=0.6.0",
+    "dover @ git+https://github.com/QualityAssessment/DOVER.git ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "decord>=0.6.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.uv]
