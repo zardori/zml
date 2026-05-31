@@ -2,7 +2,7 @@
 """Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit.py [--cluster CLUSTER] <slurm_script> <config>
+    submit_job.py [--cluster CLUSTER] <slurm_script> <config>
 
 Arguments:
     slurm_script   Path to SLURM script relative to remote dir (e.g. slurm/unlearn.sh)
@@ -12,8 +12,8 @@ Options:
     --cluster      Cluster name; reads <cluster>.conf for connection details (default: athena)
 
 Example:
-    ./submit.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
-    ./submit.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit_job.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit_job.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
 
 If the config contains any list-valued fields, a grid search is performed: one sbatch job
 is submitted per combination in the Cartesian product of all list fields.

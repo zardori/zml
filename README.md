@@ -2,7 +2,7 @@
 
 Research project for erasing target concepts (currently: **fire**) from [CogVideoX-5b](https://huggingface.co/THUDM/CogVideoX-5b), a video diffusion transformer, without degrading general video quality. The method is based on **ESD** (Erased Stable Diffusion) adapted for video, using LoRA fine-tuning.
 
-**Stack:** Python 3.12 · uv · SLURM on [PLGrid Athena HPC](https://www.cyfronet.pl/en/computers/athena.html)
+**Stack:** Python 3.12 · uv · SLURM on [PLGrid Athena](https://www.cyfronet.pl/en/computers/athena.html) and [Helios](https://www.cyfronet.pl/en/computers/helios.html) HPC clusters
 
 ---
 
@@ -30,16 +30,16 @@ zml/
 ├── scripts/                     # thin entrypoints (called by SLURM scripts)
 │   ├── unlearn.py
 │   └── eval.py
-├── slurm/                       # local SLURM templates (edit & submit via submit_to_athena.py)
+├── slurm/                       # SLURM templates
 │   ├── unlearn.sh
 │   └── eval.sh
-├── athena_slurms/               # ready-to-use remote SLURM scripts for specific tasks
 ├── prompts/                     # prompt datasets (CSV / TXT)
 ├── legacy/                      # deprecated scripts, kept for reference
-├── submit_to_athena.py          # submit jobs (single-run or grid search)
-├── pull_from_athena.sh          # rsync results from cluster
-├── watch_athena_jobs.sh         # live SLURM queue monitor
-└── athena.conf.example          # cluster config template
+├── submit_job.py                # submit jobs to a cluster (single-run or grid search)
+├── pull_results.sh              # rsync results from a cluster
+├── watch_jobs.sh                # live SLURM queue monitor (both clusters)
+├── interactive.sh               # open an interactive SLURM session
+└── cluster.conf.example         # cluster config template
 ```
 
 ---
@@ -51,28 +51,32 @@ zml/
 uv sync
 
 # 2. Configure cluster access (fill in your credentials)
-cp athena.conf.example athena.conf
+cp cluster.conf.example cluster.conf
 ```
 
-`athena.conf` fields:
-- `ATHENA_HOST` — SSH hostname of the cluster
-- `REMOTE_DIR` — your remote working directory (used when submitting jobs)
-- `REMOTE_DIRS` — array of all team members' remote dirs (used when pulling results)
+`cluster.conf` fields:
+- `SLURM_USERS` — comma-separated PLGrid usernames (for `watch_jobs.sh`)
+- `ATHENA_HOST` / `HELIOS_HOST` — SSH hostnames of the clusters
+- `ATHENA_REMOTE_DIR` / `HELIOS_REMOTE_DIR` — your remote working directory (used when submitting jobs)
+- `ATHENA_REMOTE_DIRS` / `HELIOS_REMOTE_DIRS` — arrays of all team members' remote dirs (used when pulling results)
 
 ---
 
 ## Utility Scripts
 
-### `submit_to_athena.py` — submit jobs to Athena
+### `submit_job.py` — submit jobs to a cluster
 
-Commits must be pushed before submitting — Athena runs `git pull` before each job.
+Commits must be pushed before submitting — the cluster runs `git pull` before each job.
 
 ```bash
-# Single run
-./submit_to_athena.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+# Single run on athena (default)
+./submit_job.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+
+# Single run on helios
+./submit_job.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
 
 # Grid search — any config field that is a list triggers Cartesian product expansion
-./submit_to_athena.py slurm/unlearn.sh experiments/exp005_esd_fire_grid/config.yaml
+./submit_job.py slurm/unlearn.sh experiments/exp005_esd_fire_grid/config.yaml
 ```
 
 For a grid search, the script:
@@ -84,25 +88,26 @@ The script warns (but does not block) if there are uncommitted changes or unpush
 
 ---
 
-### `pull_from_athena.sh` — download results
+### `pull_results.sh` — download results
 
 Rsyncs `experiments/` and `mlruns/` from all team members' remote directories.
 
 ```bash
-./pull_from_athena.sh                  # full sync (excludes .safetensors by default)
-./pull_from_athena.sh --logs-only      # only SLURM logs, skip outputs
-./pull_from_athena.sh --include-adapters  # also download .safetensors checkpoints (large)
+./pull_results.sh                            # full sync from athena (default)
+./pull_results.sh --cluster helios           # full sync from helios
+./pull_results.sh --logs-only                # only SLURM logs, skip outputs
+./pull_results.sh --include-adapters         # also download .safetensors checkpoints (large)
 ```
 
 ---
 
-### `watch_athena_jobs.sh` — monitor SLURM queue
+### `watch_jobs.sh` — monitor SLURM queue
 
-Polls `squeue` on Athena for all three team members and refreshes the terminal.
+Polls `squeue` on both Athena and Helios for all team members and refreshes the terminal.
 
 ```bash
-./watch_athena_jobs.sh           # refresh every 30 s (default)
-./watch_athena_jobs.sh -i 60     # refresh every 60 s
+./watch_jobs.sh          # refresh every 30 s (default)
+./watch_jobs.sh -i 60    # refresh every 60 s
 ```
 
 ---
@@ -166,7 +171,7 @@ eval_num_prompts: 3
 eval_inference_steps: 50
 ```
 
-For a **grid search**, replace any scalar with a list — `submit_to_athena.py` expands the Cartesian product:
+For a **grid search**, replace any scalar with a list — `submit_job.py` expands the Cartesian product:
 
 ```yaml
 negative_guidance_scale: [0.5, 1.0, 2.0]
@@ -180,9 +185,9 @@ learning_rate: [0.0002, 0.0005]
 
 1. **Add prompts** — put a CSV (with `prompt` and `seed` columns) or TXT file in `prompts/`
 2. **Create experiment** — make `experiments/expXXX_NAME/config.yaml`
-3. **Commit and push** — Athena pulls from the repo; uncommitted changes won't be picked up
-4. **Submit** — `./submit_to_athena.py slurm/unlearn.sh experiments/expXXX_NAME/config.yaml`
-5. **Monitor** — `./watch_athena_jobs.sh`
-6. **Download** — `./pull_from_athena.sh`
+3. **Commit and push** — the cluster pulls from the repo; uncommitted changes won't be picked up
+4. **Submit** — `./submit_job.py slurm/unlearn.sh experiments/expXXX_NAME/config.yaml`
+5. **Monitor** — `./watch_jobs.sh`
+6. **Download** — `./pull_results.sh`
 7. **Analyze** — inspect `experiments/expXXX_NAME/outputs_*/` (or `grid/run_XXX/outputs/`) for videos and `metrics.json`
 8. **Iterate** — adjust config, create a new experiment folder, repeat

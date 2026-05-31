@@ -47,12 +47,16 @@ zml/
 4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
 5. **Prepare SLURM templates** (`slurm/`): These should be generic templetes, one for each type of task. They should call thin entrypoints.
 6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed.
-7. **Run experiments** (`submit_to_athena.py`): Run experiments on athena cluster. Pass proper slurm script and config file as arguments to the script. The script works by running git pull on athena, so ensure that all necessary content is committed. (for now claude should not submit any jobs by itself, project owners will do it manually)
-8. **Collect results** (`pull_from_athena.sh`): Run to download results from athena cluster using rsync. (This requires change, because we used to just sync outputs folder, but now we want to have a folder for each experiment which will have both - config and results)
+7. **Run experiments** (`submit_job.py`): Submit jobs to a cluster. Pass the SLURM script and config file as arguments; use `--cluster athena` (default) or `--cluster helios` to target a cluster. The script SSHes into the cluster, runs `git pull`, and calls `sbatch`. If the config has any list-valued fields a grid search is performed automatically — one job per combination. Cluster connection details are read from `cluster.conf` (copy from `cluster.conf.example`). Ensure all necessary content is committed before submitting. (Claude should not submit any jobs by itself — project owners do it manually.)
+8. **Collect results** (`pull_results.sh`): Download experiment outputs and MLflow tracking data from a cluster via rsync. Use `--cluster athena` (default) or `--cluster helios`. Pass `--logs-only` to skip outputs, or `--include-adapters` to include `.safetensors` checkpoints (excluded by default). Reads connection details from `cluster.conf`.
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 
+### Utility Scripts
+- `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
+- `interactive.sh`: Opens an interactive SLURM session on the cluster.
+
 ### Current Goals
-- Add workflow for running experiments on helios cluster (it has more powerful GPUs than athena, but there is arm architecture on nodes, which makes it more challenging to use than athena)
+- Continue improving the concept unlearning method for the "fire" concept in CogVideoX-5b.
 
 ### Additional Notes
 - You should write clean and maintainable python code and use type hints.
