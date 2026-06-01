@@ -34,6 +34,7 @@ zml/
 │   ├── unlearn.sh
 │   └── eval.sh
 ├── prompts/                     # prompt datasets (CSV / TXT)
+├── docs/                        # method write-ups & design notes (e.g. unhype.md)
 ├── legacy/                      # deprecated scripts, kept for reference
 ├── submit_job.py                # submit jobs to a cluster (single-run or grid search)
 ├── pull_results.sh              # rsync results from a cluster
