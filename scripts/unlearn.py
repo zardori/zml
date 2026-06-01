@@ -56,13 +56,17 @@ if __name__ == "__main__":
     with mlflow.start_run():
         mlflow.log_params({**params, "method": method})
         mlflow.log_artifact(args.config)
-        wandb.init(
-            project="zml",
-            entity="zardori-zml",
-            name=experiment_name,
-            config={**params, "method": method},
-        )
-        wandb.save(args.config)
+        try:
+            wandb.init(
+                project="zml",
+                entity="zardori-zml",
+                name=experiment_name,
+                config={**params, "method": method},
+            )
+            wandb.save(args.config)
+        except Exception as e:
+            print(f"WARNING: wandb init failed ({e}), continuing without W&B tracking.")
+            wandb.init(mode="disabled")
         config = Config(**params, output_dir=args.output_dir)
         main(config)
         wandb.finish()
