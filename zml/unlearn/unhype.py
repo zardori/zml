@@ -103,9 +103,13 @@ def main(config: Config) -> None:
     transformer = pipe.transformer
     transformer.eval()
     transformer.requires_grad_(False)
-    # NOTE: gradient checkpointing is intentionally NOT enabled here; the
-    # removal loss requires a second-order gradient (autograd.grad with
-    # create_graph=True), which is brittle with reentrant checkpointing.
+    # The removal-loss target -η∇_{θ_s}ℒ_task is detached (see below), so the
+    # task-loss forward graph is freed before backward and we only ever do a
+    # first-order backward. That makes gradient checkpointing safe here — and
+    # it is critical to fit the 5B transformer's activations in VRAM.
+    # diffusers' default checkpointing is non-reentrant, which correctly routes
+    # autograd.grad back to the closure-provided LoRA tensors.
+    transformer.enable_gradient_checkpointing()
 
     hyper_modules, lora_shapes = replace_with_hyper_lora(
         transformer,
@@ -223,8 +227,12 @@ def main(config: Config) -> None:
         ).sample
         loss_task = F.mse_loss(eps_pred.float(), eps_steered_target.float())
 
-        grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=True)[0]
-        target_step = -config.simulated_lr * grad_theta
+        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target,
+        # so create_graph=False (no second-order graph) and we detach it. This
+        # also frees the expensive task-loss forward graph before backward.
+        # φ is still optimized via predicted_step = θ_{s+1} − θ_s below.
+        grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=False)[0]
+        target_step = (-config.simulated_lr * grad_theta).detach()
         predicted_step = theta_s_plus_1 - theta_s
         loss_remove = F.mse_loss(predicted_step.float(), target_step.float())
 
