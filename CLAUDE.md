@@ -59,6 +59,12 @@ zml/
 ### Current Goals
 - Continue improving the concept unlearning method for the "fire" concept in CogVideoX-5b.
 
+### Seed Management Policy
+
+- **Training**: use a single global `seed` field in `config.yaml`. It controls process-level randomness (model initialization, batch ordering, dropout, etc.).
+- **Evaluation**: use per-prompt seeds baked into the CSV prompt files. Commit these seeds once and never change them, so every experiment is evaluated on identical `(prompt, seed)` pairs and results are comparable across runs.
+- Never use a global seed for evaluation — adding, removing, or reordering prompts would silently change which seed each prompt gets.
+
 ### Additional Notes
 - You should write clean and maintainable python code and use type hints.
 - You should try to extract numeric constants to constants put at the top of the scripts, especially for values that need to be tuned

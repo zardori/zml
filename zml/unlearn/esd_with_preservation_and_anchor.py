@@ -11,7 +11,7 @@ from diffusers import CogVideoXPipeline
 from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
-from zml.unlearn.eval import evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate
 from zml.utils import set_seed
 
 
@@ -39,9 +39,10 @@ class Config:
     global_seed: int | None = None
 
 
-def _load_prompts_from_file(path: str) -> list[str]:
+def _load_prompts_from_file(path: str) -> list[EvalPrompt]:
     with open(path) as f:
-        return [line.strip() for line in f if line.strip()]
+        lines = [line.strip() for line in f if line.strip()]
+    return [EvalPrompt(prompt=p, seed=42 + i) for i, p in enumerate(lines)]
 
 
 def main(config: Config) -> None:

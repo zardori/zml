@@ -1,5 +1,6 @@
 import json
 import os
+from dataclasses import dataclass
 from typing import Callable, Protocol
 
 import mlflow
@@ -11,6 +12,12 @@ import torch
 from zml.eval.check_for_fire import VideoFireDetector
 from zml.eval.clip_score import VideoClipScorer
 from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
+
+
+@dataclass
+class EvalPrompt:
+    prompt: str
+    seed: int
 
 
 def _round_metrics(obj: object, ndigits: int = 2) -> object:
@@ -34,10 +41,10 @@ def evaluate(
     transformer,
     config: EvalConfig,
     step: int,
-    concept_prompts: list[str],
-    related_prompts: list[str],
-    unrelated_prompts: list[str],
-    anchor_prompts: list[str] | None = None,
+    concept_prompts: list[EvalPrompt],
+    related_prompts: list[EvalPrompt],
+    unrelated_prompts: list[EvalPrompt],
+    anchor_prompts: list[EvalPrompt] | None = None,
     prepare_for_prompt: Callable[[str], None] | None = None,
 ) -> None:
     was_training = transformer.training
@@ -56,27 +63,29 @@ def evaluate(
     }
 
     with torch.no_grad():
-        for set_name, prompts in prompt_sets.items():
+        for set_name, eval_prompts in prompt_sets.items():
             video_dir = os.path.join(eval_root, set_name)
             os.makedirs(video_dir, exist_ok=True)
-            for i, prompt in enumerate(prompts):
+            for i, ep in enumerate(eval_prompts):
                 if prepare_for_prompt is not None:
-                    prepare_for_prompt(prompt)
+                    prepare_for_prompt(ep.prompt)
                 result = pipe(
-                    prompt=prompt,
+                    prompt=ep.prompt,
                     num_frames=49,
                     num_inference_steps=config.eval_inference_steps,
-                    generator=torch.Generator(device=pipe.device).manual_seed(42 + i),
+                    generator=torch.Generator(device=pipe.device).manual_seed(ep.seed),
                 )
                 video_path = os.path.join(video_dir, f"video_{i}.mp4")
                 export_to_video(result.frames[0], video_path, fps=8)
                 print(f"Saved eval video: {video_path}")
 
     metrics = {}
-    for set_name, prompts in prompt_sets.items():
+    for set_name, eval_prompts in prompt_sets.items():
         video_dir = os.path.join(eval_root, set_name)
         fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
-        clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
+        clip_scores = VideoClipScorer(
+            video_dir=video_dir, prompts=[ep.prompt for ep in eval_prompts]
+        ).process_videos()
         dover_scores = (
             VideoDoverScorer(video_dir=video_dir).process_videos()
             if DOVER_AVAILABLE

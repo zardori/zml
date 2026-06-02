@@ -3,9 +3,9 @@ model_id: THUDM/CogVideoX-5b
 clip_model_id: openai/clip-vit-large-patch14
 target_mapping_path: prompts/cogvideox_fire_unhype.csv
 retain_prompts_path: prompts/cogvideox_fire_preservation.csv
-control_concept_prompts: prompts/cogvideox_fire_control_fire.txt
-control_related_prompts: prompts/cogvideox_fire_control_related.txt
-control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.txt
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
 lora_rank: 1
 lora_alpha: 1.0
 num_unlearning_steps: 50

@@ -18,7 +18,7 @@ from diffusers import CogVideoXPipeline
 from transformers import CLIPTextModelWithProjection, CLIPTokenizer
 from tqdm.auto import tqdm
 
-from zml.unlearn.eval import evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate
 from zml.unlearn.unhype_modules import (
     Hypernetwork,
     apply_hypernet_output,
@@ -78,9 +78,9 @@ def _load_prompts_csv(path: str, column: str = "prompt") -> list[str]:
     return pd.read_csv(path)[column].tolist()
 
 
-def _load_prompts_txt(path: str) -> list[str]:
-    with open(path) as f:
-        return [line.strip() for line in f if line.strip()]
+def _load_eval_prompts(path: str) -> list[EvalPrompt]:
+    df = pd.read_csv(path)
+    return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
 def main(config: Config) -> None:
@@ -89,9 +89,9 @@ def main(config: Config) -> None:
 
     target_mapping = _load_target_mapping(config.target_mapping_path)
     retain_prompts = _load_prompts_csv(config.retain_prompts_path)
-    control_concept = _load_prompts_txt(config.control_concept_prompts)
-    control_related = _load_prompts_txt(config.control_related_prompts)
-    control_unrelated = _load_prompts_txt(config.control_unrelated_prompts)
+    control_concept = _load_eval_prompts(config.control_concept_prompts)
+    control_related = _load_eval_prompts(config.control_related_prompts)
+    control_unrelated = _load_eval_prompts(config.control_unrelated_prompts)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.bfloat16
