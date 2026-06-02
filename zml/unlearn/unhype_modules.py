@@ -180,12 +180,31 @@ class Hypernetwork(nn.Module):
             layers.append(nn.SiLU())
             prev = hidden_dim
         out_layer = nn.Linear(prev, self.total_output)
-        # Zero-init the final layer so initial LoRA output is ~0; this also
-        # satisfies the retention loss trivially at the start of training.
+        # Symmetry-breaking init: standard LoRA init (A ~ kaiming, B = 0) encoded in
+        # the bias, with a zero weight. At init every (c, s) maps to θ = bias, so the
+        # LoRA product A·B = 0 (base model preserved) and the output is constant in s
+        # (retention trivially satisfied) — but ∂ℒ_task/∂B ∝ A ≠ 0, so the removal
+        # gradient is non-zero and the hypernet can move. A fully zero-init final
+        # layer is a dead fixed point: A = B = 0 ⇒ ∇_θ ℒ_task ≡ 0 and nothing trains.
         nn.init.zeros_(out_layer.weight)
-        nn.init.zeros_(out_layer.bias)
+        with torch.no_grad():
+            out_layer.bias.copy_(self._lora_init_bias())
         layers.append(out_layer)
         self.mlp = nn.Sequential(*layers)
+
+    def _lora_init_bias(self) -> torch.Tensor:
+        """Flat bias seeding standard LoRA init (A ~ kaiming, B = 0), laid out
+        exactly as ``decode`` reads it (per module: A entries then B entries)."""
+        bias = torch.zeros(self.total_output)
+        offset = 0
+        for shape in self.lora_shapes:
+            a_size = shape.in_features * self.rank
+            b_size = self.rank * shape.out_features
+            a = torch.empty(self.rank, shape.in_features)
+            nn.init.kaiming_uniform_(a, a=math.sqrt(5))
+            bias[offset:offset + a_size] = a.flatten()
+            offset += a_size + b_size  # B-slots stay zero
+        return bias
 
     def forward(self, clip_emb: torch.Tensor, step: torch.Tensor) -> torch.Tensor:
         step_emb = sinusoidal_step_embedding(step, self.step_embedding_dim)
