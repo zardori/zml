@@ -1,3 +1,4 @@
+slurm_time: "0-3:00:00"
 method: unhype
 model_id: THUDM/CogVideoX-5b
 clip_model_id: openai/clip-vit-large-patch14
