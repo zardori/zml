@@ -83,6 +83,10 @@ def _load_eval_prompts(path: str) -> list[EvalPrompt]:
     return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
+def _tensor_norm(t: torch.Tensor) -> float:
+    return float(t.detach().float().norm())
+
+
 def main(config: Config) -> None:
     if config.global_seed is not None:
         set_seed(config.global_seed)
@@ -252,6 +256,13 @@ def main(config: Config) -> None:
             "train/loss_remove": float(loss_remove.detach()),
             "train/loss_retain": float(loss_retain.detach()),
             "train/loss_total": float(loss_total.detach()),
+            # Diagnostics: is the trajectory leaving the origin, and how strong
+            # is the steering signal that drives the whole task gradient?
+            "train/theta_s_norm": _tensor_norm(theta_s),
+            "train/predicted_step_norm": _tensor_norm(predicted_step),
+            "train/target_step_norm": _tensor_norm(target_step),
+            "train/grad_theta_norm": _tensor_norm(grad_theta),
+            "train/steering_norm": _tensor_norm(eps_target_concept - eps_mapping_concept),
         }
         for k, v in metrics.items():
             mlflow.log_metric(k, v, step=step)
@@ -265,6 +276,19 @@ def main(config: Config) -> None:
             os.makedirs(ckpt_dir, exist_ok=True)
             torch.save(hypernet.state_dict(), os.path.join(ckpt_dir, "hypernet.pt"))
             print(f"Checkpoint saved to: {ckpt_dir}")
+
+            # Endpoint adapter magnitude on the *actual* eval prompts. If this is
+            # ~0, the hypernet emits a near-empty adapter on the (long) control
+            # prompts it never saw in training -> generations match the base model.
+            s_endpoint = torch.tensor([S], device=device, dtype=torch.float32)
+            with torch.no_grad():
+                theta_S_norms = [
+                    _tensor_norm(hypernet(encode_clip(ep.prompt), s_endpoint).squeeze(0))
+                    for ep in control_concept[: config.eval_num_prompts]
+                ]
+            mean_theta_S_norm = sum(theta_S_norms) / len(theta_S_norms)
+            mlflow.log_metric("eval/theta_S_norm_concept", mean_theta_S_norm, step=step + 1)
+            wandb.log({"eval/theta_S_norm_concept": mean_theta_S_norm}, step=step + 1)
 
             def prepare_for_prompt(prompt: str) -> None:
                 with torch.no_grad():
