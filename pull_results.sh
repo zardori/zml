@@ -2,10 +2,10 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--cluster CLUSTER] [--logs-only] [--include-adapters]"
+    echo "Usage: $0 [--cluster CLUSTER] [--logs-only] [--include-weights]"
     echo "  --cluster  Cluster name: athena or helios (reads cluster.conf, default: athena)"
     echo "  --logs-only        Download only logs, skip experiment outputs"
-    echo "  --include-adapters Include .safetensors files when downloading outputs (excluded by default)"
+    echo "  --include-weights  Include model weight files (.safetensors, .pt) when downloading outputs (excluded by default)"
     exit 1
 }
 
@@ -17,7 +17,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --cluster)          CLUSTER="$2"; shift ;;
         --logs-only)        LOGS_ONLY=true ;;
-        --include-adapters) SKIP_ADAPTERS=false ;;
+        --include-weights)  SKIP_ADAPTERS=false ;;
         *) usage ;;
     esac
     shift
@@ -42,8 +42,8 @@ mkdir -p experiments logs
 if [[ "$LOGS_ONLY" == false ]]; then
     RSYNC_OPTS=(-avz --progress)
     if [[ "$SKIP_ADAPTERS" == true ]]; then
-        RSYNC_OPTS+=(--exclude='*.safetensors' --exclude='adapter_config.json')
-        echo "Skipping adapter files (*.safetensors, adapter_config.json). Use --include-adapters to download them."
+        RSYNC_OPTS+=(--exclude='*.safetensors' --exclude='*.pt' --exclude='adapter_config.json')
+        echo "Skipping model weight files (*.safetensors, *.pt, adapter_config.json). Use --include-weights to download them."
     fi
 
     echo "Pulling experiment outputs from all members (${CLUSTER})..."
