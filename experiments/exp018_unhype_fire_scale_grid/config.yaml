@@ -1,0 +1,28 @@
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# Long, in-distribution paired target/mapping prompts (aligns the target-side CLIP
+# distribution with the long control eval prompts and strengthens the T5 steering signal).
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+lora_rank: 4
+lora_alpha: 4.0
+num_unlearning_steps: 300
+# Swept: trajectory step size. Larger pushes the endpoint adapter further down the ESD loss.
+simulated_lr: [0.001, 0.005, 0.01]
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+# Swept: rebalance the (much smaller) removal loss against the retention pull-to-zero.
+retain_weight: [1.0, 0.1, 0.01]
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.0001
+steps: 3000
+save_interval: 1000
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
