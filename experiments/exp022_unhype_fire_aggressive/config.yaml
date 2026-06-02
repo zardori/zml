@@ -1,0 +1,27 @@
+slurm_time: "1-00:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# Aggressive setup: large trajectory step, relaxed retention. Strongest erasure;
+# watch for collateral damage on unrelated/related control prompts.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+lora_rank: 4
+lora_alpha: 4.0
+num_unlearning_steps: 300
+simulated_lr: 0.01
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.1
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.0001
+steps: 2000
+save_interval: 500
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
