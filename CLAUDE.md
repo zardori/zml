@@ -56,6 +56,25 @@ zml/
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
 - `interactive.sh`: Opens an interactive SLURM session on the cluster.
 
+### Metrics Logging
+
+Runs log to wandb and mlflow (human-facing) and, in parallel, to two plain files written
+into the run's `output_dir` by `zml/unlearn/metrics_log.py` (`MetricsRecorder`). These are
+synced by `pull_results.sh` and meant to be read directly (by a person or an agent) to judge
+a run without the wandb UI:
+
+- `metrics.jsonl` — append-only; one object per flushed train window and per eval. Full
+  (downsampled) history, crash-robust, machine-parseable.
+- `summary.json` — overwritten each update; the at-a-glance artifact. Holds the config echo,
+  per-metric train trends (`first/recent/last/min/max`), compact per-checkpoint eval scores,
+  and a derived `health` block with flags + plain-language notes (e.g. "loss_remove pinned
+  ~0", "predicted_step << target_step", "weak prompt conditioning").
+
+Train metrics are buffered and flushed as window aggregates every `metrics_log_interval`
+steps (config field, default 50) to keep the files small. When analyzing a run, prefer reading
+`summary.json` first. Currently wired into `zml/unlearn/unhype.py`; other unlearning scripts
+can adopt the recorder the same way.
+
 ### Current Goals
 - Continue improving the concept unlearning method for the "fire" concept in CogVideoX-5b.
 
