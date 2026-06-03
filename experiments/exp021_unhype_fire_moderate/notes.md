@@ -3,6 +3,17 @@
 These three single-run setups replace the 9-run `exp018` grid (deferred: not enough free
 nodes). Run order of preference: **exp021 (moderate) → exp020 (gentle) → exp022 (aggressive)**.
 
+## Outcome: all three failed (no change vs base) — superseded by exp023
+
+Two compounding bugs, fixed in `exp023`:
+1. **Constant-output init.** The hypernet's final-layer weight was zero-init'd → output was a
+   constant (the bias) for every `(c, s)`. So `B=0` ⇒ no-op adapter (videos identical to base,
+   `loss_task` matched the no-adapter value exactly) and `θ(s+1)−θ(s)≡0` ⇒ removal loss trivially
+   satisfied by the zero trajectory (`loss_total≈3.7e-18`, nothing trained). `eval/theta_S_norm`
+   was a constant 14.93 on every prompt — the all-`A`, `B=0` bias. Fixed in `unhype_modules.py`.
+2. **`simulated_lr` ~40–200× too small.** Endpoint `≈ S·η·‖∇ℒ‖ ≈ 0.03`, far below a
+   generation-affecting adapter — inert even without bug 1. `exp023` raises it to `0.3`.
+
 ## What changed since exp016 / exp019
 
 The `exp019` diagnostics showed `target_step_norm = predicted_step_norm = theta_S_norm = 0`
