@@ -7,6 +7,7 @@ near-zero for unrelated concepts."""
 
 import os
 import random
+import statistics
 from dataclasses import dataclass, field
 
 import mlflow
@@ -19,6 +20,7 @@ from transformers import CLIPTextModelWithProjection, CLIPTokenizer
 from tqdm.auto import tqdm
 
 from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.metrics_log import MetricsRecorder
 from zml.unlearn.unhype_modules import (
     Hypernetwork,
     apply_hypernet_output,
@@ -67,6 +69,7 @@ class Config:
     output_dir: str
     lora_target_modules: list[str] = field(default_factory=lambda: list(DEFAULT_TARGET_MODULES))
     global_seed: int | None = None
+    metrics_log_interval: int = 50  # steps per flushed train-window row in summary.json
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -169,6 +172,24 @@ def main(config: Config) -> None:
     latent_shape = (BATCH_SIZE, NUM_CHANNELS, NUM_FRAMES, LATENT_HEIGHT, LATENT_WIDTH)
     S = config.num_unlearning_steps
 
+    recorder = MetricsRecorder(
+        output_dir=config.output_dir,
+        run_name=os.path.basename(config.output_dir.rstrip("/")) or "unhype",
+        config={
+            "method": "unhype",
+            "lora_rank": config.lora_rank,
+            "lora_alpha": config.lora_alpha,
+            "num_unlearning_steps": S,
+            "simulated_lr": config.simulated_lr,
+            "negative_guidance_scale": config.negative_guidance_scale,
+            "removal_weight": config.removal_weight,
+            "retain_weight": config.retain_weight,
+            "learning_rate": config.learning_rate,
+            "steps": config.steps,
+        },
+        flush_interval=config.metrics_log_interval,
+    )
+
     print("Starting UnHype training...")
     pbar = tqdm(range(config.steps))
     for step in pbar:
@@ -267,6 +288,7 @@ def main(config: Config) -> None:
         for k, v in metrics.items():
             mlflow.log_metric(k, v, step=step)
         wandb.log(metrics, step=step)
+        recorder.log_train(step, metrics)
         pbar.set_description(
             f"task={metrics['train/loss_task']:.4f} rem={metrics['train/loss_remove']:.4e} ret={metrics['train/loss_retain']:.4e}"
         )
@@ -287,6 +309,8 @@ def main(config: Config) -> None:
                     for ep in control_concept[: config.eval_num_prompts]
                 ]
             mean_theta_S_norm = sum(theta_S_norms) / len(theta_S_norms)
+            # Spread across prompts: ~0 ⇒ the hypernet ignores its conditioning.
+            std_theta_S_norm = statistics.pstdev(theta_S_norms) if len(theta_S_norms) > 1 else 0.0
             mlflow.log_metric("eval/theta_S_norm_concept", mean_theta_S_norm, step=step + 1)
             wandb.log({"eval/theta_S_norm_concept": mean_theta_S_norm}, step=step + 1)
 
@@ -299,11 +323,26 @@ def main(config: Config) -> None:
                     ).squeeze(0)
                     apply_flat(flat)
 
-            evaluate(
+            eval_metrics = evaluate(
                 pipe, transformer, config, step + 1,
                 control_concept, control_related, control_unrelated,
                 prepare_for_prompt=prepare_for_prompt,
             )
             clear_hypernet_output(hyper_modules)
 
+            recorder.log_eval(step + 1, {
+                "theta_S_norm_concept_mean": mean_theta_S_norm,
+                "theta_S_norm_concept_std": std_theta_S_norm,
+                "scores": {
+                    set_name: {
+                        "fire_detection_rate": s["fire_detection_rate"],
+                        "clip_score_mean": s["clip_score_mean"],
+                        "dover_technical_mean": s["dover_technical_mean"],
+                        "dover_aesthetic_mean": s["dover_aesthetic_mean"],
+                    }
+                    for set_name, s in eval_metrics.items()
+                },
+            })
+
+    recorder.close()
     print("UnHype training complete.")

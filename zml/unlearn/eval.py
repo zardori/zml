@@ -46,7 +46,7 @@ def evaluate(
     unrelated_prompts: list[EvalPrompt],
     anchor_prompts: list[EvalPrompt] | None = None,
     prepare_for_prompt: Callable[[str], None] | None = None,
-) -> None:
+) -> dict[str, dict]:
     was_training = transformer.training
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
@@ -144,3 +144,4 @@ def evaluate(
     if was_training:
         transformer.train()
     transformer.requires_grad_(False)
+    return metrics

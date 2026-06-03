@@ -11,6 +11,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Std of the final-layer weight init. Small but nonzero so the hypernet output
+# actually varies with (clip embedding, step) — the prerequisite for representing
+# a trajectory and for prompt conditioning. A zero weight collapses the output to
+# a constant (the bias) for every input, freezing the adapter at its init.
+FINAL_LAYER_WEIGHT_STD = 2e-3
+
 
 @dataclass
 class LoRAShape:
@@ -180,17 +186,34 @@ class Hypernetwork(nn.Module):
             layers.append(nn.SiLU())
             prev = hidden_dim
         out_layer = nn.Linear(prev, self.total_output)
-        # Symmetry-breaking init: standard LoRA init (A ~ kaiming, B = 0) encoded in
-        # the bias, with a zero weight. At init every (c, s) maps to θ = bias, so the
-        # LoRA product A·B = 0 (base model preserved) and the output is constant in s
-        # (retention trivially satisfied) — but ∂ℒ_task/∂B ∝ A ≠ 0, so the removal
-        # gradient is non-zero and the hypernet can move. A fully zero-init final
-        # layer is a dead fixed point: A = B = 0 ⇒ ∇_θ ℒ_task ≡ 0 and nothing trains.
-        nn.init.zeros_(out_layer.weight)
+        # Init so the output depends on (c, s) yet starts as an exact no-op adapter:
+        #   * small nonzero weight  → θ varies with the clip embedding and step s, so
+        #     θ(s+1) − θ(s) ≠ 0 and the removal loss has a real, non-degenerate target;
+        #   * bias seeds standard LoRA init (A ~ kaiming, B = 0);
+        #   * the weight rows that emit B are zeroed, so B = 0 *exactly* at init.
+        # Hence at init: A varies with (c, s) but B ≡ 0 ⇒ A·B = 0 (base model preserved
+        # on every prompt), while ∂ℒ_task/∂B ∝ A ≠ 0 and the removal gradient grows the
+        # B-rows from zero, forming the trajectory. Two failure modes this avoids:
+        #   - A = B = 0 (fully zero bias):   ∇_θ ℒ_task ≡ 0, nothing trains;
+        #   - zero weight (constant output): adapter frozen at B = 0 with zero effect on
+        #     generation, and θ(s+1) − θ(s) ≡ 0 so the zero trajectory trivially wins.
+        nn.init.normal_(out_layer.weight, std=FINAL_LAYER_WEIGHT_STD)
         with torch.no_grad():
+            self._zero_b_slot_rows(out_layer.weight)
             out_layer.bias.copy_(self._lora_init_bias())
         layers.append(out_layer)
         self.mlp = nn.Sequential(*layers)
+
+    def _zero_b_slot_rows(self, weight: torch.Tensor) -> None:
+        """Zero the final-layer weight rows that emit LoRA B entries, so B = 0
+        exactly at init (A·B = 0, base model preserved) while A still varies with
+        (c, s). The removal-loss gradient grows these rows from zero."""
+        offset = 0
+        for shape in self.lora_shapes:
+            a_size = shape.in_features * self.rank
+            b_size = self.rank * shape.out_features
+            weight[offset + a_size: offset + a_size + b_size].zero_()
+            offset += a_size + b_size
 
     def _lora_init_bias(self) -> torch.Tensor:
         """Flat bias seeding standard LoRA init (A ~ kaiming, B = 0), laid out
