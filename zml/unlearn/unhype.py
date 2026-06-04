@@ -70,6 +70,8 @@ class Config:
     lora_target_modules: list[str] = field(default_factory=lambda: list(DEFAULT_TARGET_MODULES))
     global_seed: int | None = None
     metrics_log_interval: int = 50  # steps per flushed train-window row in summary.json
+    remove_loss_type: str = "mse"  # "mse" | "cosine"
+    remove_magnitude_weight: float = 1.0  # weight of the ‖·‖-matching term in the cosine variant
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -88,6 +90,33 @@ def _load_eval_prompts(path: str) -> list[EvalPrompt]:
 
 def _tensor_norm(t: torch.Tensor) -> float:
     return float(t.detach().float().norm())
+
+
+def compute_removal_loss(
+    predicted_step: torch.Tensor,
+    target_step: torch.Tensor,
+    loss_type: str,
+    magnitude_weight: float,
+) -> tuple[torch.Tensor, float, float]:
+    """Removal loss + (direction, magnitude) diagnostics.
+
+    "mse"    – original ‖pred − target‖²; its gradient is dominated by ‖pred‖ when the two
+               scales differ, so a large predicted step is just shrunk toward zero (the
+               trajectory collapses to constant-in-s) instead of being steered.
+    "cosine" – (1 − cos(pred, target)) + magnitude_weight·(‖pred‖ − ‖target‖)²; the direction
+               term aligns the step with the erasure gradient without driving its magnitude to 0.
+    """
+    pred = predicted_step.float()
+    tgt = target_step.float()
+    if loss_type == "mse":
+        loss = F.mse_loss(pred, tgt)
+        return loss, float(loss.detach()), 0.0
+    if loss_type == "cosine":
+        direction = 1.0 - F.cosine_similarity(pred, tgt, dim=0)
+        magnitude = (pred.norm() - tgt.norm()).pow(2)
+        loss = direction + magnitude_weight * magnitude
+        return loss, float(direction.detach()), float(magnitude.detach())
+    raise ValueError(f"Unknown remove_loss_type: {loss_type!r}")
 
 
 def main(config: Config) -> None:
@@ -259,7 +288,9 @@ def main(config: Config) -> None:
         grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=False)[0]
         target_step = (-config.simulated_lr * grad_theta).detach()
         predicted_step = theta_s_plus_1 - theta_s
-        loss_remove = F.mse_loss(predicted_step.float(), target_step.float())
+        loss_remove, remove_direction, remove_magnitude = compute_removal_loss(
+            predicted_step, target_step, config.remove_loss_type, config.remove_magnitude_weight
+        )
 
         theta_retain_s = hypernet_predict(c_retain_clip, s)
         theta_retain_0 = hypernet_predict(c_retain_clip, 0)
@@ -275,6 +306,8 @@ def main(config: Config) -> None:
         metrics = {
             "train/loss_task": float(loss_task.detach()),
             "train/loss_remove": float(loss_remove.detach()),
+            "train/loss_remove_direction": remove_direction,
+            "train/loss_remove_magnitude": remove_magnitude,
             "train/loss_retain": float(loss_retain.detach()),
             "train/loss_total": float(loss_total.detach()),
             # Diagnostics: is the trajectory leaving the origin, and how strong
