@@ -16,11 +16,15 @@ zml/
 ├── experiments/                 # one folder per experiment run
 │   ├── exp001_esd_nudity/        # single-run experiment
 │   │   ├── config.yaml          # hyperparameters, dataset info, etc.
-│   │   ├── outputs_{TIMESTAMP}  # generated videos, evaluation results, etc.
+│   │   ├── logs_{TIMESTAMP}/     # logs from the SLURM job (stdout, stderr)
+│   │   ├── outputs_{TIMESTAMP}/  # generated videos, evaluation results, etc.
+│   │   │   ├── metrics.jsonl    # metrics - one object per flushed train window and per eval
+│   │   │   ├── summary.json     # metrics - overwritten each update
+│   │   │   └── other outputs... # e.g. generated videos, eval results, etc.
 │   │   └── notes.md             # what was tried, what happened
 │   ├── exp005_esd_fire_grid/     # grid-search experiment (alternative pattern)
 │   │   ├── config.yaml          # base config with list values for swept params
-│   │   └── grid/                # one subfolder per hyperparameter combination
+│   │   └── grid_{TIMESTAMP}/    # has one subfolder per hyperparameter combination
 │   │       ├── run_001/
 │   │       │   ├── config.yaml  # concrete config for this run (all values scalar)
 │   │       │   ├── logs/        # SLURM stdout/stderr logs
