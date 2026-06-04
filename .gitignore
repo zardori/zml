@@ -15,7 +15,7 @@ hf_cache
 .vscode/
 
 # Local config
-athena.conf
+cluster.conf
 
 # Script outputs
 outputs/
