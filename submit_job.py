@@ -2,18 +2,20 @@
 """Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit_job.py [--cluster CLUSTER] <slurm_script> <config>
+    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT]
 
 Arguments:
-    slurm_script   Path to SLURM script relative to remote dir (e.g. slurm/unlearn.sh)
-    config         Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)
+    cluster   Cluster name: athena or helios
+    config    Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)
 
 Options:
-    --cluster      Cluster name; reads <cluster>.conf for connection details (default: athena)
+    --slurm   Path to SLURM script relative to remote dir; defaults to slurm/unlearn.sh
+              for athena and slurm/helios_unlearn.sh for helios
 
 Example:
-    ./submit_job.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
-    ./submit_job.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit_job.py athena experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml
+    ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml --slurm slurm/other.sh
 
 If the config contains any list-valued fields, a grid search is performed: one sbatch job
 is submitted per combination in the Cartesian product of all list fields.
@@ -31,6 +33,11 @@ import yaml
 
 
 SCRIPTS_DIR = Path(__file__).parent
+
+CLUSTER_DEFAULT_SLURM: dict[str, str] = {
+    "athena": "slurm/unlearn.sh",
+    "helios": "slurm/helios_unlearn.sh",
+}
 
 
 def load_cluster_conf(cluster: str) -> dict[str, str]:
@@ -191,14 +198,23 @@ def parse_args() -> argparse.Namespace:
         description="Submit experiment to HPC cluster.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--cluster", default="athena", help="Cluster name (reads <cluster>.conf, default: athena)")
-    parser.add_argument("slurm_script", help="Path to SLURM script relative to remote dir")
+    parser.add_argument("cluster", help="Cluster name: athena or helios")
     parser.add_argument("config", help="Path to experiment config YAML")
+    parser.add_argument(
+        "--slurm",
+        default=None,
+        help="Path to SLURM script relative to remote dir (default: slurm/unlearn.sh for athena, slurm/helios_unlearn.sh for helios)",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    slurm_script = args.slurm or CLUSTER_DEFAULT_SLURM.get(args.cluster)
+    if slurm_script is None:
+        print(f"Error: no default slurm script for cluster '{args.cluster}'; use --slurm", file=sys.stderr)
+        sys.exit(1)
 
     conf = load_cluster_conf(args.cluster)
     host = conf["HOST"]
@@ -216,9 +232,9 @@ def main() -> None:
     slurm_time: str | None = config.pop("slurm_time", None)
 
     if any(isinstance(v, list) for v in config.values()):
-        submit_grid(host, remote_dir, args.slurm_script, args.config, config, args.cluster, slurm_time=slurm_time)
+        submit_grid(host, remote_dir, slurm_script, args.config, config, args.cluster, slurm_time=slurm_time)
     else:
-        submit_scalar(host, remote_dir, args.slurm_script, args.config, args.cluster, slurm_time=slurm_time)
+        submit_scalar(host, remote_dir, slurm_script, args.config, args.cluster, slurm_time=slurm_time)
 
 
 if __name__ == "__main__":
