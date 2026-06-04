@@ -44,6 +44,9 @@ zml/
 └── docs/                        # method write-ups & design notes (e.g. unhype.md)
 ```
 
+### Compute Resources
+Cluster access is not unlimited, so experiments should be designed to be research efficient. For example, we should avoid running grid search before the method used is proved to be effective. Short experiments are often sufficient to debug the method and refine the research direction.
+
 ### Desired Research Workflow
 
 1. **Prepare Unlearning methods** (`zml/unlearn`): Add code for different unlearning methods there.
