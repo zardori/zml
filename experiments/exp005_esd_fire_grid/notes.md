@@ -31,19 +31,30 @@ Grid search over `negative_guidance_scale` × `learning_rate`:
 | run_011 | 2.0 | 0.0005 | 600       | 0.00  | 0.00  | 0.00  | 0.236    |
 | run_012 | 2.0 | 0.001  | 200–400   | 0.00  | 0.00  | 0.00  | 0.183    |
 
-## Conclusions
+## ⚠️ Correction — FDR overstates erasure here
 
-**Best run: run_005 (`ngs=1.0, lr=0.0005`)**
+The `concept_fdr → 0.0` readings in this grid are **misleading**. Inspecting the generated videos
+shows FDR dropped mainly because the model **collapsed toward desaturated / black-and-white,
+lower-quality** output — not because fire content was cleanly removed. Residual contours and
+structure survived, so CLIP stayed ~0.30: CLIP is largely insensitive to this desaturation, and the
+fire detector reads grayscale frames as "no fire."
 
-Achieves full fire erasure at step 400 while preserving the highest CLIP scores (~0.30 avg).
-Step 800 is also notable: all three FDR rates reach 0.0 simultaneously (no spurious fire anywhere),
-though CLIP drops slightly (avg 0.287).
+So run_005 (`ngs=1.0, lr=5e-4`) is **not** a clean erasure — "FDR=0 + CLIP~0.30" conflates erasure
+with quality collapse. Higher `ngs`/`lr` collapse harder. **Lesson: FDR alone is gameable by
+desaturation**; evaluation needs a color/quality guard (a colorfulness metric is added in exp027).
+The genuinely promising result is **exp006**, not any run here.
 
-Higher `ngs` (1.5, 2.0) and higher `lr` (0.001) achieve erasure faster but over-perturb the model,
-resulting in significantly degraded CLIP scores — especially on related prompts.
+## Conclusions (revised)
+
+The "full erasure" table above ranks by raw FDR/CLIP, which — per the correction — overstates
+erasure. Treat those runs as **quality-collapse** runs, not clean removals. run_005 (`ngs=1.0,
+lr=5e-4`) had the highest CLIP (~0.30) but reached FDR=0 by desaturating; at step 800 all three FDR
+rates hit 0.0 (CLIP ~0.287). Higher `ngs` (1.5, 2.0) and higher `lr` (0.001) reach FDR=0 faster but
+over-perturb the model and degrade CLIP further — consistent with the collapse mechanism above.
 
 ## Suggested Next Steps
 
-- Focus on `ngs=1.0`, refine `lr` in the 0.0003–0.0005 range.
-- Run_005 should be extended to full 1000 steps with more eval prompts to confirm stability.
-- Consider early stopping around step 400–600 based on concept_fdr reaching 0.
+- Do **not** chase FDR=0 here; it is reached via collapse. Use the colorfulness/quality guard
+  (added in exp027) to distinguish genuine erasure from desaturation.
+- The promising direction is exp006's larger, more diverse prompt set (better generalization, far
+  less collapse) — build on that, not on these collapse runs.
