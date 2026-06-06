@@ -1,0 +1,41 @@
+slurm_time: "14:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# exp024/025/026 ruled out every knob on the gradient-matching loss: simulated_lr (exp024 -> no-op),
+# loss form (exp025 cosine -> moved but misaligned), negative_guidance_scale 1->3 and
+# remove_magnitude_weight (exp026 -> still misaligned). train/loss_remove_direction stayed pinned ~1
+# (cos~0) in every cosine run. Remaining suspect: per-step target variance. The removal target
+# -lr*grad_theta loss_task is built from ONE (timestep, latent) sample whose direction reshuffles
+# every step, so the cosine term has no stable direction to align to; the diffusion timestep is the
+# dominant variance source. This run averages the target over K (timestep, latent) snapshots taken
+# from a single shared rollout, so the hypernet sees the *expected* ESD descent direction (the same
+# gradient that erases fire when a LoRA is trained on it directly, exp006). Single change vs exp025.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+lora_rank: 4
+lora_alpha: 4.0
+num_unlearning_steps: 300
+simulated_lr: 0.3
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.3
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.0001
+steps: 800
+save_interval: 400
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+remove_loss_type: cosine
+# Let the direction term dominate (subordinate magnitude anchor), as in exp026.
+remove_magnitude_weight: 0.1
+# The single change under test: average the removal target over K=8 (timestep, latent) snapshots
+# from one shared rollout (~2x step cost, not Kx) to cut per-step target variance and give the
+# cosine term a stable erasure direction. K=1 reproduces exp025's single-sample behavior exactly.
+target_grad_batch_size: 8
