@@ -8,6 +8,7 @@ near-zero for unrelated concepts."""
 import os
 import random
 import statistics
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import mlflow
@@ -72,6 +73,7 @@ class Config:
     metrics_log_interval: int = 50  # steps per flushed train-window row in summary.json
     remove_loss_type: str = "mse"  # "mse" | "cosine"
     remove_magnitude_weight: float = 1.0  # weight of the ‖·‖-matching term in the cosine variant
+    target_grad_batch_size: int = 1  # # of (timestep, latent) samples averaged into the removal target
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -117,6 +119,86 @@ def compute_removal_loss(
         loss = direction + magnitude_weight * magnitude
         return loss, float(direction.detach()), float(magnitude.detach())
     raise ValueError(f"Unknown remove_loss_type: {loss_type!r}")
+
+
+def _rollout_to_timesteps(
+    transformer,
+    scheduler,
+    encoder_hidden_states: torch.Tensor,
+    init_latents: torch.Tensor,
+    target_timesteps: list[torch.Tensor],
+    batch_size: int,
+) -> list[torch.Tensor]:
+    """Partial-denoise ``init_latents`` once, snapshotting the latent state at each target timestep.
+
+    ``target_timesteps`` must be sorted descending (high noise → low). Returns one latent snapshot per
+    target, in the same order. The snapshots share the rollout prefix, so K targets cost a single
+    rollout instead of K — this is what makes averaging the removal target over many timesteps cheap
+    (the rollout, not the loss forwards, dominates step cost). Matches the original break-before-step
+    convention: the snapshot for ``t`` is the latent just before the first scheduler step at ``ts ≤ t``.
+    """
+    snapshots: list[torch.Tensor] = []
+    latents = init_latents
+    idx = 0
+    with torch.no_grad():
+        for ts in scheduler.timesteps:
+            while idx < len(target_timesteps) and bool(ts <= target_timesteps[idx]):
+                snapshots.append(latents)
+                idx += 1
+            if idx >= len(target_timesteps):
+                break
+            ts_batch = ts.unsqueeze(0).expand(batch_size).to(latents.device)
+            model_in = latents.permute(0, 2, 1, 3, 4)
+            noise_pred = transformer(
+                hidden_states=model_in,
+                encoder_hidden_states=encoder_hidden_states,
+                timestep=ts_batch,
+            ).sample.permute(0, 2, 1, 3, 4)
+            latents = scheduler.step(noise_pred, ts, latents).prev_sample
+    while idx < len(target_timesteps):  # targets below the lowest scheduler timestep
+        snapshots.append(latents)
+        idx += 1
+    return snapshots
+
+
+def _esd_target_grad(
+    transformer,
+    apply_theta: Callable[[torch.Tensor], None],
+    theta_s: torch.Tensor,
+    snapshot_latents: torch.Tensor,
+    timestep_value: torch.Tensor,
+    c_target_t5: torch.Tensor,
+    c_mapping_t5: torch.Tensor,
+    negative_guidance_scale: float,
+    batch_size: int,
+) -> tuple[torch.Tensor, float, float]:
+    """One ESD-steered task-loss gradient w.r.t. ``theta_s`` at a single (timestep, latent) sample.
+
+    Re-applies ``theta_s`` so each call has a live decode graph back to it — required because we take
+    several independent ``autograd.grad`` calls (one per snapshot), each of which frees its graph.
+    Returns ``(grad_theta, loss_task, steering_norm)``.
+    """
+    apply_theta(theta_s)
+    timesteps = timestep_value.unsqueeze(0).expand(batch_size).to(snapshot_latents.device)
+    model_input = snapshot_latents.permute(0, 2, 1, 3, 4)
+    with torch.no_grad():
+        with disable_hyper_adapters(transformer):
+            eps_target_concept = transformer(
+                hidden_states=model_input, encoder_hidden_states=c_target_t5, timestep=timesteps
+            ).sample
+            eps_mapping_concept = transformer(
+                hidden_states=model_input, encoder_hidden_states=c_mapping_t5, timestep=timesteps
+            ).sample
+    eps_steered_target = eps_mapping_concept - negative_guidance_scale * (
+        eps_target_concept - eps_mapping_concept
+    )
+    eps_pred = transformer(
+        hidden_states=model_input, encoder_hidden_states=c_target_t5, timestep=timesteps
+    ).sample
+    loss_task = F.mse_loss(eps_pred.float(), eps_steered_target.float())
+    grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=False)[0]
+    steering_norm = _tensor_norm(eps_target_concept - eps_mapping_concept)
+    return grad_theta, float(loss_task.detach()), steering_norm
 
 
 def main(config: Config) -> None:
@@ -215,6 +297,7 @@ def main(config: Config) -> None:
             "retain_weight": config.retain_weight,
             "learning_rate": config.learning_rate,
             "steps": config.steps,
+            "target_grad_batch_size": config.target_grad_batch_size,
         },
         flush_interval=config.metrics_log_interval,
     )
@@ -238,54 +321,36 @@ def main(config: Config) -> None:
             c_target_t5 = encode_t5(target_prompt)
             c_mapping_t5 = encode_t5(mapping_prompt)
 
-        t_idx = random.randint(1, NUM_INFERENCE_STEPS - 1)
-        t = scheduler.timesteps[t_idx]
-        timesteps = t.unsqueeze(0).expand(BATCH_SIZE).to(device)
-        latents = torch.randn(latent_shape, device=device, dtype=dtype)
-
-        with torch.no_grad():
-            for ts in scheduler.timesteps:
-                if ts <= t:
-                    break
-                ts_batch = ts.unsqueeze(0).expand(BATCH_SIZE).to(device)
-                model_in = latents.permute(0, 2, 1, 3, 4)
-                noise_pred = transformer(
-                    hidden_states=model_in,
-                    encoder_hidden_states=c_target_t5,
-                    timestep=ts_batch,
-                ).sample.permute(0, 2, 1, 3, 4)
-                latents = scheduler.step(noise_pred, ts, latents).prev_sample
-
-        model_input = latents.permute(0, 2, 1, 3, 4)
-
-        with torch.no_grad():
-            with disable_hyper_adapters(transformer):
-                eps_target_concept = transformer(
-                    hidden_states=model_input,
-                    encoder_hidden_states=c_target_t5,
-                    timestep=timesteps,
-                ).sample
-                eps_mapping_concept = transformer(
-                    hidden_states=model_input,
-                    encoder_hidden_states=c_mapping_t5,
-                    timestep=timesteps,
-                ).sample
-        eps_steered_target = eps_mapping_concept - config.negative_guidance_scale * (
-            eps_target_concept - eps_mapping_concept
+        # Variance reduction: average the removal target over K (timestep, latent) samples so the
+        # hypernet sees the *expected* ESD descent direction instead of one near-random per-step
+        # gradient. The diffusion timestep is the dominant variance source, so we snapshot K
+        # timesteps from a single shared rollout (see _rollout_to_timesteps) — ~2x step cost, not Kx.
+        n_target_samples = min(config.target_grad_batch_size, NUM_INFERENCE_STEPS - 1)
+        t_indices = sorted(random.sample(range(1, NUM_INFERENCE_STEPS), n_target_samples))
+        # scheduler.timesteps is descending, so ascending indices give descending timestep values.
+        target_timesteps = [scheduler.timesteps[i] for i in t_indices]
+        init_latents = torch.randn(latent_shape, device=device, dtype=dtype)
+        snapshots = _rollout_to_timesteps(
+            transformer, scheduler, c_target_t5, init_latents, target_timesteps, BATCH_SIZE
         )
 
-        eps_pred = transformer(
-            hidden_states=model_input,
-            encoder_hidden_states=c_target_t5,
-            timestep=timesteps,
-        ).sample
-        loss_task = F.mse_loss(eps_pred.float(), eps_steered_target.float())
-
-        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target,
-        # so create_graph=False (no second-order graph) and we detach it. This
-        # also frees the expensive task-loss forward graph before backward.
-        # φ is still optimized via predicted_step = θ_{s+1} − θ_s below.
-        grad_theta = torch.autograd.grad(loss_task, theta_s, create_graph=False)[0]
+        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target, so each per-snapshot
+        # grad uses create_graph=False (no second-order graph, forward graph freed) and the averaged
+        # target is detached. φ is still optimized via predicted_step = θ_{s+1} − θ_s below.
+        grad_theta = torch.zeros_like(theta_s)
+        loss_task_acc = 0.0
+        steering_norm_acc = 0.0
+        for snap_latents, t_value in zip(snapshots, target_timesteps):
+            grad_k, loss_k, steering_k = _esd_target_grad(
+                transformer, apply_flat, theta_s, snap_latents, t_value,
+                c_target_t5, c_mapping_t5, config.negative_guidance_scale, BATCH_SIZE,
+            )
+            grad_theta = grad_theta + grad_k
+            loss_task_acc += loss_k
+            steering_norm_acc += steering_k
+        grad_theta = grad_theta / len(snapshots)
+        loss_task_value = loss_task_acc / len(snapshots)
+        steering_norm_value = steering_norm_acc / len(snapshots)
         target_step = (-config.simulated_lr * grad_theta).detach()
         predicted_step = theta_s_plus_1 - theta_s
         loss_remove, remove_direction, remove_magnitude = compute_removal_loss(
@@ -304,7 +369,7 @@ def main(config: Config) -> None:
         clear_hypernet_output(hyper_modules)
 
         metrics = {
-            "train/loss_task": float(loss_task.detach()),
+            "train/loss_task": loss_task_value,
             "train/loss_remove": float(loss_remove.detach()),
             "train/loss_remove_direction": remove_direction,
             "train/loss_remove_magnitude": remove_magnitude,
@@ -316,7 +381,7 @@ def main(config: Config) -> None:
             "train/predicted_step_norm": _tensor_norm(predicted_step),
             "train/target_step_norm": _tensor_norm(target_step),
             "train/grad_theta_norm": _tensor_norm(grad_theta),
-            "train/steering_norm": _tensor_norm(eps_target_concept - eps_mapping_concept),
+            "train/steering_norm": steering_norm_value,
         }
         for k, v in metrics.items():
             mlflow.log_metric(k, v, step=step)
@@ -370,6 +435,7 @@ def main(config: Config) -> None:
                     set_name: {
                         "fire_detection_rate": s["fire_detection_rate"],
                         "clip_score_mean": s["clip_score_mean"],
+                        "colorfulness_mean": s["colorfulness_mean"],
                         "dover_technical_mean": s["dover_technical_mean"],
                         "dover_aesthetic_mean": s["dover_aesthetic_mean"],
                     }
