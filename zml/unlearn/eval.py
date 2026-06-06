@@ -11,6 +11,7 @@ import torch
 
 from zml.eval.check_for_fire import VideoFireDetector
 from zml.eval.clip_score import VideoClipScorer
+from zml.eval.colorfulness import VideoColorfulnessScorer
 from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
 
 
@@ -86,6 +87,7 @@ def evaluate(
         clip_scores = VideoClipScorer(
             video_dir=video_dir, prompts=[ep.prompt for ep in eval_prompts]
         ).process_videos()
+        colorfulness_scores = VideoColorfulnessScorer(video_dir=video_dir).process_videos()
         dover_scores = (
             VideoDoverScorer(video_dir=video_dir).process_videos()
             if DOVER_AVAILABLE
@@ -93,6 +95,7 @@ def evaluate(
         )
 
         clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
+        color_arr = np.array(colorfulness_scores) if colorfulness_scores else np.array([0.0])
         tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
         aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
 
@@ -101,6 +104,9 @@ def evaluate(
             "clip_scores": clip_scores,
             "clip_score_mean": float(clip_arr.mean()),
             "clip_score_std": float(clip_arr.std()),
+            "colorfulness_scores": colorfulness_scores,
+            "colorfulness_mean": float(color_arr.mean()),
+            "colorfulness_std": float(color_arr.std()),
             "dover_technical_scores": dover_scores["technical"],
             "dover_technical_mean": float(tech_arr.mean()),
             "dover_technical_std": float(tech_arr.std()),
@@ -118,6 +124,7 @@ def evaluate(
     for set_name, scores in metrics.items():
         mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
         mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
+        mlflow.log_metric(f"eval/{set_name}_colorfulness_mean", round(scores["colorfulness_mean"], 2), step=step)
         if DOVER_AVAILABLE:
             mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
             mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
@@ -128,6 +135,7 @@ def evaluate(
         for k, v in [
             ("fire_detection_rate", scores["fire_detection_rate"]),
             ("clip_score_mean", scores["clip_score_mean"]),
+            ("colorfulness_mean", scores["colorfulness_mean"]),
         ]
     }
     if DOVER_AVAILABLE:
