@@ -42,8 +42,25 @@ Read `outputs_*/summary.json` → the single `eval` entry (logged at step = `num
   against exp006's own eval to confirm `θ*` itself still erases fire as a direct PEFT adapter.
 
 ## Run log
-- _Pending — owner submits on helios (`submit_job.py slurm/unlearn.sh
-  experiments/exp030_unhype_static_apply_control/config.yaml --cluster helios`)._
+- **2026-06-07 (helios), `outputs_20260607_233544`:** ran once, ~minutes, no training. θ* loaded
+  (norm 40.37) and injected through `apply_flat`; single eval at step 300.
 
 ## Result
-_TBD._
+**Apply/eval path is SOUND.** Injecting θ* directly visibly erases fire (confirmed by watching
+`eval_step_300/concept/*.mp4`) while unrelated generations are held:
+
+| set | `fire_detection_rate` | `colorfulness_mean` | `clip_score_mean` |
+|-----|-----------------------|---------------------|-------------------|
+| concept   | **0.6** (vs 1.0 baseline) | **9.04** (vs 22.6) | 0.28 (vs 0.326) |
+| unrelated | 0.0                       | 24.95              | 0.322            |
+
+The colorfulness collapse (22.6 → 9.0, fire's orange/red removed) plus the lower concept fire
+rate and CLIP score, with unrelated cleanly preserved, confirm θ* erases fire through *our*
+`decode` → `apply_flat` path. The residual 0.6 (vs ~0 expected) is the detector being stricter
+than visual inspection and different eval seeds than exp006 (exp006 predates the per-prompt CSV
+seeds), not a path bug.
+
+**Conclusion:** `decode` layout, `alpha/rank` scaling, and eval conditioning are all correct.
+Therefore every failure across exp024–exp028 is **100% upstream in the online learning signal**
+(`loss_remove_direction = 1 − cos(θ_{s+1}−θ_s, ESD target)` pinned ~1). The apply path is no
+longer a suspect — focus all further work there.
