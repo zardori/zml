@@ -27,6 +27,7 @@ from zml.unlearn.unhype_modules import (
     apply_hypernet_output,
     clear_hypernet_output,
     disable_hyper_adapters,
+    load_peft_adapter_as_flat,
     replace_with_hyper_lora,
 )
 from zml.utils import set_seed
@@ -74,6 +75,9 @@ class Config:
     remove_loss_type: str = "mse"  # "mse" | "cosine"
     remove_magnitude_weight: float = 1.0  # weight of the ‖·‖-matching term in the cosine variant
     target_grad_batch_size: int = 1  # # of (timestep, latent) samples averaged into the removal target
+    target_mode: str = "online"  # "online" | "distill"
+    distill_adapter_dir: str = ""  # PEFT adapter dir for distill mode (the endpoint θ* to reproduce)
+    target_prompt_batch_size: int = 1  # # of prompt pairs averaged into the online removal target
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -283,6 +287,26 @@ def main(config: Config) -> None:
     latent_shape = (BATCH_SIZE, NUM_CHANNELS, NUM_FRAMES, LATENT_HEIGHT, LATENT_WIDTH)
     S = config.num_unlearning_steps
 
+    # Distill mode: instead of matching the noisy online finite-difference step to an
+    # ESD gradient, regress the hypernet's endpoint output H(c, S) directly onto a
+    # known-good erasing adapter θ*. A static, variance-free target — a control that
+    # isolates the apply/eval path from the (broken) online learning signal.
+    theta_star: torch.Tensor | None = None
+    if config.target_mode == "distill":
+        if not config.distill_adapter_dir:
+            raise ValueError("target_mode='distill' requires distill_adapter_dir")
+        theta_star = load_peft_adapter_as_flat(
+            config.distill_adapter_dir, lora_shapes, config.lora_rank
+        ).to(device)
+        if theta_star.numel() != hypernet.total_output:
+            raise ValueError(
+                f"theta_star dim {theta_star.numel()} != hypernet flat output {hypernet.total_output} "
+                "(check lora_rank/lora_alpha and target_modules match the adapter)"
+            )
+        print(f"Distill target θ* loaded: {theta_star.numel():,} params, norm {float(theta_star.norm()):.4f}")
+    elif config.target_mode != "online":
+        raise ValueError(f"Unknown target_mode: {config.target_mode!r}")
+
     recorder = MetricsRecorder(
         output_dir=config.output_dir,
         run_name=os.path.basename(config.output_dir.rstrip("/")) or "unhype",
@@ -298,65 +322,99 @@ def main(config: Config) -> None:
             "learning_rate": config.learning_rate,
             "steps": config.steps,
             "target_grad_batch_size": config.target_grad_batch_size,
+            "target_mode": config.target_mode,
+            "target_prompt_batch_size": config.target_prompt_batch_size,
         },
         flush_interval=config.metrics_log_interval,
     )
 
-    print("Starting UnHype training...")
-    pbar = tqdm(range(config.steps))
-    for step in pbar:
-        target_prompt, mapping_prompt = random.choice(target_mapping)
-        retain_prompt = random.choice(retain_prompts)
-        s = random.randint(0, S - 1)
-
-        c_target_clip = encode_clip(target_prompt)
-        c_retain_clip = encode_clip(retain_prompt)
-
-        theta_s = hypernet_predict(c_target_clip, s)
-        theta_s_plus_1 = hypernet_predict(c_target_clip, s + 1)
-
-        apply_flat(theta_s)
-
-        with torch.no_grad():
-            c_target_t5 = encode_t5(target_prompt)
-            c_mapping_t5 = encode_t5(mapping_prompt)
-
-        # Variance reduction: average the removal target over K (timestep, latent) samples so the
-        # hypernet sees the *expected* ESD descent direction instead of one near-random per-step
-        # gradient. The diffusion timestep is the dominant variance source, so we snapshot K
-        # timesteps from a single shared rollout (see _rollout_to_timesteps) — ~2x step cost, not Kx.
-        n_target_samples = min(config.target_grad_batch_size, NUM_INFERENCE_STEPS - 1)
-        t_indices = sorted(random.sample(range(1, NUM_INFERENCE_STEPS), n_target_samples))
-        # scheduler.timesteps is descending, so ascending indices give descending timestep values.
-        target_timesteps = [scheduler.timesteps[i] for i in t_indices]
-        init_latents = torch.randn(latent_shape, device=device, dtype=dtype)
-        snapshots = _rollout_to_timesteps(
-            transformer, scheduler, c_target_t5, init_latents, target_timesteps, BATCH_SIZE
-        )
-
-        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target, so each per-snapshot
-        # grad uses create_graph=False (no second-order graph, forward graph freed) and the averaged
-        # target is detached. φ is still optimized via predicted_step = θ_{s+1} − θ_s below.
+    def online_removal_grad(
+        theta_s: torch.Tensor, prompt_pairs: list[tuple[str, str]]
+    ) -> tuple[torch.Tensor, float, float]:
+        """Averaged ESD removal direction -∇_{θ_s}ℒ_task over a batch of prompt pairs
+        and K (timestep, latent) snapshots. The diffusion timestep and the prompt are
+        the two dominant variance sources; exp027 averaged only the timestep, so here
+        we also average over prompts to expose the *expected* descent direction rather
+        than one near-random per-step gradient. Cost is ~linear in the prompt count
+        (each pair needs its own rollout), unlike timesteps which share one rollout."""
+        n_timestep_samples = min(config.target_grad_batch_size, NUM_INFERENCE_STEPS - 1)
         grad_theta = torch.zeros_like(theta_s)
         loss_task_acc = 0.0
         steering_norm_acc = 0.0
-        for snap_latents, t_value in zip(snapshots, target_timesteps):
-            grad_k, loss_k, steering_k = _esd_target_grad(
-                transformer, apply_flat, theta_s, snap_latents, t_value,
-                c_target_t5, c_mapping_t5, config.negative_guidance_scale, BATCH_SIZE,
+        n_samples = 0
+        for target_prompt, mapping_prompt in prompt_pairs:
+            with torch.no_grad():
+                c_target_t5 = encode_t5(target_prompt)
+                c_mapping_t5 = encode_t5(mapping_prompt)
+            t_indices = sorted(random.sample(range(1, NUM_INFERENCE_STEPS), n_timestep_samples))
+            # scheduler.timesteps is descending, so ascending indices give descending timestep values.
+            target_timesteps = [scheduler.timesteps[i] for i in t_indices]
+            init_latents = torch.randn(latent_shape, device=device, dtype=dtype)
+            snapshots = _rollout_to_timesteps(
+                transformer, scheduler, c_target_t5, init_latents, target_timesteps, BATCH_SIZE
             )
-            grad_theta = grad_theta + grad_k
-            loss_task_acc += loss_k
-            steering_norm_acc += steering_k
-        grad_theta = grad_theta / len(snapshots)
-        loss_task_value = loss_task_acc / len(snapshots)
-        steering_norm_value = steering_norm_acc / len(snapshots)
-        target_step = (-config.simulated_lr * grad_theta).detach()
-        predicted_step = theta_s_plus_1 - theta_s
-        loss_remove, remove_direction, remove_magnitude = compute_removal_loss(
-            predicted_step, target_step, config.remove_loss_type, config.remove_magnitude_weight
-        )
+            for snap_latents, t_value in zip(snapshots, target_timesteps):
+                grad_k, loss_k, steering_k = _esd_target_grad(
+                    transformer, apply_flat, theta_s, snap_latents, t_value,
+                    c_target_t5, c_mapping_t5, config.negative_guidance_scale, BATCH_SIZE,
+                )
+                grad_theta = grad_theta + grad_k
+                loss_task_acc += loss_k
+                steering_norm_acc += steering_k
+                n_samples += 1
+        grad_theta = grad_theta / n_samples
+        return grad_theta, loss_task_acc / n_samples, steering_norm_acc / n_samples
 
+    print("Starting UnHype training...")
+    pbar = tqdm(range(config.steps))
+    for step in pbar:
+        retain_prompt = random.choice(retain_prompts)
+        # Distill regresses the endpoint H(c, S) onto θ*; online matches the step at a
+        # random trajectory point s.
+        s = S if config.target_mode == "distill" else random.randint(0, S - 1)
+
+        if config.target_mode == "distill":
+            target_prompt = random.choice(target_mapping)[0]
+            c_target_clip = encode_clip(target_prompt)
+            theta_s = hypernet_predict(c_target_clip, s)
+            loss_remove = F.mse_loss(theta_s.float(), theta_star.float())
+            loss_task_value = 0.0  # no diffusion forward in distill mode
+            remove_metrics = {
+                "train/theta_s_norm": _tensor_norm(theta_s),
+                "train/theta_star_norm": _tensor_norm(theta_star),
+                "train/distill_cosine": float(
+                    F.cosine_similarity(theta_s.float(), theta_star.float(), dim=0).detach()
+                ),
+            }
+        else:
+            n_pairs = min(config.target_prompt_batch_size, len(target_mapping))
+            prompt_pairs = random.sample(target_mapping, n_pairs)
+            c_target_clip = encode_clip(prompt_pairs[0][0])
+            theta_s = hypernet_predict(c_target_clip, s)
+            theta_s_plus_1 = hypernet_predict(c_target_clip, s + 1)
+            # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target
+            # (detached, first-order). φ is optimized via predicted_step = θ_{s+1} − θ_s.
+            grad_theta, loss_task_value, steering_norm_value = online_removal_grad(
+                theta_s, prompt_pairs
+            )
+            target_step = (-config.simulated_lr * grad_theta).detach()
+            predicted_step = theta_s_plus_1 - theta_s
+            loss_remove, remove_direction, remove_magnitude = compute_removal_loss(
+                predicted_step, target_step, config.remove_loss_type, config.remove_magnitude_weight
+            )
+            remove_metrics = {
+                "train/loss_remove_direction": remove_direction,
+                "train/loss_remove_magnitude": remove_magnitude,
+                # Diagnostics: is the trajectory leaving the origin, and how strong
+                # is the steering signal that drives the whole task gradient?
+                "train/theta_s_norm": _tensor_norm(theta_s),
+                "train/predicted_step_norm": _tensor_norm(predicted_step),
+                "train/target_step_norm": _tensor_norm(target_step),
+                "train/grad_theta_norm": _tensor_norm(grad_theta),
+                "train/steering_norm": steering_norm_value,
+            }
+
+        c_retain_clip = encode_clip(retain_prompt)
         theta_retain_s = hypernet_predict(c_retain_clip, s)
         theta_retain_0 = hypernet_predict(c_retain_clip, 0)
         loss_retain = F.mse_loss(theta_retain_s.float(), theta_retain_0.float())
@@ -371,17 +429,9 @@ def main(config: Config) -> None:
         metrics = {
             "train/loss_task": loss_task_value,
             "train/loss_remove": float(loss_remove.detach()),
-            "train/loss_remove_direction": remove_direction,
-            "train/loss_remove_magnitude": remove_magnitude,
             "train/loss_retain": float(loss_retain.detach()),
             "train/loss_total": float(loss_total.detach()),
-            # Diagnostics: is the trajectory leaving the origin, and how strong
-            # is the steering signal that drives the whole task gradient?
-            "train/theta_s_norm": _tensor_norm(theta_s),
-            "train/predicted_step_norm": _tensor_norm(predicted_step),
-            "train/target_step_norm": _tensor_norm(target_step),
-            "train/grad_theta_norm": _tensor_norm(grad_theta),
-            "train/steering_norm": steering_norm_value,
+            **remove_metrics,
         }
         for k, v in metrics.items():
             mlflow.log_metric(k, v, step=step)

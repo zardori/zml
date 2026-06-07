@@ -3,6 +3,7 @@ frozen CogVideoX transformer, and a custom Linear wrapper that accepts those
 weights as plain tensors so gradients flow back into the hypernetwork."""
 
 import math
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterable
@@ -10,6 +11,7 @@ from typing import Iterable
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from safetensors.torch import load_file
 
 # Std of the final-layer weight init. Small but nonzero so the hypernet output
 # actually varies with (clip embedding, step) — the prerequisite for representing
@@ -138,6 +140,45 @@ def apply_hypernet_output(
 def clear_hypernet_output(hyper_modules: list[HyperLoRALinear]) -> None:
     for m in hyper_modules:
         m.clear_lora()
+
+
+def load_peft_adapter_as_flat(
+    adapter_dir: str,
+    lora_shapes: list[LoRAShape],
+    rank: int,
+) -> torch.Tensor:
+    """Load a PEFT LoRA adapter and flatten it into the hypernet's θ layout.
+
+    The returned vector matches ``Hypernetwork.decode``: per module in
+    ``lora_shapes`` order, A (rank, in_features) flattened then B (out_features,
+    rank) flattened. PEFT keys are matched by suffix so the ``base_model.model.``
+    prefix is irrelevant. Shapes and rank are asserted per module — a silent
+    layout mismatch would distill the hypernet onto garbage. Returned as CPU
+    float32; the caller moves it to device.
+
+    The adapter must share the hypernet run's ``rank`` (and ``alpha``, so the
+    applied ``alpha/rank`` scaling matches PEFT's) for the raw weights to
+    transfer without rescaling.
+    """
+    state = load_file(os.path.join(adapter_dir, "adapter_model.safetensors"))
+
+    def find(suffix: str) -> torch.Tensor:
+        matches = [k for k in state if k.endswith(suffix)]
+        if len(matches) != 1:
+            raise ValueError(f"Expected exactly one key ending in {suffix!r}, found {matches}")
+        return state[matches[0]]
+
+    flats: list[torch.Tensor] = []
+    for shape in lora_shapes:
+        A = find(f"{shape.path}.lora_A.weight")  # (rank, in_features)
+        B = find(f"{shape.path}.lora_B.weight")  # (out_features, rank)
+        if tuple(A.shape) != (rank, shape.in_features):
+            raise ValueError(f"{shape.path}: lora_A {tuple(A.shape)} != {(rank, shape.in_features)}")
+        if tuple(B.shape) != (shape.out_features, rank):
+            raise ValueError(f"{shape.path}: lora_B {tuple(B.shape)} != {(shape.out_features, rank)}")
+        flats.append(A.flatten().float())
+        flats.append(B.flatten().float())
+    return torch.cat(flats)
 
 
 def sinusoidal_step_embedding(s: torch.Tensor, dim: int, max_period: float = 10000.0) -> torch.Tensor:
