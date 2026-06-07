@@ -75,7 +75,7 @@ class Config:
     remove_loss_type: str = "mse"  # "mse" | "cosine"
     remove_magnitude_weight: float = 1.0  # weight of the ‖·‖-matching term in the cosine variant
     target_grad_batch_size: int = 1  # # of (timestep, latent) samples averaged into the removal target
-    target_mode: str = "online"  # "online" | "distill"
+    target_mode: str = "online"  # "online" | "distill" | "static_apply"
     distill_adapter_dir: str = ""  # PEFT adapter dir for distill mode (the endpoint θ* to reproduce)
     target_prompt_batch_size: int = 1  # # of prompt pairs averaged into the online removal target
     optimizer: str = "adamw"  # "adamw" | "adafactor" — adafactor's factored state fits rank-8 hypernet
@@ -309,10 +309,13 @@ def main(config: Config) -> None:
     # ESD gradient, regress the hypernet's endpoint output H(c, S) directly onto a
     # known-good erasing adapter θ*. A static, variance-free target — a control that
     # isolates the apply/eval path from the (broken) online learning signal.
+    # static_apply also needs θ*: it injects the known-good adapter directly through the
+    # decode/apply path (no hypernet, no training) and evals once — a confound-free test of
+    # the apply/eval path that distill couldn't give (its optimizer never reached θ*).
     theta_star: torch.Tensor | None = None
-    if config.target_mode == "distill":
+    if config.target_mode in ("distill", "static_apply"):
         if not config.distill_adapter_dir:
-            raise ValueError("target_mode='distill' requires distill_adapter_dir")
+            raise ValueError(f"target_mode={config.target_mode!r} requires distill_adapter_dir")
         theta_star = load_peft_adapter_as_flat(
             config.distill_adapter_dir, lora_shapes, config.lora_rank
         ).to(device)
@@ -321,7 +324,7 @@ def main(config: Config) -> None:
                 f"theta_star dim {theta_star.numel()} != hypernet flat output {hypernet.total_output} "
                 "(check lora_rank/lora_alpha and target_modules match the adapter)"
             )
-        print(f"Distill target θ* loaded: {theta_star.numel():,} params, norm {float(theta_star.norm()):.4f}")
+        print(f"Target θ* loaded: {theta_star.numel():,} params, norm {float(theta_star.norm()):.4f}")
     elif config.target_mode != "online":
         raise ValueError(f"Unknown target_mode: {config.target_mode!r}")
 
@@ -346,6 +349,41 @@ def main(config: Config) -> None:
         },
         flush_interval=config.metrics_log_interval,
     )
+
+    if config.target_mode == "static_apply":
+        assert theta_star is not None
+        # Inject θ* into every adapter through the same decode/apply path the hypernet uses
+        # (constant across prompts), then eval once and stop. If fire drops here, the apply/eval
+        # path is sound and every past failure is upstream (the online learning signal); if fire
+        # survives despite θ* having erased it as a direct PEFT adapter, there is a wiring bug
+        # (decode layout, alpha/rank scaling, or eval conditioning).
+        print(f"Static-apply eval: injecting θ* (norm {float(theta_star.norm()):.4f}) into all adapters.")
+
+        def prepare_for_prompt(_prompt: str) -> None:
+            apply_flat(theta_star)
+
+        eval_metrics = evaluate(
+            pipe, transformer, config, S,
+            control_concept, control_related, control_unrelated,
+            prepare_for_prompt=prepare_for_prompt,
+        )
+        clear_hypernet_output(hyper_modules)
+        recorder.log_eval(S, {
+            "theta_star_norm": float(theta_star.norm()),
+            "scores": {
+                set_name: {
+                    "fire_detection_rate": s["fire_detection_rate"],
+                    "clip_score_mean": s["clip_score_mean"],
+                    "colorfulness_mean": s["colorfulness_mean"],
+                    "dover_technical_mean": s["dover_technical_mean"],
+                    "dover_aesthetic_mean": s["dover_aesthetic_mean"],
+                }
+                for set_name, s in eval_metrics.items()
+            },
+        })
+        recorder.close()
+        print("Static-apply eval complete.")
+        return
 
     def online_removal_grad(
         theta_s: torch.Tensor, prompt_pairs: list[tuple[str, str]]
