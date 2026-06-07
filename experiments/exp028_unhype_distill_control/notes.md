@@ -37,7 +37,24 @@ in `unhype.py`'s training loop. This run also picks up the step-embedding fix
   layer `Linear(512 → 8.26M)` is ~4.2B params; AdamW (param + grad + m + v ≈ 68 GB) plus the 5B
   transformer + T5 + VAE overflows the 95 GB GH200. Fix: switched the optimizer to Adafactor
   (`optimizer: adafactor`) — factored second moment, no momentum buffer → optimizer state drops
-  to ~tens of MB, peak ≈ 56 GB. Resubmit.
+  to ~tens of MB. Resubmit.
+- **2026-06-07, attempt 2 (helios):** OOM moved to `loss_total.backward()` (the output-layer
+  param gradient, ~16.9 GB). Fix: offload the diffusion stack (transformer/T5/VAE) to CPU during
+  the distill loop — it's idle there (no diffusion forward) — and bring it back only for eval
+  (`move_diffusion_stack` in `unhype.py`, guarded to distill). Resubmit.
+- **2026-06-07, attempt 3 (helios), `outputs_20260607_193912`:** ran to completion, no OOM
+  (offload worked). But the distillation **did not converge**: see Result.
 
 ## Result
-_TBD — awaiting cluster run (attempt 2, Adafactor)._
+**Ran, but the control failed *as a test*.** 2000 steps, Adafactor, lr 1e-3:
+- `train/distill_cosine`: 0.0005 → **0.057** (target ~1.0) — `θ_s` still ~orthogonal to `θ*`.
+- `train/theta_s_norm`: 21.5 → **20.6**, drifting *down*, away from `‖θ*‖ = 40.37`.
+- `train/loss_remove` (MSE): 2.53e-4 → 2.37e-4 — barely moved.
+- `eval/concept fire_detection_rate`: **1.0** at step 1000 and 2000 (fire intact).
+
+Fire stayed intact only because the hypernet never emitted `θ*`, so the eval says nothing about
+the apply/eval path. The optimization is the bottleneck: `F.mse_loss` mean-reduction over 8.26M
+elements gives ~4e-9 per-element gradients, and Adafactor's eps-regularized step barely moves the
+4.2B-param output layer (whose bias alone could represent `θ*` exactly — so it's an
+optimization-speed problem, not capacity). **Follow-up: exp030** removes the confound by injecting
+`θ*` directly through the decode/apply path (no training) and evaluating once.
