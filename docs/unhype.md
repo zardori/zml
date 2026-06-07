@@ -2,7 +2,8 @@
 
 > Wójcik, Petrenko, Gromski, Spurek, Zięba.
 > *UnHype: CLIP-Guided Hypernetworks for Dynamic LoRA Unlearning.*
-> arXiv:2602.03410 — https://arxiv.org/abs/2602.03410
+> arXiv:2602.03410 — https://arxiv.org/abs/2602.03410 
+> (html version: https://arxiv.org/html/2602.03410v2)
 
 This document summarizes the UnHype method and its training objective as presented in the
 paper (which targets **text-to-image** diffusion), and closes with a short note on adapting it
