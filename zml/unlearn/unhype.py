@@ -244,6 +244,15 @@ def main(config: Config) -> None:
     pipe.transformer = transformer
     print(f"Replaced {len(hyper_modules)} Linear layers with HyperLoRALinear.")
 
+    def move_diffusion_stack(target_device: str) -> None:
+        """Move transformer/T5/VAE between CPU and GPU. Distill training needs only the
+        hypernet + CLIP, so the ~21 GB diffusion stack is offloaded to CPU during the loop
+        and brought back only for the periodic eval — the rank-8 hypernet's ~34 GB
+        weight+grad otherwise overflows the GPU at backward(). clip_text_model and hypernet
+        are separate from pipe, so they stay on GPU."""
+        pipe.to(target_device)
+        torch.cuda.empty_cache()
+
     clip_tokenizer = CLIPTokenizer.from_pretrained(config.clip_model_id)
     clip_text_model = CLIPTextModelWithProjection.from_pretrained(config.clip_model_id).to(device)
     clip_text_model.eval()
@@ -375,6 +384,9 @@ def main(config: Config) -> None:
         grad_theta = grad_theta / n_samples
         return grad_theta, loss_task_acc / n_samples, steering_norm_acc / n_samples
 
+    if config.target_mode == "distill":
+        move_diffusion_stack("cpu")
+
     print("Starting UnHype training...")
     pbar = tqdm(range(config.steps))
     for step in pbar:
@@ -481,12 +493,16 @@ def main(config: Config) -> None:
                     ).squeeze(0)
                     apply_flat(flat)
 
+            if config.target_mode == "distill":
+                move_diffusion_stack(device)
             eval_metrics = evaluate(
                 pipe, transformer, config, step + 1,
                 control_concept, control_related, control_unrelated,
                 prepare_for_prompt=prepare_for_prompt,
             )
             clear_hypernet_output(hyper_modules)
+            if config.target_mode == "distill":
+                move_diffusion_stack("cpu")
 
             recorder.log_eval(step + 1, {
                 "theta_S_norm_concept_mean": mean_theta_S_norm,
