@@ -230,7 +230,15 @@ class Hypernetwork(nn.Module):
         return bias
 
     def forward(self, clip_emb: torch.Tensor, step: torch.Tensor) -> torch.Tensor:
-        step_emb = sinusoidal_step_embedding(step, self.step_embedding_dim)
+        # Map the trajectory step into a fixed [0, π] phase before the sinusoidal
+        # embedding. This (a) makes the encoding invariant to ``num_unlearning_steps``,
+        # and (b) keeps every frequency component monotonic over the whole trajectory
+        # — no wrap-around aliasing — so the per-step difference θ_{s+1} − θ_s has a
+        # smooth, consistent direction instead of one that spins with the raw-step
+        # sinusoid (raw s ∈ [0, S] wraps the top frequency ~S/2π times). ``max_step``
+        # was previously stored but unused.
+        phase = step.float() / self.max_step * math.pi
+        step_emb = sinusoidal_step_embedding(phase, self.step_embedding_dim)
         x = torch.cat([clip_emb, step_emb.to(clip_emb.dtype)], dim=-1)
         return self.mlp(x)
 
