@@ -1,0 +1,43 @@
+slurm_time: "04:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# CONTROL EXPERIMENT (not a capacity test). exp024-exp027 never erased fire: the online
+# signal loss_remove_direction = 1 - cos(theta_{s+1}-theta_s, ESD target) stayed pinned ~1
+# (orthogonal) regardless of guidance scale (exp026) or timestep-variance reduction (exp027).
+# Before investing more in the online signal we verify the *apply/eval path*: make the hypernet
+# emit a KNOWN-GOOD erasing adapter and check fire actually disappears at eval. We distill the
+# hypernet endpoint H(c, S) onto theta* loaded from exp006's direct-LoRA ESD adapter (which DID
+# erase fire), via a static MSE on the flat theta value — variance-free, no diffusion in the loop.
+#   * fire erases here  -> apply/eval path is sound; the failure is 100% the online signal.
+#   * fire stays intact -> wiring/scaling bug (decode layout, alpha/rank scaling, eval conditioning)
+#                          that has silently doomed every online run; fix that first.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# Must match the exp006 adapter so the flat theta layout/scaling line up (PEFT and the hypernet
+# both apply alpha/rank scaling; rank==alpha==8 -> scaling 1.0, weights transfer verbatim).
+lora_rank: 8
+lora_alpha: 8.0
+num_unlearning_steps: 300
+# simulated_lr / negative_guidance_scale are unused in distill mode (no ESD target) but are
+# required Config fields; kept at exp027 values for the record.
+simulated_lr: 0.3
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.3
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+# Pure tensor regression: a higher LR is fine and converges fast.
+learning_rate: 0.001
+steps: 2000
+save_interval: 1000
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+# The control under test.
+target_mode: distill
+distill_adapter_dir: experiments/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20260419_205935/cogvideox_erasure_lora_step1000
