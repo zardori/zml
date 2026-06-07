@@ -1,0 +1,44 @@
+slurm_time: "1-6:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# Attack the online learning signal directly. exp027 reduced only the TIMESTEP variance of the
+# removal target (K=8 snapshots from one rollout) -> loss_remove_direction barely moved (0.99->0.97).
+# The other dominant variance source is the PROMPT: CogVideoX is trained on long, detailed captions,
+# so each (target, mapping) pair gives a different ESD direction (vs the short, low-variance prompts
+# of image-erasure papers where the hypernet idea worked). This run averages the removal target over
+# a BATCH of prompt pairs per step as well (target_prompt_batch_size), exposing the expected descent
+# direction across prompts. Bundled with a code-level fix: Hypernetwork.forward now normalizes the
+# trajectory step by max_step (previously stored but unused), so s in [0, S] maps to a monotonic
+# [0, pi] phase instead of a fast-spinning raw-step sinusoid -> theta_{s+1}-theta_s has a smooth,
+# consistent direction. Two changes vs exp027: prompt-variance reduction + step-embedding fix.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+lora_rank: 4
+lora_alpha: 4.0
+num_unlearning_steps: 300
+simulated_lr: 0.3
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.3
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.0001
+# Short diagnostic run first: check whether loss_remove_direction finally trends < ~0.9 before
+# committing to a full run. Eval at 150 and 300.
+steps: 300
+save_interval: 150
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+remove_loss_type: cosine
+remove_magnitude_weight: 0.1
+target_grad_batch_size: 8
+# The new lever: average the removal target over this many (target, mapping) pairs per step. Each
+# pair needs its own rollout, so cost is ~linear in this count (unlike the K timesteps that share
+# one rollout). Kept small; reduce target_grad_batch_size or steps if wall-time is tight.
+target_prompt_batch_size: 4
