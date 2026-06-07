@@ -1,0 +1,45 @@
+slurm_time: "01:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# ZERO-TRAINING CONTROL. exp028 tried to test the apply/eval path by distilling the hypernet
+# onto a known-good erasing adapter θ* (exp006), but the distill optimizer never reached θ*
+# (distill_cosine plateaued at ~0.057 after 2000 steps, θ_s drifted *away* from θ*'s norm), so
+# its eval (fire intact) was uninformative — it confounded "can the hypernet fit θ*?" with
+# "does emitting θ* erase fire?". This run answers the second question directly: inject θ* into
+# every HyperLoRALinear through the *same* decode/apply path the hypernet uses (target_mode:
+# static_apply), no hypernet forward, no optimizer — then eval once.
+#   * fire erases here  -> decode layout + alpha/rank scaling + eval conditioning are all correct;
+#                          the apply/eval path is sound -> every past failure is the online signal.
+#   * fire stays intact -> wiring/scaling bug in decode/apply/eval that silently doomed exp024-028;
+#                          fix that before any further hypernet runs.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# Must match the exp006 adapter so the flat θ layout/scaling line up (PEFT and the hypernet both
+# apply alpha/rank scaling; rank==alpha==8 -> scaling 1.0, weights transfer verbatim).
+lora_rank: 8
+lora_alpha: 8.0
+num_unlearning_steps: 300
+# Unused in static_apply (no ESD target, no optimizer) but required Config fields; kept at the
+# exp028 values for the record.
+simulated_lr: 0.3
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.3
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.001
+optimizer: adafactor
+# No training loop runs in static_apply; steps/save_interval are inert.
+steps: 1
+save_interval: 1
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+# The control under test: inject θ* directly, eval once.
+target_mode: static_apply
+distill_adapter_dir: experiments/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20260419_205935/cogvideox_erasure_lora_step1000
