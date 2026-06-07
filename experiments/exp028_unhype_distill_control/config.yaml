@@ -33,6 +33,10 @@ hypernet_num_layers: 2
 hypernet_step_embedding_dim: 128
 # Pure tensor regression: a higher LR is fine and converges fast.
 learning_rate: 0.001
+# AdamW OOM'd: at rank 8 the hypernet output layer is ~4.2B params and AdamW's param+grad+m+v
+# (~68 GB) plus the 5B transformer overflows the 95 GB GPU. Adafactor's factored second moment
+# (no momentum buffer) drops optimizer state to ~tens of MB -> fits comfortably.
+optimizer: adafactor
 steps: 2000
 save_interval: 1000
 eval_num_prompts: 5

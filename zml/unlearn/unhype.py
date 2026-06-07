@@ -78,6 +78,7 @@ class Config:
     target_mode: str = "online"  # "online" | "distill"
     distill_adapter_dir: str = ""  # PEFT adapter dir for distill mode (the endpoint θ* to reproduce)
     target_prompt_batch_size: int = 1  # # of prompt pairs averaged into the online removal target
+    optimizer: str = "adamw"  # "adamw" | "adafactor" — adafactor's factored state fits rank-8 hypernet
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -261,7 +262,15 @@ def main(config: Config) -> None:
     n_hypernet_params = sum(p.numel() for p in hypernet.parameters())
     print(f"Hypernetwork: {n_hypernet_params:,} params, flat output dim {hypernet.total_output:,}")
 
-    optimizer = torch.optim.AdamW(hypernet.parameters(), lr=config.learning_rate)
+    if config.optimizer == "adamw":
+        optimizer = torch.optim.AdamW(hypernet.parameters(), lr=config.learning_rate)
+    elif config.optimizer == "adafactor":
+        # Factored second moment + no first-moment buffer ⇒ ~0 optimizer-state memory, vs AdamW's
+        # 2x params (~34 GB at rank 8). Required to fit the rank-8 hypernet's ~4.2B-param output
+        # layer alongside the 5B transformer on a 95 GB GPU (the distill control).
+        optimizer = torch.optim.Adafactor(hypernet.parameters(), lr=config.learning_rate)
+    else:
+        raise ValueError(f"Unknown optimizer: {config.optimizer!r} (expected 'adamw' | 'adafactor')")
 
     def encode_t5(prompt: str) -> torch.Tensor:
         embeds, _ = pipe.encode_prompt(prompt=prompt, do_classifier_free_guidance=False)
@@ -324,6 +333,7 @@ def main(config: Config) -> None:
             "target_grad_batch_size": config.target_grad_batch_size,
             "target_mode": config.target_mode,
             "target_prompt_batch_size": config.target_prompt_batch_size,
+            "optimizer": config.optimizer,
         },
         flush_interval=config.metrics_log_interval,
     )

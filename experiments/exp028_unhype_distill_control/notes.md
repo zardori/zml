@@ -32,5 +32,12 @@ in `unhype.py`'s training loop. This run also picks up the step-embedding fix
   `alpha/rank` scaling, or eval conditioning at the wrong step). Fix that before any further
   online runs — it would have doomed all of exp024–exp027.
 
+## Run log
+- **2026-06-07, attempt 1 (helios):** OOM at `optimizer.step()`. At rank 8 the hypernet output
+  layer `Linear(512 → 8.26M)` is ~4.2B params; AdamW (param + grad + m + v ≈ 68 GB) plus the 5B
+  transformer + T5 + VAE overflows the 95 GB GH200. Fix: switched the optimizer to Adafactor
+  (`optimizer: adafactor`) — factored second moment, no momentum buffer → optimizer state drops
+  to ~tens of MB, peak ≈ 56 GB. Resubmit.
+
 ## Result
-_TBD — awaiting cluster run._
+_TBD — awaiting cluster run (attempt 2, Adafactor)._
