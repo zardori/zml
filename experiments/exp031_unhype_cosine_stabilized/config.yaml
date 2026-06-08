@@ -1,0 +1,54 @@
+slurm_time: "16:00:00"
+method: unhype
+model_id: THUDM/CogVideoX-5b
+clip_model_id: openai/clip-vit-large-patch14
+# Follow-up to exp029. exp029 was the first run where the gate metric loss_remove_direction moved:
+# in steps 0-49 it fell ~1.13 -> 0.55 (cos sim ~0.45) with theta_s_norm flat at init -- the
+# prompt-batch averaging + step-embedding fix exposed an alignable ESD descent direction for the
+# first time. Then steps 50-99 DIVERGED via a magnitude feedback loop: theta grows -> the adapter
+# perturbs the model -> loss_task and grad_theta explode -> target_step explodes -> the cosine
+# magnitude term (||pred||-||target||)^2 chases the runaway target -> theta grows more. theta_s_norm
+# hit 376, loss_remove_magnitude 20670, the direction term was drowned out, and the job died at
+# step 128 before any eval. exp031 keeps exactly what worked and adds stability + fixes a bug:
+#  1. Per-prompt conditioning fix (code): exp029 conditioned the hypernet on only the FIRST prompt
+#     while averaging the ESD target over ALL sampled prompts -- an unmatchable mismatch that capped
+#     the achievable cosine. Now each prompt conditions the hypernet on itself and its target is
+#     computed at that same theta_s; the per-prompt removal terms are averaged over the batch.
+#  2. Target-step norm cap (target_step_max_norm): bounds what the magnitude anchor can chase, so a
+#     gradient spike can no longer drive the runaway.
+#  3. Hypernet grad-norm clip (max_grad_norm): bounds each optimizer step.
+#  4. Divergence abort (theta_divergence_threshold): stop in minutes if theta_s_norm blows up,
+#     instead of burning ~11 h as exp029 did.
+target_mapping_path: prompts/cogvideox_fire_unhype.csv
+retain_prompts_path: prompts/cogvideox_fire_preservation.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+lora_rank: 4
+lora_alpha: 4.0
+num_unlearning_steps: 300
+simulated_lr: 0.3
+negative_guidance_scale: 1.0
+removal_weight: 1.0
+retain_weight: 0.3
+hypernet_hidden_dim: 512
+hypernet_num_layers: 2
+hypernet_step_embedding_dim: 128
+learning_rate: 0.0001
+# First eval at step 50 -- where the gate dropped in exp029 -- then 100/150 to confirm the
+# alignment HOLDS past the old danger zone (50-100) instead of diverging.
+steps: 150
+save_interval: 50
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+remove_loss_type: cosine
+remove_magnitude_weight: 0.1
+target_grad_batch_size: 8
+target_prompt_batch_size: 4
+# Stability guards (see header). The cap sits well above window-1's healthy target norm (~0.02-0.04)
+# and far below the 145 explosion; the divergence threshold is ~5x the ~15-16 init theta norm. All
+# three are tunable first calibration points.
+target_step_max_norm: 1.0
+max_grad_norm: 1.0
+theta_divergence_threshold: 80.0
