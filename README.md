@@ -70,14 +70,17 @@ cp cluster.conf.example cluster.conf
 Commits must be pushed before submitting — the cluster runs `git pull` before each job.
 
 ```bash
-# Single run on athena (default)
-./submit_job.py slurm/unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+# Single run on athena
+./submit_job.py athena experiments/exp001_esd_fire_lora8/config.yaml
 
 # Single run on helios
-./submit_job.py --cluster helios slurm/helios_unlearn.sh experiments/exp001_esd_fire_lora8/config.yaml
+./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml
+
+# Single run with a custom SLURM script
+./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml --slurm slurm/other.sh
 
 # Grid search — any config field that is a list triggers Cartesian product expansion
-./submit_job.py slurm/unlearn.sh experiments/exp005_esd_fire_grid/config.yaml
+./submit_job.py athena experiments/exp005_esd_fire_grid/config.yaml
 ```
 
 For a grid search, the script:
@@ -94,10 +97,11 @@ The script warns (but does not block) if there are uncommitted changes or unpush
 Rsyncs `experiments/` and `mlruns/` from all team members' remote directories.
 
 ```bash
-./pull_results.sh                            # full sync from athena (default)
-./pull_results.sh --cluster helios           # full sync from helios
+./pull_results.sh                            # full sync from both clusters (default)
+./pull_results.sh --cluster athena           # full sync from athena only
+./pull_results.sh --cluster helios           # full sync from helios only
 ./pull_results.sh --logs-only                # only SLURM logs, skip outputs
-./pull_results.sh --include-adapters         # also download .safetensors checkpoints (large)
+./pull_results.sh --include-weights          # also download .safetensors/.pt checkpoints (large)
 ```
 
 ---
@@ -187,7 +191,7 @@ learning_rate: [0.0002, 0.0005]
 1. **Add prompts** — put a CSV (with `prompt` and `seed` columns) or TXT file in `prompts/`
 2. **Create experiment** — make `experiments/expXXX_NAME/config.yaml`
 3. **Commit and push** — the cluster pulls from the repo; uncommitted changes won't be picked up
-4. **Submit** — `./submit_job.py slurm/unlearn.sh experiments/expXXX_NAME/config.yaml`
+4. **Submit** — `./submit_job.py athena experiments/expXXX_NAME/config.yaml`
 5. **Monitor** — `./watch_jobs.sh`
 6. **Download** — `./pull_results.sh`
 7. **Analyze** — inspect `experiments/expXXX_NAME/outputs_*/` (or `grid/run_XXX/outputs/`) for videos and `metrics.json`
