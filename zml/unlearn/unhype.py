@@ -83,8 +83,15 @@ class Config:
     target_grad_batch_size: int = 1  # # of (timestep, latent) samples averaged into the removal target
     target_mode: str = "online"  # "online" | "distill" | "static_apply"
     distill_adapter_dir: str = ""  # PEFT adapter dir for distill mode (the endpoint θ* to reproduce)
-    target_prompt_batch_size: int = 1  # # of prompt pairs averaged into the online removal target
+    target_prompt_batch_size: int = 1  # # of per-prompt removal terms summed per online step
     optimizer: str = "adamw"  # "adamw" | "adafactor" — adafactor's factored state fits rank-8 hypernet
+    # Stability guards (exp031): exp029 diverged via a magnitude feedback loop — θ grows, the adapter
+    # perturbs the model, ‖∇_θ loss_task‖ explodes, the cosine magnitude term chases the exploding
+    # target, θ grows more. The cap bounds what the anchor chases; the grad clip bounds each step; the
+    # divergence threshold aborts early instead of burning hours on a blown-up run. None ⇒ disabled.
+    max_grad_norm: float | None = None  # max ‖grad‖ over hypernet params before optimizer.step()
+    target_step_max_norm: float | None = None  # ceiling on ‖target_step‖ fed to the removal loss
+    theta_divergence_threshold: float | None = None  # abort if theta_s_norm exceeds this
 
 
 def _load_target_mapping(path: str) -> list[tuple[str, str]]:
@@ -248,6 +255,11 @@ def build_context(config: Config) -> UnhypeContext:
             "target_mode": config.target_mode,
             "target_prompt_batch_size": config.target_prompt_batch_size,
             "optimizer": config.optimizer,
+            "remove_loss_type": config.remove_loss_type,
+            "remove_magnitude_weight": config.remove_magnitude_weight,
+            "max_grad_norm": config.max_grad_norm,
+            "target_step_max_norm": config.target_step_max_norm,
+            "theta_divergence_threshold": config.theta_divergence_threshold,
         },
         flush_interval=config.metrics_log_interval,
     )
@@ -299,6 +311,18 @@ def compute_removal_loss(
         loss = direction + magnitude_weight * magnitude
         return loss, float(direction.detach()), float(magnitude.detach())
     raise ValueError(f"Unknown remove_loss_type: {loss_type!r}")
+
+
+def cap_norm(vec: torch.Tensor, max_norm: float | None) -> torch.Tensor:
+    """Rescale ``vec`` down to ``max_norm`` if it exceeds it; otherwise return it unchanged.
+    Used to bound the ESD ``target_step`` so the cosine magnitude term can't chase a runaway
+    (exploding-gradient) target — the exp029 divergence driver."""
+    if max_norm is None:
+        return vec
+    norm = float(vec.norm())
+    if norm > max_norm:
+        return vec * (max_norm / norm)
+    return vec
 
 
 def _rollout_to_timesteps(
@@ -382,41 +406,43 @@ def _esd_target_grad(
 
 
 def online_removal_grad(
-    ctx: UnhypeContext, config: Config, theta_s: torch.Tensor, prompt_pairs: list[tuple[str, str]]
+    ctx: UnhypeContext,
+    config: Config,
+    theta_s: torch.Tensor,
+    target_prompt: str,
+    mapping_prompt: str,
 ) -> tuple[torch.Tensor, float, float]:
-    """Averaged ESD removal direction -∇_{θ_s}ℒ_task over a batch of prompt pairs
-    and K (timestep, latent) snapshots. The diffusion timestep and the prompt are
-    the two dominant variance sources; exp027 averaged only the timestep, so here
-    we also average over prompts to expose the *expected* descent direction rather
-    than one near-random per-step gradient. Cost is ~linear in the prompt count
-    (each pair needs its own rollout), unlike timesteps which share one rollout."""
+    """ESD removal direction -∇_{θ_s}ℒ_task for a *single* prompt pair, averaged over
+    K (timestep, latent) snapshots from one rollout (the dominant per-prompt variance
+    source — exp027). Crucially the gradient is taken w.r.t. *this* prompt's ``theta_s``:
+    the caller conditions the hypernet on the same prompt, so predicted step and target
+    are consistent (exp031 fix — previously the target averaged over prompts while the
+    hypernet was conditioned on only the first, an unmatchable mismatch). Prompt-variance
+    reduction now comes from summing per-prompt terms across the batch in ``_run_online``."""
     n_timestep_samples = min(config.target_grad_batch_size, NUM_INFERENCE_STEPS - 1)
+    with torch.no_grad():
+        c_target_t5 = ctx.encode_t5(target_prompt)
+        c_mapping_t5 = ctx.encode_t5(mapping_prompt)
+    t_indices = sorted(random.sample(range(1, NUM_INFERENCE_STEPS), n_timestep_samples))
+    # scheduler.timesteps is descending, so ascending indices give descending timestep values.
+    target_timesteps = [ctx.scheduler.timesteps[i] for i in t_indices]
+    init_latents = torch.randn(LATENT_SHAPE, device=ctx.device, dtype=ctx.dtype)
+    snapshots = _rollout_to_timesteps(
+        ctx.transformer, ctx.scheduler, c_target_t5, init_latents, target_timesteps, BATCH_SIZE
+    )
     grad_theta = torch.zeros_like(theta_s)
     loss_task_acc = 0.0
     steering_norm_acc = 0.0
-    n_samples = 0
-    for target_prompt, mapping_prompt in prompt_pairs:
-        with torch.no_grad():
-            c_target_t5 = ctx.encode_t5(target_prompt)
-            c_mapping_t5 = ctx.encode_t5(mapping_prompt)
-        t_indices = sorted(random.sample(range(1, NUM_INFERENCE_STEPS), n_timestep_samples))
-        # scheduler.timesteps is descending, so ascending indices give descending timestep values.
-        target_timesteps = [ctx.scheduler.timesteps[i] for i in t_indices]
-        init_latents = torch.randn(LATENT_SHAPE, device=ctx.device, dtype=ctx.dtype)
-        snapshots = _rollout_to_timesteps(
-            ctx.transformer, ctx.scheduler, c_target_t5, init_latents, target_timesteps, BATCH_SIZE
+    for snap_latents, t_value in zip(snapshots, target_timesteps):
+        grad_k, loss_k, steering_k = _esd_target_grad(
+            ctx.transformer, ctx.apply_flat, theta_s, snap_latents, t_value,
+            c_target_t5, c_mapping_t5, config.negative_guidance_scale, BATCH_SIZE,
         )
-        for snap_latents, t_value in zip(snapshots, target_timesteps):
-            grad_k, loss_k, steering_k = _esd_target_grad(
-                ctx.transformer, ctx.apply_flat, theta_s, snap_latents, t_value,
-                c_target_t5, c_mapping_t5, config.negative_guidance_scale, BATCH_SIZE,
-            )
-            grad_theta = grad_theta + grad_k
-            loss_task_acc += loss_k
-            steering_norm_acc += steering_k
-            n_samples += 1
-    grad_theta = grad_theta / n_samples
-    return grad_theta, loss_task_acc / n_samples, steering_norm_acc / n_samples
+        grad_theta = grad_theta + grad_k
+        loss_task_acc += loss_k
+        steering_norm_acc += steering_k
+    n = len(target_timesteps)
+    return grad_theta / n, loss_task_acc / n, steering_norm_acc / n
 
 
 def apply_optimizer_step(
@@ -441,6 +467,11 @@ def apply_optimizer_step(
 
     ctx.optimizer.zero_grad()
     loss_total.backward()
+    grad_norm = None
+    if config.max_grad_norm is not None:
+        grad_norm = float(
+            torch.nn.utils.clip_grad_norm_(ctx.hypernet.parameters(), config.max_grad_norm)
+        )
     ctx.optimizer.step()
     clear_hypernet_output(ctx.hyper_modules)
 
@@ -451,6 +482,8 @@ def apply_optimizer_step(
         "train/loss_total": float(loss_total.detach()),
         **remove_metrics,
     }
+    if grad_norm is not None:
+        metrics["train/grad_norm_preclip"] = grad_norm
     for k, v in metrics.items():
         mlflow.log_metric(k, v, step=step)
     wandb.log(metrics, step=step)
@@ -519,47 +552,84 @@ def run_eval_checkpoint(
     })
 
 
+def _online_removal_step(
+    ctx: UnhypeContext, config: Config, s: int, prompt_pairs: list[tuple[str, str]]
+) -> tuple[torch.Tensor, dict[str, float], float]:
+    """Mean over the prompt batch of the per-prompt finite-difference removal term. Each prompt
+    conditions the hypernet on *itself* (θ_s, θ_{s+1}) and its ESD target is computed at that same
+    θ_s, so predicted step and target are consistent (exp031 fix). Averaging the loss (not summing)
+    keeps its scale independent of the batch size, so learning rate / removal_weight stay comparable.
+    Returns (loss_remove, mean diagnostics, mean loss_task)."""
+    loss_remove = torch.zeros((), device=ctx.device)
+    sums = {
+        "train/loss_remove_direction": 0.0, "train/loss_remove_magnitude": 0.0,
+        "train/theta_s_norm": 0.0, "train/predicted_step_norm": 0.0,
+        "train/target_step_norm": 0.0, "train/grad_theta_norm": 0.0,
+        "train/steering_norm": 0.0,
+    }
+    loss_task_sum = 0.0
+    for target_prompt, mapping_prompt in prompt_pairs:
+        c_clip = ctx.encode_clip(target_prompt)
+        theta_s = ctx.hypernet_predict(c_clip, s)
+        theta_s_plus_1 = ctx.hypernet_predict(c_clip, s + 1)
+        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target (detached,
+        # first-order); φ is optimized via predicted_step = θ_{s+1} − θ_s. Cap the target so the
+        # cosine magnitude term can't chase a runaway gradient (the exp029 divergence).
+        grad_theta, loss_task, steering = online_removal_grad(
+            ctx, config, theta_s, target_prompt, mapping_prompt
+        )
+        target_step = cap_norm(
+            (-config.simulated_lr * grad_theta).detach(), config.target_step_max_norm
+        )
+        predicted_step = theta_s_plus_1 - theta_s
+        loss_i, direction, magnitude = compute_removal_loss(
+            predicted_step, target_step, config.remove_loss_type, config.remove_magnitude_weight
+        )
+        loss_remove = loss_remove + loss_i
+        sums["train/loss_remove_direction"] += direction
+        sums["train/loss_remove_magnitude"] += magnitude
+        sums["train/theta_s_norm"] += _tensor_norm(theta_s)
+        sums["train/predicted_step_norm"] += _tensor_norm(predicted_step)
+        sums["train/target_step_norm"] += _tensor_norm(target_step)
+        sums["train/grad_theta_norm"] += _tensor_norm(grad_theta)
+        sums["train/steering_norm"] += steering
+        loss_task_sum += loss_task
+
+    n = len(prompt_pairs)
+    metrics = {k: v / n for k, v in sums.items()}
+    return loss_remove / n, metrics, loss_task_sum / n
+
+
 def _run_online(ctx: UnhypeContext, config: Config) -> None:
     """The real method: match the hypernet's finite-difference step θ_{s+1} − θ_s at a
     random trajectory point s to one SGD update of the ESD-steered task loss."""
     print("Starting UnHype training...")
     pbar = tqdm(range(config.steps))
+    diverged = False
     for step in pbar:
         s = random.randint(0, ctx.S - 1)
         n_pairs = min(config.target_prompt_batch_size, len(ctx.target_mapping))
         prompt_pairs = random.sample(ctx.target_mapping, n_pairs)
-        c_target_clip = ctx.encode_clip(prompt_pairs[0][0])
-        theta_s = ctx.hypernet_predict(c_target_clip, s)
-        theta_s_plus_1 = ctx.hypernet_predict(c_target_clip, s + 1)
-        # Gradient matching (Hypernet Fields): -η∇_{θ_s}ℒ_task is a fixed target
-        # (detached, first-order). φ is optimized via predicted_step = θ_{s+1} − θ_s.
-        grad_theta, loss_task_value, steering_norm_value = online_removal_grad(
-            ctx, config, theta_s, prompt_pairs
+        loss_remove, remove_metrics, loss_task_value = _online_removal_step(
+            ctx, config, s, prompt_pairs
         )
-        target_step = (-config.simulated_lr * grad_theta).detach()
-        predicted_step = theta_s_plus_1 - theta_s
-        loss_remove, remove_direction, remove_magnitude = compute_removal_loss(
-            predicted_step, target_step, config.remove_loss_type, config.remove_magnitude_weight
-        )
-        remove_metrics = {
-            "train/loss_remove_direction": remove_direction,
-            "train/loss_remove_magnitude": remove_magnitude,
-            # Diagnostics: is the trajectory leaving the origin, and how strong
-            # is the steering signal that drives the whole task gradient?
-            "train/theta_s_norm": _tensor_norm(theta_s),
-            "train/predicted_step_norm": _tensor_norm(predicted_step),
-            "train/target_step_norm": _tensor_norm(target_step),
-            "train/grad_theta_norm": _tensor_norm(grad_theta),
-            "train/steering_norm": steering_norm_value,
-        }
 
         apply_optimizer_step(ctx, config, step, s, loss_remove, loss_task_value, remove_metrics, pbar)
 
         if (step + 1) % config.save_interval == 0:
             run_eval_checkpoint(ctx, config, step + 1, offload_diffusion=False)
 
+        threshold = config.theta_divergence_threshold
+        if threshold is not None and remove_metrics["train/theta_s_norm"] > threshold:
+            print(
+                f"Aborting at step {step}: theta_s_norm "
+                f"{remove_metrics['train/theta_s_norm']:.1f} > divergence threshold {threshold}."
+            )
+            diverged = True
+            break
+
     ctx.recorder.close()
-    print("UnHype training complete.")
+    print("UnHype training diverged — aborted." if diverged else "UnHype training complete.")
 
 
 def main(config: Config) -> None:
