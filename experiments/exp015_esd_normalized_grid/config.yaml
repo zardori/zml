@@ -1,3 +1,4 @@
+slurm_time: "20:00:00"
 method: esd_normalized
 model_id: THUDM/CogVideoX-5b
 prompts_path: prompts/cogvideox_fire_100.csv
@@ -11,7 +12,7 @@ save_interval: 200
 lora_dropout: 0.0
 eval_num_prompts: 5
 eval_inference_steps: 50
-negative_guidance_scale: [0.5, 1.0, 1.5, 2.0]
+negative_guidance_scale: [0.5, 1.0, 1.5]
 learning_rate: [0.0002, 0.0005, 0.001]
 global_seed: 42
 disable_mlflow: true
