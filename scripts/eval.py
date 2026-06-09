@@ -1,3 +1,4 @@
+import contextlib
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -23,38 +24,30 @@ if __name__ == "__main__":
     else:
         experiment_name = config_path.parent.name
 
-    mlflow.set_tracking_uri("mlruns")
-    mlflow.set_experiment(experiment_name)
+    # `disable_mlflow` is read (not popped) so `Config` still receives it via **params.
+    disable_mlflow = params.get("disable_mlflow", False)
 
-    with mlflow.start_run():
-        mlflow.log_params(params)
-        mlflow.log_artifact(args.config)
-        wandb.init(
-            project="zml",
-            entity="zardori-zml",
-            name=experiment_name,
-            config=params,
-        )
-        wandb.save(args.config)
+    if not disable_mlflow:
+        mlflow.set_tracking_uri("mlruns")
+        mlflow.set_experiment(experiment_name)
+
+    # eval_model.main() routes through zml.unlearn.eval.evaluate(), which logs all eval
+    # metrics to mlflow/wandb itself; the entrypoint only owns the run lifecycle.
+    with (contextlib.nullcontext() if disable_mlflow else mlflow.start_run()):
+        if not disable_mlflow:
+            mlflow.log_params(params)
+            mlflow.log_artifact(args.config)
+        try:
+            wandb.init(
+                project="zml",
+                entity="zardori-zml",
+                name=experiment_name,
+                config=params,
+            )
+            wandb.save(args.config)
+        except Exception as e:
+            print(f"WARNING: wandb init failed ({e}), continuing without W&B tracking.")
+            wandb.init(mode="disabled")
         config = Config(**params, output_dir=args.output_dir)
-        metrics = main(config)
-
-        for set_name, scores in metrics.items():
-            mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", scores["fire_detection_rate"])
-            mlflow.log_metric(f"eval/{set_name}_clip_score_mean", scores["clip_score_mean"])
-            mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", scores["dover_technical_mean"])
-            mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", scores["dover_aesthetic_mean"])
-
-        wandb.log(
-            {
-                f"eval/{set_name}_{k}": v
-                for set_name, scores in metrics.items()
-                for k, v in [
-                    ("fire_detection_rate", scores["fire_detection_rate"]),
-                    ("clip_score_mean", scores["clip_score_mean"]),
-                    ("dover_technical_mean", scores["dover_technical_mean"]),
-                    ("dover_aesthetic_mean", scores["dover_aesthetic_mean"]),
-                ]
-            }
-        )
+        main(config)
         wandb.finish()

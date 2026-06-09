@@ -48,21 +48,21 @@ def evaluate(
     anchor_prompts: list[EvalPrompt] | None = None,
     prepare_for_prompt: Callable[[str], None] | None = None,
     log_mlflow: bool = True,
+    include_related: bool = False,
 ) -> dict[str, dict]:
     was_training = transformer.training
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
 
-    prompt_sets = {
-        "concept": concept_prompts[: config.eval_num_prompts],
-        # "related": related_prompts[: config.eval_num_prompts],
-        "unrelated": unrelated_prompts[: config.eval_num_prompts],
-        "anchor": anchor_prompts[: config.eval_num_prompts],
-    } if anchor_prompts else {
-        "concept": concept_prompts[: config.eval_num_prompts],
-        # "related": related_prompts[: config.eval_num_prompts],
-        "unrelated": unrelated_prompts[: config.eval_num_prompts],
-    }
+    # `related` is skipped during training (compute) but wanted for standalone full-set
+    # eval; it is included only when explicitly requested and actually provided.
+    n = config.eval_num_prompts
+    prompt_sets = {"concept": concept_prompts[:n]}
+    if include_related and related_prompts:
+        prompt_sets["related"] = related_prompts[:n]
+    prompt_sets["unrelated"] = unrelated_prompts[:n]
+    if anchor_prompts:
+        prompt_sets["anchor"] = anchor_prompts[:n]
 
     with torch.no_grad():
         for set_name, eval_prompts in prompt_sets.items():
