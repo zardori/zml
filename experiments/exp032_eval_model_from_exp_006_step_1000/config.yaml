@@ -3,3 +3,4 @@ lora_checkpoint_dir: experiments/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20
 control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
 control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
 eval_inference_steps: 50
+disable_mlflow: true
