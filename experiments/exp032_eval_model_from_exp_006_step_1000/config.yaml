@@ -1,0 +1,5 @@
+model_id: THUDM/CogVideoX-5b
+lora_checkpoint_dir: experiments/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20260419_205935/cogvideox_erasure_lora_step1000
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+eval_inference_steps: 50
