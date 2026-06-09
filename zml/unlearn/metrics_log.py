@@ -115,6 +115,30 @@ class MetricsRecorder:
         flags: dict[str, Any] = {}
         notes: list[str] = []
 
+        # Generic loss check (any method that logs train/loss): caught divergence / stall.
+        loss = trends.get("train/loss", {})
+        if loss:
+            loss_max = loss.get("max")
+            if loss_max is not None and not math.isfinite(loss_max):
+                flags["loss_diverged"] = True
+                notes.append("train/loss became non-finite: training diverged.")
+            else:
+                first, recent = loss.get("first"), loss.get("recent")
+                if first is not None and recent is not None:
+                    flags["loss_first_to_recent"] = [first, recent]
+                    if recent >= first:
+                        notes.append("train/loss not decreasing vs first window: erasure may be stalled.")
+
+        # ESD-normalized progress: fraction of the path from the base concept prediction to
+        # the ESD target that the student has covered (see unlearn_model_normalized.py).
+        progress = trends.get("train/erase_progress", {}).get("recent")
+        if progress is not None:
+            flags["erase_progress_recent"] = _sig(progress)
+            if progress < 0.05:
+                notes.append("erase_progress ~0: student still matches the base concept prediction; LoRA may be a no-op.")
+            elif progress >= 0.9:
+                notes.append("erase_progress ~1: student has converged onto the ESD target.")
+
         pred = trends.get("train/predicted_step_norm", {}).get("recent")
         tgt = trends.get("train/target_step_norm", {}).get("recent")
         if pred is not None and tgt:

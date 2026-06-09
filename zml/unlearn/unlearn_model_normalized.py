@@ -12,7 +12,24 @@ from tqdm.auto import tqdm
 import pandas as pd
 
 from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.metrics_log import MetricsRecorder
 from zml.utils import set_seed
+
+NORM_EPS = 1e-8
+
+
+def _per_sample_norm(x: torch.Tensor, dims: tuple[int, ...]) -> torch.Tensor:
+    """L2 norm over every non-batch dim, returning one scalar per sample (shape [B])."""
+    return torch.linalg.vector_norm(x, dim=dims)
+
+
+def _grad_norm(parameters) -> float:
+    """Total L2 norm of all parameter gradients (blow-up / dead-gradient diagnostic)."""
+    grads = [p.grad for p in parameters if p.grad is not None]
+    if not grads:
+        return 0.0
+    return float(torch.linalg.vector_norm(torch.stack([torch.linalg.vector_norm(g.float()) for g in grads])))
+
 
 @dataclass
 class Config:
@@ -32,6 +49,8 @@ class Config:
     eval_num_prompts: int
     eval_inference_steps: int
     global_seed: int | None = None
+    disable_mlflow: bool = False
+    metrics_log_interval: int = 50  # steps per flushed train-window row in summary.json
 
 
 def main(config: Config):
@@ -113,6 +132,26 @@ def main(config: Config):
     num_inference_steps = 50
     scheduler.set_timesteps(num_inference_steps)
 
+    recorder = MetricsRecorder(
+        output_dir=config.output_dir,
+        run_name=os.path.basename(config.output_dir.rstrip("/")) or "esd_normalized",
+        config={
+            "method": "esd_normalized",
+            "model_id": config.model_id,
+            "lora_rank": config.lora_rank,
+            "lora_alpha": config.lora_alpha,
+            "lora_dropout": config.lora_dropout,
+            "negative_guidance_scale": config.negative_guidance_scale,
+            "learning_rate": config.learning_rate,
+            "steps": config.steps,
+            "save_interval": config.save_interval,
+            "eval_num_prompts": config.eval_num_prompts,
+            "eval_inference_steps": config.eval_inference_steps,
+            "global_seed": config.global_seed,
+        },
+        flush_interval=config.metrics_log_interval,
+    )
+
     pbar = tqdm(range(config.steps))
 
     for step in pbar:
@@ -173,9 +212,9 @@ def main(config: Config):
                 # ESD Target Calculation
                 direction = model_pred_text - model_pred_uncond
                 norm_dims = tuple(range(1, direction.ndim))
-                direction_norm = direction.norm(dim=norm_dims, keepdim=True)
-                uncond_norm = model_pred_uncond.norm(dim=norm_dims, keepdim=True)
-                direction = direction * (uncond_norm / (direction_norm + 1e-8))
+                direction_norm = torch.linalg.vector_norm(direction, dim=norm_dims, keepdim=True)
+                uncond_norm = torch.linalg.vector_norm(model_pred_uncond, dim=norm_dims, keepdim=True)
+                direction = direction * (uncond_norm / (direction_norm + NORM_EPS))
                 target = model_pred_uncond - config.negative_guidance_scale * direction
 
         # -----------------------------------------------------------
@@ -191,19 +230,58 @@ def main(config: Config):
         loss = F.mse_loss(model_pred.float(), target.float())
 
         loss.backward()
+        # grad_norm read after backward (optimizer.step does not clear grads).
+        grad_norm = _grad_norm(transformer.parameters())
         optimizer.step()
 
-        mlflow.log_metric("train/loss", loss.item(), step=step)
+        with torch.no_grad():
+            # The ESD target sits `target_shift` away from the frozen concept prediction
+            # (the distance the student must travel); `student_drift` is how far the student
+            # has actually moved off it. Their ratio is a scale-free erasure-progress signal:
+            # ~0 at init (LoRA ≈ identity) and ->1 once the student matches the target.
+            target_shift = _per_sample_norm(target - model_pred_text, norm_dims)
+            student_drift = _per_sample_norm(model_pred.detach() - model_pred_text, norm_dims)
+            erase_progress = (student_drift / (target_shift + NORM_EPS)).mean().item()
+            # Frozen-teacher sanity check: relative size of the concept's perturbation to the
+            # unconditional prediction. Near 0 means the prompt carries no separable signal.
+            concept_strength = (direction_norm / (uncond_norm + NORM_EPS)).mean().item()
+
+        recorder.log_train(step, {
+            "train/loss": loss.item(),
+            "train/erase_progress": erase_progress,
+            "train/student_drift": student_drift.mean().item(),
+            "train/target_shift": target_shift.mean().item(),
+            "train/concept_strength": concept_strength,
+            "train/grad_norm": grad_norm,
+            "train/timestep": float(t.item()),
+        })
+
+        if not config.disable_mlflow:
+            mlflow.log_metric("train/loss", loss.item(), step=step)
         wandb.log({"train/loss": loss.item()}, step=step)
-        pbar.set_description(f"Loss: {loss.item():.4f}")
+        pbar.set_description(f"loss={loss.item():.4f} progress={erase_progress:.3f}")
 
         if (step + 1) % config.save_interval == 0:
             lora_output_dir = os.path.join(config.output_dir, f"cogvideox_erasure_lora_nudity_step{step + 1}")
             os.makedirs(lora_output_dir, exist_ok=True)
             transformer.save_pretrained(lora_output_dir)
             print(f"Checkpoint saved to: {lora_output_dir}")
-            evaluate(pipe, transformer, config, step + 1,
-                     CONTROL_CONCEPT_PROMPTS, CONTROL_RELATED_PROMPTS, CONTROL_UNRELATED_PROMPTS)
+            eval_metrics = evaluate(pipe, transformer, config, step + 1,
+                     CONTROL_CONCEPT_PROMPTS, CONTROL_RELATED_PROMPTS, CONTROL_UNRELATED_PROMPTS,
+                     log_mlflow=not config.disable_mlflow)
+            recorder.log_eval(step + 1, {
+                "scores": {
+                    set_name: {
+                        "fire_detection_rate": s["fire_detection_rate"],
+                        "clip_score_mean": s["clip_score_mean"],
+                        "colorfulness_mean": s["colorfulness_mean"],
+                        "dover_technical_mean": s["dover_technical_mean"],
+                        "dover_aesthetic_mean": s["dover_aesthetic_mean"],
+                    }
+                    for set_name, s in eval_metrics.items()
+                },
+            })
 
+    recorder.close()
     print("Training Complete.")
 

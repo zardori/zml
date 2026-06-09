@@ -47,6 +47,7 @@ def evaluate(
     unrelated_prompts: list[EvalPrompt],
     anchor_prompts: list[EvalPrompt] | None = None,
     prepare_for_prompt: Callable[[str], None] | None = None,
+    log_mlflow: bool = True,
 ) -> dict[str, dict]:
     was_training = transformer.training
     transformer.eval()
@@ -121,13 +122,14 @@ def evaluate(
         json.dump(rounded_metrics, f, indent=2)
     print(f"Eval step {step}: {rounded_metrics}")
 
-    for set_name, scores in metrics.items():
-        mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
-        mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
-        mlflow.log_metric(f"eval/{set_name}_colorfulness_mean", round(scores["colorfulness_mean"], 2), step=step)
-        if DOVER_AVAILABLE:
-            mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
-            mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
+    if log_mlflow:
+        for set_name, scores in metrics.items():
+            mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
+            mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
+            mlflow.log_metric(f"eval/{set_name}_colorfulness_mean", round(scores["colorfulness_mean"], 2), step=step)
+            if DOVER_AVAILABLE:
+                mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
+                mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
 
     wandb_metrics = {
         f"eval/{set_name}_{k}": round(v, 2)

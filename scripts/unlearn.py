@@ -1,3 +1,4 @@
+import contextlib
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -45,17 +46,23 @@ if __name__ == "__main__":
     else:
         experiment_name = config_path.parent.name
 
-    # Force filesystem backend so metrics/params land in mlruns/ and are rsync-able.
-    # Without this, a MLFLOW_TRACKING_URI=sqlite://... in the environment (common on
-    # shared clusters) would store metrics only in a local .db file that never gets synced.
-    mlflow.set_tracking_uri("mlruns")
-    mlflow.set_experiment(experiment_name)
+    # `disable_mlflow` is read (not popped) so methods whose Config declares the field
+    # still receive it via **params; methods without it are unaffected (defaults False).
+    disable_mlflow = params.get("disable_mlflow", False)
+
+    if not disable_mlflow:
+        # Force filesystem backend so metrics/params land in mlruns/ and are rsync-able.
+        # Without this, a MLFLOW_TRACKING_URI=sqlite://... in the environment (common on
+        # shared clusters) would store metrics only in a local .db file that never gets synced.
+        mlflow.set_tracking_uri("mlruns")
+        mlflow.set_experiment(experiment_name)
 
     Config, main = _load_method(method)
 
-    with mlflow.start_run():
-        mlflow.log_params({**params, "method": method})
-        mlflow.log_artifact(args.config)
+    with (contextlib.nullcontext() if disable_mlflow else mlflow.start_run()):
+        if not disable_mlflow:
+            mlflow.log_params({**params, "method": method})
+            mlflow.log_artifact(args.config)
         try:
             wandb.init(
                 project="zml",
