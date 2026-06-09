@@ -14,3 +14,4 @@ eval_inference_steps: 50
 negative_guidance_scale: [0.5, 1.0, 1.5, 2.0]
 learning_rate: [0.0002, 0.0005, 0.001]
 global_seed: 42
+disable_mlflow: true
