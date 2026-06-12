@@ -1,0 +1,5 @@
+mode: generate
+model_id: THUDM/CogVideoX-5b
+prompts_file: prompts/part_fire_prompts.txt
+num_inference_steps: 50
+# No seed: generate non-deterministically to inspect output diversity for these prompts.
