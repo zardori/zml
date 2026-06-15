@@ -16,6 +16,7 @@ Run standalone, e.g.:
 import argparse
 import json
 import os
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -40,6 +41,20 @@ NUM_PIXEL_FRAMES = 1 + TEMPORAL_RATIO * (NUM_LATENT_FRAMES - 1)  # 49
 
 DTYPE = torch.bfloat16
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+@dataclass
+class Config:
+    csv_path: str  # CSV with 'prompt' and 'seed' columns
+    save_dir: str  # output dir for latents/ + metadata.json (a reusable dataset path)
+    model_id: str = "THUDM/CogVideoX-5b"
+    num_inference_steps: int = 50  # keep >=50 so the final latent is a clean x0
+    guidance_scale: float = 6.0
+    num_frames: int = NUM_PIXEL_FRAMES
+    frame_fire_threshold: float = 0.5  # per-frame fire confidence above which a frame counts as fire
+    min_nofire_frames: int = 2  # skip clips with fewer fire-free latent frames (avoids near-static targets)
+    # Accepted from the thin entrypoint for a uniform interface; precompute writes to save_dir, not here.
+    output_dir: str = "."
 
 
 def latent_to_pixel_frames(latent_idx: int) -> list[int]:
@@ -82,11 +97,11 @@ def decode_to_bgr_frames(pipe: CogVideoXPipeline, latent_bcfhw: torch.Tensor) ->
     return [cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in rgb_frames]
 
 
-def main(args: argparse.Namespace) -> None:
-    latents_dir = os.path.join(args.save_dir, "latents")
+def main(config: Config) -> None:
+    latents_dir = os.path.join(config.save_dir, "latents")
     os.makedirs(latents_dir, exist_ok=True)
 
-    pipe = CogVideoXPipeline.from_pretrained(args.model_id, torch_dtype=DTYPE).to(DEVICE)
+    pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=DTYPE).to(DEVICE)
     pipe.vae.enable_slicing()
     pipe.vae.enable_tiling()
 
@@ -95,9 +110,9 @@ def main(args: argparse.Namespace) -> None:
     )
     scaling_factor = float(pipe.vae.config.scaling_factor)
 
-    detector = VideoFireDetector(video_dir=args.save_dir)
+    detector = VideoFireDetector(video_dir=config.save_dir)
 
-    df = pd.read_csv(args.csv_path)
+    df = pd.read_csv(config.csv_path)
     metadata: list[dict] = []
     skipped: list[dict] = []
     donor_from_frame0 = 0
@@ -110,9 +125,9 @@ def main(args: argparse.Namespace) -> None:
             generator = torch.Generator(device=DEVICE).manual_seed(seed)
             out = pipe(
                 prompt=prompt,
-                num_frames=args.num_frames,
-                num_inference_steps=args.num_inference_steps,
-                guidance_scale=args.guidance_scale,
+                num_frames=config.num_frames,
+                num_inference_steps=config.num_inference_steps,
+                guidance_scale=config.guidance_scale,
                 generator=generator,
                 output_type="latent",
             )
@@ -124,14 +139,14 @@ def main(args: argparse.Namespace) -> None:
             assert len(frames) == NUM_PIXEL_FRAMES, f"expected {NUM_PIXEL_FRAMES} frames, got {len(frames)}"
 
             confidences = detector.frame_fire_confidences(frames)
-            fire_pixel = [c >= args.frame_fire_threshold for c in confidences]
+            fire_pixel = [c >= config.frame_fire_threshold for c in confidences]
             fire_latent = build_latent_fire_mask(fire_pixel)
             nofire = [i for i, is_fire in enumerate(fire_latent) if not is_fire]
 
             skip_reason = None
             if not any(fire_latent):
                 skip_reason = "no_fire"
-            elif len(nofire) < args.min_nofire_frames:
+            elif len(nofire) < config.min_nofire_frames:
                 skip_reason = "insufficient_donor_frames"
             if skip_reason is not None:
                 skipped.append({"prompt": prompt, "seed": seed, "reason": skip_reason,
@@ -156,29 +171,29 @@ def main(args: argparse.Namespace) -> None:
                 "prediction_type": "v_prediction",
             })
 
-    with open(os.path.join(args.save_dir, "metadata.json"), "w") as f:
+    with open(os.path.join(config.save_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=2)
-    with open(os.path.join(args.save_dir, "skipped.json"), "w") as f:
+    with open(os.path.join(config.save_dir, "skipped.json"), "w") as f:
         json.dump(skipped, f, indent=2)
 
     print(f"Kept {len(metadata)} / {len(df)} clips ({len(skipped)} skipped). "
           f"Latent frame 0 used as a donor in {donor_from_frame0} clips.")
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> Config:
     parser = argparse.ArgumentParser(description="Build frame-replace edited-target latents.")
     parser.add_argument("--csv_path", type=str, required=True, help="CSV with 'prompt' and 'seed' columns")
     parser.add_argument("--save_dir", type=str, required=True, help="Output dir for latents/ + metadata.json")
-    parser.add_argument("--model_id", type=str, default="THUDM/CogVideoX-5b")
-    parser.add_argument("--num_inference_steps", type=int, default=50,
+    parser.add_argument("--model_id", type=str, default=Config.model_id)
+    parser.add_argument("--num_inference_steps", type=int, default=Config.num_inference_steps,
                         help="Keep >=50 so the final latent is a clean x0")
-    parser.add_argument("--guidance_scale", type=float, default=6.0)
-    parser.add_argument("--num_frames", type=int, default=NUM_PIXEL_FRAMES)
-    parser.add_argument("--frame_fire_threshold", type=float, default=0.5,
+    parser.add_argument("--guidance_scale", type=float, default=Config.guidance_scale)
+    parser.add_argument("--num_frames", type=int, default=Config.num_frames)
+    parser.add_argument("--frame_fire_threshold", type=float, default=Config.frame_fire_threshold,
                         help="Per-frame fire confidence above which a frame counts as fire")
-    parser.add_argument("--min_nofire_frames", type=int, default=2,
+    parser.add_argument("--min_nofire_frames", type=int, default=Config.min_nofire_frames,
                         help="Skip clips with fewer fire-free latent frames (avoids near-static targets)")
-    return parser.parse_args()
+    return Config(**vars(parser.parse_args()))
 
 
 if __name__ == "__main__":
