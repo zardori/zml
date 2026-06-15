@@ -9,13 +9,17 @@ Arguments:
     config    Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)
 
 Options:
-    --slurm   Path to SLURM script relative to remote dir; defaults to slurm/unlearn.sh
-              for athena and slurm/helios_unlearn.sh for helios
+    --slurm   Path to SLURM script relative to remote dir; defaults to slurm/athena.sh
+              for athena and slurm/helios.sh for helios
 
 Example:
     ./submit_job.py athena experiments/exp001_esd_fire_lora8/config.yaml
     ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml
     ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml --slurm slurm/other.sh
+
+Each config must set `slurm_time` (e.g. `slurm_time: 0-4:00:00`); it is passed as the sbatch
+--time and there is no default. The optional `job_type` field (unlearn|eval|precompute, default
+unlearn) selects the entrypoint and is exported to the SLURM script as JOB_TYPE.
 
 If the config contains any list-valued fields, a grid search is performed: one sbatch job
 is submitted per combination in the Cartesian product of all list fields.
@@ -35,9 +39,11 @@ import yaml
 SCRIPTS_DIR = Path(__file__).parent
 
 CLUSTER_DEFAULT_SLURM: dict[str, str] = {
-    "athena": "slurm/unlearn.sh",
-    "helios": "slurm/helios_unlearn.sh",
+    "athena": "slurm/athena.sh",
+    "helios": "slurm/helios.sh",
 }
+
+DEFAULT_JOB_TYPE = "unlearn"
 
 
 def load_cluster_conf(cluster: str) -> dict[str, str]:
@@ -100,20 +106,22 @@ def submit_scalar(
     slurm_script: str,
     config_path: str,
     cluster: str,
-    slurm_time: str | None = None,
+    slurm_time: str,
+    job_type: str,
 ) -> None:
     exp_dir = str(Path(config_path).parent)
+    job_name = Path(config_path).parent.name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     logs_dir = f"{exp_dir}/logs_{timestamp}"
     output_dir = f"{exp_dir}/outputs_{timestamp}"
 
-    time_flag = f" --time={slurm_time}" if slurm_time else ""
     sbatch_cmd = (
         f"sbatch"
-        f"{time_flag}"
-        f" --output={logs_dir}/unlearn_%j.out"
-        f" --error={logs_dir}/unlearn_%j.err"
-        f" --export=ALL,CONFIG={config_path},OUTPUT_DIR={output_dir}"
+        f" --job-name={job_name}"
+        f" --time={slurm_time}"
+        f" --output={logs_dir}/{job_type}_%j.out"
+        f" --error={logs_dir}/{job_type}_%j.err"
+        f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_path},OUTPUT_DIR={output_dir}"
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && git pull && {sbatch_cmd}"
@@ -130,18 +138,20 @@ def _write_config_and_submit(
     output_dir: str,
     logs_dir: str,
     config_yaml: str,
-    slurm_time: str | None = None,
+    slurm_time: str,
+    job_type: str,
+    job_name: str,
 ) -> None:
     """Write an expanded config to remote and submit one sbatch job."""
     escaped = config_yaml.replace("'", "'\\''")
     write_cmd = f"mkdir -p $(dirname {config_remote_path}) {output_dir} {logs_dir} && printf '%s' '{escaped}' > {config_remote_path}"
-    time_flag = f" --time={slurm_time}" if slurm_time else ""
     sbatch_cmd = (
         f"sbatch"
-        f"{time_flag}"
-        f" --output={logs_dir}/unlearn_%j.out"
-        f" --error={logs_dir}/unlearn_%j.err"
-        f" --export=ALL,CONFIG={config_remote_path},OUTPUT_DIR={output_dir}"
+        f" --job-name={job_name}"
+        f" --time={slurm_time}"
+        f" --output={logs_dir}/{job_type}_%j.out"
+        f" --error={logs_dir}/{job_type}_%j.err"
+        f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_remote_path},OUTPUT_DIR={output_dir}"
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && {write_cmd} && {sbatch_cmd}"
@@ -155,10 +165,12 @@ def submit_grid(
     config_path: str,
     config: dict,
     cluster: str,
-    slurm_time: str | None = None,
+    slurm_time: str,
+    job_type: str,
 ) -> None:
     combos = expand_grid(config)
     exp_dir = str(Path(config_path).parent)
+    exp_name = Path(config_path).parent.name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     grid_base = f"{exp_dir}/grid_{timestamp}"
     grid_keys = [k for k, v in config.items() if isinstance(v, list)]
@@ -186,7 +198,7 @@ def submit_grid(
         _write_config_and_submit(
             host, remote_dir, slurm_script,
             config_remote, output_dir, logs_dir, config_yaml,
-            slurm_time=slurm_time,
+            slurm_time=slurm_time, job_type=job_type, job_name=f"{exp_name}_run_{i:03d}",
         )
         print(f"  run_{i:03d}: submitted")
 
@@ -203,7 +215,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--slurm",
         default=None,
-        help="Path to SLURM script relative to remote dir (default: slurm/unlearn.sh for athena, slurm/helios_unlearn.sh for helios)",
+        help="Path to SLURM script relative to remote dir (default: slurm/athena.sh for athena, slurm/helios.sh for helios)",
     )
     return parser.parse_args()
 
@@ -229,12 +241,21 @@ def main() -> None:
             sys.exit(1)
 
     config = load_config(args.config)
-    slurm_time: str | None = config.pop("slurm_time", None)
+    slurm_time = config.pop("slurm_time", None)
+    if not slurm_time:
+        print(
+            "Error: experiment config must set `slurm_time` (e.g. `slurm_time: 0-4:00:00`).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    job_type = config.pop("job_type", DEFAULT_JOB_TYPE)
 
     if any(isinstance(v, list) for v in config.values()):
-        submit_grid(host, remote_dir, slurm_script, args.config, config, args.cluster, slurm_time=slurm_time)
+        submit_grid(host, remote_dir, slurm_script, args.config, config, args.cluster,
+                    slurm_time=slurm_time, job_type=job_type)
     else:
-        submit_scalar(host, remote_dir, slurm_script, args.config, args.cluster, slurm_time=slurm_time)
+        submit_scalar(host, remote_dir, slurm_script, args.config, args.cluster,
+                      slurm_time=slurm_time, job_type=job_type)
 
 
 if __name__ == "__main__":
