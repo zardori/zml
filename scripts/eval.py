@@ -59,6 +59,8 @@ if __name__ == "__main__":
     else:
         experiment_name = config_path.parent.name
 
+    params.pop("slurm_time", None)  # infra key, not an eval param
+    params.pop("job_type", None)  # infra key, selects the entrypoint; not an eval param
     # `mode` is dispatch metadata that neither Config accepts, so it is popped here.
     mode = params.pop("mode", "eval")
     if mode == "generate":

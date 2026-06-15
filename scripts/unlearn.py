@@ -35,6 +35,7 @@ if __name__ == "__main__":
 
     method = params.pop("method", "esd")
     params.pop("slurm_time", None)  # infra key, not a training param
+    params.pop("job_type", None)  # infra key, selects the entrypoint; not a training param
     if method not in METHODS:
         raise ValueError(f"Unknown method '{method}'. Valid options: {list(METHODS)}")
 
