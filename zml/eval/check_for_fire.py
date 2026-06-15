@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+import numpy as np
 import os
 import argparse
 from pathlib import Path
@@ -102,6 +103,24 @@ class VideoFireDetector:
             return False
         top_k_avg = sum(sorted(frame_scores, reverse=True)[:self.top_k]) / self.top_k
         return top_k_avg >= self.conf_threshold
+
+    def frame_fire_confidences(self, frames: list[np.ndarray]) -> list[float]:
+        """Return the max fire-class confidence per frame, aligned to every frame index.
+
+        Unlike ``process_video`` (which drops zero-score frames and collapses to a single
+        boolean), this keeps one score per input frame so callers can build a per-frame fire
+        mask. Frames must be BGR uint8 — the same format ``cv2.VideoCapture`` feeds the model
+        in ``process_video`` — so detection confidences stay comparable across both paths.
+        """
+        scores: list[float] = []
+        for frame in frames:
+            results = self.model(frame, conf=self.candidate_threshold, classes=[self.FIRE_CLASS], verbose=False)
+            frame_max = max(
+                (float(box.conf[0]) for result in results for box in result.boxes),
+                default=0.0,
+            )
+            scores.append(frame_max)
+        return scores
 
     def process_videos(self) -> dict[str, float]:
         """Returns concept detection rate (CDR) over all videos in video_dir."""

@@ -13,6 +13,7 @@ METHODS = {
     "esd_preservation_anchor": "zml.unlearn.esd_with_preservation_and_anchor",
     "esd_normalized": "zml.unlearn.unlearn_model_normalized",
     "unhype": "zml.unlearn.unhype",
+    "frame_replace": "zml.unlearn.unlearn_frame_replace",
     "smoke_test": "zml.unlearn.smoke_test",
 }
 
