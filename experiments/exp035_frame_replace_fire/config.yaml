@@ -4,8 +4,8 @@ model_id: THUDM/CogVideoX-5b
 # Edited-target dataset produced by the precompute run (exp034). Build it first:
 #   ./submit_job.py athena experiments/exp034_frame_replace_precompute/config.yaml
 # then point these at that run's outputs_{timestamp} dir.
-metadata_file: experiments/exp034_frame_replace_precompute/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/exp034_frame_replace_precompute/outputs_TIMESTAMP/latents
+metadata_file: experiments/exp034_frame_replace_precompute/outputs_20260615_232609/metadata.json
+latents_dir: experiments/exp034_frame_replace_precompute/outputs_20260615_232609/latents
 
 control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
 control_related_prompts: prompts/cogvideox_fire_control_related.csv
