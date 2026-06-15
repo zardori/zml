@@ -1,0 +1,18 @@
+# Precompute the edited-target latents consumed by the `frame_replace` unlearning method.
+# Run with: ./submit_job.py athena experiments/exp034_frame_replace_precompute/config.yaml
+job_type: precompute
+method: frame_replace
+
+# Built dataset (latents/ + metadata.json) lands in this run's outputs_{timestamp} dir.
+# The training run (exp035) points its metadata_file/latents_dir at that directory.
+# Prompts are engineered to produce partial-fire clips (fire in only some frames),
+# with brighter/varied scenes so the fire-free donor frames aren't near-black.
+csv_path: prompts/cogvideox_partial_fire.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+frame_fire_threshold: 0.5
+min_nofire_frames: 2
+
+slurm_time: "12:00:00"
