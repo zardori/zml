@@ -8,9 +8,13 @@ target the trainer fine-tunes toward (see ``zml/unlearn/unlearn_frame_replace.py
 This is an offline step: generating + decoding + running the fire detector per training step
 would be far too expensive, so we precompute the targets once and the trainer just loads them.
 
+Outputs (``latents/``, ``metadata.json``, ``skipped.json``) go into ``output_dir`` — the same
+per-run ``outputs_{timestamp}`` directory the training/eval entrypoints use. A training run that
+wants this dataset just points at that directory's ``metadata.json`` / ``latents``.
+
 Run standalone, e.g.:
     uv run python -m zml.precompute.frame_replace_precompute \
-        --csv_path prompts/cogvideox_fire.csv --save_dir frame_replace_dataset
+        --csv_path prompts/cogvideox_fire.csv --output_dir frame_replace_dataset
 """
 
 import argparse
@@ -46,14 +50,13 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 @dataclass
 class Config:
     csv_path: str  # CSV with 'prompt' and 'seed' columns
-    save_dir: str  # output dir for latents/ + metadata.json (a reusable dataset path)
     model_id: str = "THUDM/CogVideoX-5b"
     num_inference_steps: int = 50  # keep >=50 so the final latent is a clean x0
     guidance_scale: float = 6.0
     num_frames: int = NUM_PIXEL_FRAMES
     frame_fire_threshold: float = 0.5  # per-frame fire confidence above which a frame counts as fire
     min_nofire_frames: int = 2  # skip clips with fewer fire-free latent frames (avoids near-static targets)
-    # Accepted from the thin entrypoint for a uniform interface; precompute writes to save_dir, not here.
+    # Per-run outputs_{timestamp} dir (supplied by the thin entrypoint); receives latents/ + metadata.
     output_dir: str = "."
 
 
@@ -98,7 +101,7 @@ def decode_to_bgr_frames(pipe: CogVideoXPipeline, latent_bcfhw: torch.Tensor) ->
 
 
 def main(config: Config) -> None:
-    latents_dir = os.path.join(config.save_dir, "latents")
+    latents_dir = os.path.join(config.output_dir, "latents")
     os.makedirs(latents_dir, exist_ok=True)
 
     pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=DTYPE).to(DEVICE)
@@ -110,7 +113,7 @@ def main(config: Config) -> None:
     )
     scaling_factor = float(pipe.vae.config.scaling_factor)
 
-    detector = VideoFireDetector(video_dir=config.save_dir)
+    detector = VideoFireDetector(video_dir=config.output_dir)
 
     df = pd.read_csv(config.csv_path)
     metadata: list[dict] = []
@@ -171,9 +174,9 @@ def main(config: Config) -> None:
                 "prediction_type": "v_prediction",
             })
 
-    with open(os.path.join(config.save_dir, "metadata.json"), "w") as f:
+    with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=2)
-    with open(os.path.join(config.save_dir, "skipped.json"), "w") as f:
+    with open(os.path.join(config.output_dir, "skipped.json"), "w") as f:
         json.dump(skipped, f, indent=2)
 
     print(f"Kept {len(metadata)} / {len(df)} clips ({len(skipped)} skipped). "
@@ -183,7 +186,8 @@ def main(config: Config) -> None:
 def parse_args() -> Config:
     parser = argparse.ArgumentParser(description="Build frame-replace edited-target latents.")
     parser.add_argument("--csv_path", type=str, required=True, help="CSV with 'prompt' and 'seed' columns")
-    parser.add_argument("--save_dir", type=str, required=True, help="Output dir for latents/ + metadata.json")
+    parser.add_argument("--output_dir", type=str, default=Config.output_dir,
+                        help="Output dir for latents/ + metadata.json")
     parser.add_argument("--model_id", type=str, default=Config.model_id)
     parser.add_argument("--num_inference_steps", type=int, default=Config.num_inference_steps,
                         help="Keep >=50 so the final latent is a clean x0")

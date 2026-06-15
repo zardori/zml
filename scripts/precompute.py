@@ -1,8 +1,8 @@
 """Thin entrypoint for precompute jobs: parse the config and dispatch to a precompute method.
 
-Precompute produces a reusable dataset (written to the `save_dir` from the config), not the
-per-run timestamped outputs that training/eval emit, so no mlflow/wandb run is opened here.
-`--output_dir` is accepted for a uniform interface with the other entrypoints but unused.
+Precompute writes its reusable dataset into the per-run `outputs_{timestamp}` dir (`--output_dir`),
+just like the training/eval entrypoints; a training run that consumes it points at that directory.
+No mlflow/wandb run is opened here.
 """
 
 from argparse import ArgumentParser
