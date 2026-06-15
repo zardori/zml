@@ -26,3 +26,5 @@ timestep_max: 1000
 eval_num_prompts: 5
 eval_inference_steps: 50
 global_seed: 42
+
+slurm_time: "12:00:00"
