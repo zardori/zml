@@ -1,0 +1,30 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# Edited-target dataset produced by the precompute run (exp034). Build it first:
+#   ./submit_job.py athena experiments/exp034_frame_replace_precompute/config.yaml
+# then point these at that run's outputs_{timestamp} dir.
+metadata_file: experiments/exp034_frame_replace_precompute/outputs_20260615_232609/metadata.json
+latents_dir: experiments/exp034_frame_replace_precompute/outputs_20260615_232609/latents
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+steps: 300
+save_interval: 100
+learning_rate: 0.0001
+
+# SFT samples raw training timesteps uniformly in [timestep_min, timestep_max).
+timestep_min: 0
+timestep_max: 1000
+
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "12:00:00"
