@@ -114,7 +114,7 @@ def main(config: Config) -> None:
     )
     transformer = get_peft_model(transformer, lora_config)
     transformer.print_trainable_parameters()
-    pipe.transformer = transformer
+    
 
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
 
@@ -125,6 +125,8 @@ def main(config: Config) -> None:
             embeds, _ = pipe.encode_prompt(prompt=prompt, do_classifier_free_guidance=False)
             prompt_emb_cache[prompt] = embeds.to(device, dtype=DTYPE)
 
+    pipe.transformer = transformer
+    
     # Rotary embeddings depend only on the fixed latent geometry, so build them once.
     # The transformer does NOT compute these internally — eval generates with RoPE, so training
     # must use it too or the LoRA learns to correct a mismatched positional regime.
