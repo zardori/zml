@@ -126,7 +126,7 @@ def main(config: Config) -> None:
             prompt_emb_cache[prompt] = embeds.to(device, dtype=DTYPE)
 
     pipe.transformer = transformer
-    
+
     # Rotary embeddings depend only on the fixed latent geometry, so build them once.
     # The transformer does NOT compute these internally — eval generates with RoPE, so training
     # must use it too or the LoRA learns to correct a mismatched positional regime.
@@ -168,7 +168,7 @@ def main(config: Config) -> None:
         assert x0.shape == EXPECTED_LATENT_SHAPE, f"unexpected target shape {x0.shape}"
         concept_emb = prompt_emb_cache[entry["prompt"]]
 
-        t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
+        t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)  #SUS AS FUCK, not every step is legal, they should be probably sampled from the list
         noise = torch.randn_like(x0)
         x_t = scheduler.add_noise(x0, noise, t)
         v_target = scheduler.get_velocity(x0, noise, t)  # (B, C, F, H, W)
