@@ -153,5 +153,5 @@ def evaluate(
 
     if was_training:
         transformer.train()
-    transformer.requires_grad_(False)
+
     return metrics
