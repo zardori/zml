@@ -8,9 +8,16 @@ target the trainer fine-tunes toward (see ``zml/unlearn/unlearn_frame_replace.py
 This is an offline step: generating + decoding + running the fire detector per training step
 would be far too expensive, so we precompute the targets once and the trainer just loads them.
 
-Outputs (``latents/``, ``metadata.json``, ``skipped.json``) go into ``output_dir`` — the same
-per-run ``outputs_{timestamp}`` directory the training/eval entrypoints use. A training run that
-wants this dataset just points at that directory's ``metadata.json`` / ``latents``.
+In the same generation pass, this also (optionally) decodes BOTH the pre-edit ("original") and
+post-edit ("edited") latents to MP4 and runs the fire detector on both, so you can visually and
+quantitatively verify the edit actually removed fire — without a second, separately-seeded
+generation call (which would risk drifting from the precompute run if steps/guidance/model
+ever diverge between two separate scripts). See ``--save_videos`` / ``--skip_videos``.
+
+Outputs (``latents/``, ``metadata.json``, ``skipped.json``, and optionally ``videos/``) go into
+``output_dir`` — the same per-run ``outputs_{timestamp}`` directory the training/eval
+entrypoints use. A training run that wants this dataset just points at that directory's
+``metadata.json`` / ``latents``.
 
 Run standalone, e.g.:
     uv run python -m zml.precompute.frame_replace_precompute \
@@ -46,6 +53,8 @@ NUM_PIXEL_FRAMES = 1 + TEMPORAL_RATIO * (NUM_LATENT_FRAMES - 1)  # 49
 DTYPE = torch.bfloat16
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+VIDEO_FPS = 8  # CogVideoX default playback rate
+
 
 @dataclass
 class Config:
@@ -58,6 +67,8 @@ class Config:
     min_nofire_frames: int = 2  # skip clips with fewer fire-free latent frames (avoids near-static targets)
     # Per-run outputs_{timestamp} dir (supplied by the thin entrypoint); receives latents/ + metadata.
     output_dir: str = "."
+    save_videos: bool = True  # decode + write original & edited MP4s alongside the latents
+    videos_subdir: str = "videos"
 
 
 def latent_to_pixel_frames(latent_idx: int) -> list[int]:
@@ -100,9 +111,21 @@ def decode_to_bgr_frames(pipe: CogVideoXPipeline, latent_bcfhw: torch.Tensor) ->
     return [cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in rgb_frames]
 
 
+def write_mp4(frames_bgr: list[np.ndarray], path: str, fps: int = VIDEO_FPS) -> None:
+    h, w = frames_bgr[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
+    for frame in frames_bgr:
+        writer.write(frame)
+    writer.release()
+
+
 def main(config: Config) -> None:
     latents_dir = os.path.join(config.output_dir, "latents")
     os.makedirs(latents_dir, exist_ok=True)
+    videos_dir = os.path.join(config.output_dir, config.videos_subdir)
+    if config.save_videos:
+        os.makedirs(videos_dir, exist_ok=True)
 
     pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=DTYPE).to(DEVICE)
     pipe.vae.enable_slicing()
@@ -124,6 +147,7 @@ def main(config: Config) -> None:
         for idx, row in tqdm(df.iterrows(), total=len(df)):
             prompt = row["prompt"]
             seed = int(row["seed"])
+            stem = f"p{idx}_s{seed}"
 
             generator = torch.Generator(device=DEVICE).manual_seed(seed)
             out = pipe(
@@ -138,13 +162,21 @@ def main(config: Config) -> None:
             z_bcfhw = out.frames.permute(0, 2, 1, 3, 4).contiguous()  # -> (B, C, F, H, W)
             assert z_bcfhw.shape == EXPECTED_LATENT_SHAPE, f"unexpected latent shape {z_bcfhw.shape}"
 
-            frames = decode_to_bgr_frames(pipe, z_bcfhw)
-            assert len(frames) == NUM_PIXEL_FRAMES, f"expected {NUM_PIXEL_FRAMES} frames, got {len(frames)}"
+            # Decode the pre-edit ("original") latent once, up front — used both for fire
+            # detection (to decide fire_pixel/fire_latent masks) and, optionally, for the
+            # original-vs-edited comparison video.
+            original_frames = decode_to_bgr_frames(pipe, z_bcfhw)
+            assert len(original_frames) == NUM_PIXEL_FRAMES, (
+                f"expected {NUM_PIXEL_FRAMES} frames, got {len(original_frames)}"
+            )
 
-            confidences = detector.frame_fire_confidences(frames)
+            confidences = detector.frame_fire_confidences(original_frames)
             fire_pixel = [c >= config.frame_fire_threshold for c in confidences]
             fire_latent = build_latent_fire_mask(fire_pixel)
             nofire = [i for i, is_fire in enumerate(fire_latent) if not is_fire]
+
+            if config.save_videos:
+                write_mp4(original_frames, os.path.join(videos_dir, f"{stem}_original.mp4"))
 
             skip_reason = None
             if not any(fire_latent):
@@ -160,7 +192,16 @@ def main(config: Config) -> None:
             if 0 in donor_map.values():
                 donor_from_frame0 += 1
 
-            latent_filename = f"p{idx}_s{seed}_x0edited.pt"
+            # Decode the post-edit latent so we can confirm fire was actually removed, and
+            # (optionally) write it out as the "edited" half of the comparison video.
+            edited_frames = decode_to_bgr_frames(pipe, x0_edited)
+            assert len(edited_frames) == NUM_PIXEL_FRAMES
+            edited_confidences = detector.frame_fire_confidences(edited_frames)
+
+            if config.save_videos:
+                write_mp4(edited_frames, os.path.join(videos_dir, f"{stem}_edited.mp4"))
+
+            latent_filename = f"{stem}_x0edited.pt"
             torch.save(x0_edited.cpu(), os.path.join(latents_dir, latent_filename))
             metadata.append({
                 "prompt": prompt,
@@ -170,8 +211,17 @@ def main(config: Config) -> None:
                 "fire_latent_mask": fire_latent,
                 "donor_map": {str(k): v for k, v in donor_map.items()},
                 "frame_confidences": [round(c, 4) for c in confidences],
+                "edited_frame_confidences": [round(c, 4) for c in edited_confidences],
+                "original_max_confidence": round(max(confidences), 4),
+                "edited_max_confidence": round(max(edited_confidences), 4),
                 "scaling_factor": scaling_factor,
                 "prediction_type": "v_prediction",
+                **({
+                    "original_video": os.path.relpath(
+                        os.path.join(videos_dir, f"{stem}_original.mp4"), config.output_dir),
+                    "edited_video": os.path.relpath(
+                        os.path.join(videos_dir, f"{stem}_edited.mp4"), config.output_dir),
+                } if config.save_videos else {}),
             })
 
     with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:
@@ -179,8 +229,12 @@ def main(config: Config) -> None:
     with open(os.path.join(config.output_dir, "skipped.json"), "w") as f:
         json.dump(skipped, f, indent=2)
 
+    n_improved = sum(m["edited_max_confidence"] < m["original_max_confidence"] for m in metadata)
     print(f"Kept {len(metadata)} / {len(df)} clips ({len(skipped)} skipped). "
-          f"Latent frame 0 used as a donor in {donor_from_frame0} clips.")
+          f"Latent frame 0 used as a donor in {donor_from_frame0} clips. "
+          f"Edited max-confidence < original in {n_improved}/{len(metadata)} kept clips.")
+    if config.save_videos:
+        print(f"Videos written to {videos_dir}")
 
 
 def parse_args() -> Config:
@@ -197,6 +251,13 @@ def parse_args() -> Config:
                         help="Per-frame fire confidence above which a frame counts as fire")
     parser.add_argument("--min_nofire_frames", type=int, default=Config.min_nofire_frames,
                         help="Skip clips with fewer fire-free latent frames (avoids near-static targets)")
+    parser.add_argument("--videos_subdir", type=str, default=Config.videos_subdir)
+    videos_group = parser.add_mutually_exclusive_group()
+    videos_group.add_argument("--save_videos", dest="save_videos", action="store_true",
+                              help="Decode + write original & edited MP4s alongside the latents (default)")
+    videos_group.add_argument("--skip_videos", dest="save_videos", action="store_false",
+                              help="Skip video decode/encode entirely (faster, latents only)")
+    parser.set_defaults(save_videos=Config.save_videos)
     return Config(**vars(parser.parse_args()))
 
 
