@@ -3,3 +3,6 @@ model_id: THUDM/CogVideoX-5b
 prompts_file: prompts/partial_fire_v2.csv
 num_inference_steps: 50
 # No seed: generate non-deterministically to inspect output diversity for these prompts.
+
+
+slurm_time: "12:00:00"
