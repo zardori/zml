@@ -168,7 +168,13 @@ def main(config: Config) -> None:
         assert x0.shape == EXPECTED_LATENT_SHAPE, f"unexpected target shape {x0.shape}"
         concept_emb = prompt_emb_cache[entry["prompt"]]
 
-        t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)  #SUS AS FUCK, not every step is legal, they should be probably sampled from the list
+        # Uniform integer timesteps are correct here: CogVideoX's SNR shift lives in the
+        # scheduler's alphas_cumprod (not the timestep grid), so add_noise/get_velocity map each
+        # sampled t through the shifted noise levels automatically. No need to match the inference
+        # timestep grid — that grid is ~evenly spaced in index, so sampling from it would give the
+        # same noise-level distribution. To upweight high-noise steps (where the concept is
+        # decided), raise timestep_min rather than reshaping the sampler.
+        t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
         noise = torch.randn_like(x0)
         x_t = scheduler.add_noise(x0, noise, t)
         v_target = scheduler.get_velocity(x0, noise, t)  # (B, C, F, H, W)
