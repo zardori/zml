@@ -23,6 +23,8 @@ EXPECTED_LATENT_SHAPE = (1, NUM_CHANNELS, NUM_LATENT_FRAMES, LATENT_HEIGHT, LATE
 TEMPORAL_RATIO = 4
 NUM_PIXEL_FRAMES = 1 + TEMPORAL_RATIO * (NUM_LATENT_FRAMES - 1)  # 49
 
+VIDEO_FPS = 8  # CogVideoX default playback rate
+
 
 def latent_to_pixel_frames(latent_idx: int) -> list[int]:
     """Pixel-frame indices that fold into latent frame ``latent_idx`` under the 1+4k mapping."""
@@ -62,3 +64,13 @@ def decode_to_bgr_frames(pipe: CogVideoXPipeline, latent_bcfhw: torch.Tensor) ->
     video = pipe.video_processor.postprocess_video(video=decoded, output_type="np")  # (B,F,H,W,C) [0,1]
     rgb_frames = (video[0] * 255.0).round().astype(np.uint8)
     return [cv2.cvtColor(frame, cv2.COLOR_RGB2BGR) for frame in rgb_frames]
+
+
+def write_mp4(frames_bgr: list[np.ndarray], path: str, fps: int = VIDEO_FPS) -> None:
+    """Encode BGR uint8 frames to an MP4 at ``path``."""
+    h, w = frames_bgr[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
+    for frame in frames_bgr:
+        writer.write(frame)
+    writer.release()

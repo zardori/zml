@@ -29,8 +29,6 @@ import json
 import os
 from dataclasses import dataclass
 
-import cv2
-import numpy as np
 import pandas as pd
 import torch
 from diffusers import CogVideoXPipeline
@@ -43,12 +41,11 @@ from zml.unlearn.frame_replace_ops import (
     build_latent_fire_mask,
     decode_to_bgr_frames,
     edit_latent,
+    write_mp4,
 )
 
 DTYPE = torch.bfloat16
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-VIDEO_FPS = 8  # CogVideoX default playback rate
 
 
 @dataclass
@@ -64,15 +61,6 @@ class Config:
     output_dir: str = "."
     save_videos: bool = True  # decode + write original & edited MP4s alongside the latents
     videos_subdir: str = "videos"
-
-
-def write_mp4(frames_bgr: list[np.ndarray], path: str, fps: int = VIDEO_FPS) -> None:
-    h, w = frames_bgr[0].shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
-    for frame in frames_bgr:
-        writer.write(frame)
-    writer.release()
 
 
 def main(config: Config) -> None:

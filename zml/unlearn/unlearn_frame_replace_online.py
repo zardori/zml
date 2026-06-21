@@ -15,11 +15,13 @@ amortize it behind a replay buffer: a clip is generated only every ``regen_inter
 pushed into a fixed-capacity buffer, and every SFT step samples a target from that buffer.
 """
 
+import json
 import os
 import random
 from dataclasses import dataclass
 
 import mlflow
+import numpy as np
 import pandas as pd
 import wandb
 import torch
@@ -34,9 +36,11 @@ from zml.unlearn.frame_replace_ops import (
     EXPECTED_LATENT_SHAPE,
     NUM_LATENT_FRAMES,
     NUM_PIXEL_FRAMES,
+    VIDEO_FPS,
     build_latent_fire_mask,
     decode_to_bgr_frames,
     edit_latent,
+    write_mp4,
 )
 from zml.unlearn.metrics_log import MetricsRecorder
 from zml.utils import set_seed
@@ -75,6 +79,13 @@ class Config:
     num_frames: int = NUM_PIXEL_FRAMES  # generation geometry (pixel frames)
     height: int = 480  # pixel height — used for rotary embeddings
     width: int = 720  # pixel width
+    # Saving the student's generated clips (and their edited targets) lets us watch the
+    # self-curriculum: fire should shrink across the run. Generation already decodes both clips for
+    # fire detection, so writing them is nearly free; the pool is small so we save all by default.
+    save_generated_videos: bool = True
+    save_videos_every_n_gens: int = 1  # save 1 of every N accepted generations (1 = save all)
+    video_fps: int = VIDEO_FPS
+    videos_subdir: str = "train_videos"
     global_seed: int | None = None
     disable_mlflow: bool = False
     metrics_log_interval: int = 50
@@ -85,6 +96,51 @@ class TrainPrompt:
     """A trusted (prompt, seed) pair that reliably renders partial fire (see seed policy)."""
     prompt: str
     seed: int
+
+
+class PromptQueue:
+    """Draws trusted (prompt, seed) pairs without replacement, reshuffling once a pass is empty.
+
+    The queue's state persists *across* buffer refreshes, so every pair is generated once per pass
+    before any repeats. This gives even coverage of the (small) train pool — random sampling would
+    over-hit some pairs and starve others, and with a LoRA on a tiny pool that risks overfitting to
+    a handful of clips. Within a single refresh it also guarantees distinct pairs: re-generating the
+    same pair would be pointless, since its seed and the (frozen) student weights are fixed there, so
+    the result is identical.
+    """
+
+    def __init__(self, prompts: list[TrainPrompt]) -> None:
+        self._prompts = prompts
+        self._queue: list[TrainPrompt] = []
+
+    @property
+    def size(self) -> int:
+        return len(self._prompts)
+
+    def next(self) -> TrainPrompt:
+        if not self._queue:
+            self._queue = random.sample(self._prompts, len(self._prompts))
+        return self._queue.pop()
+
+
+@dataclass
+class PromptAttempt:
+    """Outcome of generating from one (prompt, seed) pair during a buffer refresh."""
+    prompt: str
+    seed: int
+    max_confidence: float  # peak per-frame fire confidence on the generated (pre-edit) clip
+    num_nofire_frames: int  # fire-free latent frames available as donors
+    accepted: bool
+
+
+@dataclass
+class GenerationResult:
+    """Result of one buffer refresh: an optional target plus the per-pair attempt log."""
+    target: "Target | None"  # None if no usable fire clip was produced this refresh
+    attempts: list[PromptAttempt]
+    # Decoded clips for the accepted target (None if nothing accepted), reused for video saving.
+    original_frames: list[np.ndarray] | None = None
+    edited_frames: list[np.ndarray] | None = None
 
 
 @dataclass
@@ -144,30 +200,39 @@ def generate_one_target(
     transformer,
     detector: VideoFireDetector,
     config: Config,
-    prompts: list[TrainPrompt],
+    prompt_queue: PromptQueue,
     prompt_emb_cache: dict[str, torch.Tensor],
     device: str,
-) -> tuple[Target | None, int]:
+) -> GenerationResult:
     """Generate, fire-check and edit one clip with the current student.
 
-    Each clip is generated from a trusted ``(prompt, seed)`` pair using that pair's *attached*
-    seed (not the global seed) — see the seed policy in CLAUDE.md. The student still evolves, so
-    the same pair yields progressively less fire over training (the self-curriculum).
+    Each clip is generated from a trusted ``(prompt, seed)`` pair drawn from ``prompt_queue`` using
+    that pair's *attached* seed (not the global seed) — see the seed policy in CLAUDE.md. The
+    student still evolves, so the same pair yields progressively less fire over training (the
+    self-curriculum).
 
-    Retries (on a different pair) on clips that fail the skip rules (no fire / too few donor
-    frames). Returns ``(None, attempts)`` if no usable fire clip is found within
-    ``max_generation_attempts`` — the expected, healthy outcome once the student stops producing fire.
+    Tries distinct pairs (no repeats within a refresh) until one passes the skip rules (has fire and
+    enough donor frames) or we exhaust ``max_generation_attempts`` / the whole pool. Returns a
+    ``GenerationResult`` whose ``target`` is ``None`` if no usable fire clip was found — the expected,
+    healthy outcome once the student stops producing fire. Every pair tried is recorded in
+    ``attempts`` for the per-pair outcome log.
     """
     was_training = transformer.training
     transformer.eval()
+    attempts: list[PromptAttempt] = []
+    tried: set[tuple[str, int]] = set()
     try:
         with torch.no_grad():
-            for attempt in range(1, config.max_generation_attempts + 1):
-                tp = random.choice(prompts)
-                prompt = tp.prompt
+            while len(attempts) < config.max_generation_attempts and len(tried) < prompt_queue.size:
+                tp = prompt_queue.next()
+                key = (tp.prompt, tp.seed)
+                if key in tried:  # queue wrapped mid-refresh onto a pair we already tried
+                    continue
+                tried.add(key)
+
                 generator = torch.Generator(device=device).manual_seed(tp.seed)
                 out = pipe(
-                    prompt=prompt,
+                    prompt=tp.prompt,
                     num_frames=config.num_frames,
                     num_inference_steps=config.generate_inference_steps,
                     guidance_scale=config.guidance_scale,
@@ -184,21 +249,54 @@ def generate_one_target(
                 fire_latent = build_latent_fire_mask(fire_pixel)
                 nofire = [i for i in range(NUM_LATENT_FRAMES) if not fire_latent[i]]
 
-                if not any(fire_latent) or len(nofire) < config.min_nofire_frames:
+                accepted = any(fire_latent) and len(nofire) >= config.min_nofire_frames
+                attempts.append(PromptAttempt(
+                    prompt=tp.prompt,
+                    seed=tp.seed,
+                    max_confidence=max(confidences, default=0.0),
+                    num_nofire_frames=len(nofire),
+                    accepted=accepted,
+                ))
+                if not accepted:
                     continue
 
                 x0_edited, _ = edit_latent(z_bcfhw, fire_latent)
-                edited_conf = detector.frame_fire_confidences(decode_to_bgr_frames(pipe, x0_edited))
+                edited_frames = decode_to_bgr_frames(pipe, x0_edited)
+                edited_conf = detector.frame_fire_confidences(edited_frames)
                 target = Target(
-                    prompt_emb=_embed_prompt(pipe, prompt, prompt_emb_cache, device),
+                    prompt_emb=_embed_prompt(pipe, tp.prompt, prompt_emb_cache, device),
                     x0_edited=x0_edited.cpu(),
                     edited_max_confidence=max(edited_conf, default=0.0),
                 )
-                return target, attempt
-        return None, config.max_generation_attempts
+                return GenerationResult(
+                    target=target, attempts=attempts,
+                    original_frames=frames, edited_frames=edited_frames,
+                )
+        return GenerationResult(target=None, attempts=attempts)
     finally:
         if was_training:
             transformer.train()
+
+
+def _append_generation_log(log_path: str, record: dict) -> None:
+    """Append one refresh's per-pair outcomes to the generation log (JSONL, one object per refresh)."""
+    with open(log_path, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def _save_train_videos(
+    result: GenerationResult, videos_dir: str, output_dir: str, step: int, gen_index: int, fps: int
+) -> dict[str, str]:
+    """Write the accepted clip's original + edited MP4s; return their paths relative to output_dir."""
+    seed = result.attempts[-1].seed  # the accepted pair is always the last attempt
+    stem = f"step{step:05d}_g{gen_index:03d}_s{seed}"
+    paths = {
+        "original": os.path.join(videos_dir, f"{stem}_original.mp4"),
+        "edited": os.path.join(videos_dir, f"{stem}_edited.mp4"),
+    }
+    write_mp4(result.original_frames, paths["original"], fps)
+    write_mp4(result.edited_frames, paths["edited"], fps)
+    return {key: os.path.relpath(path, output_dir) for key, path in paths.items()}
 
 
 def main(config: Config) -> None:
@@ -243,6 +341,7 @@ def main(config: Config) -> None:
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
     detector = VideoFireDetector(video_dir=config.output_dir)
     prompt_emb_cache: dict[str, torch.Tensor] = {}
+    prompt_queue = PromptQueue(train_prompts)
 
     # Rotary embeddings depend only on the fixed latent geometry, so build them once. The
     # transformer does NOT compute these internally — generation applies RoPE, so the SFT step
@@ -278,15 +377,46 @@ def main(config: Config) -> None:
         flush_interval=config.metrics_log_interval,
     )
 
+    videos_dir = os.path.join(config.output_dir, config.videos_subdir)
+    if config.save_generated_videos:
+        os.makedirs(videos_dir, exist_ok=True)
+    generation_log_path = os.path.join(config.output_dir, "generation_log.jsonl")
+    num_generations = 0  # accepted generations so far; drives save_videos_every_n_gens
+
     def refresh_buffer(buffer: TargetBuffer) -> None:
-        target, attempts = generate_one_target(
-            pipe, transformer, detector, config, train_prompts, prompt_emb_cache, device
+        nonlocal num_generations
+        result = generate_one_target(
+            pipe, transformer, detector, config, prompt_queue, prompt_emb_cache, device
         )
-        if target is not None:
-            buffer.add(target)
+        accepted = result.target is not None
+        if accepted:
+            buffer.add(result.target)
+
+        saved_videos = None
+        if accepted and config.save_generated_videos and num_generations % config.save_videos_every_n_gens == 0:
+            saved_videos = _save_train_videos(
+                result, videos_dir, config.output_dir, step, num_generations, config.video_fps
+            )
+        if accepted:
+            num_generations += 1
+
+        _append_generation_log(generation_log_path, {
+            "step": step,
+            "accepted": accepted,
+            "num_attempts": len(result.attempts),
+            "edited_max_confidence": result.target.edited_max_confidence if accepted else None,
+            "attempts": [
+                {"prompt": a.prompt, "seed": a.seed, "max_confidence": round(a.max_confidence, 4),
+                 "num_nofire_frames": a.num_nofire_frames, "accepted": a.accepted}
+                for a in result.attempts
+            ],
+            **({"videos": saved_videos} if saved_videos else {}),
+        })
+
         recorder.log_train(step, {
-            "train/gen_skips": float(attempts - (target is not None)),
-            "train/edited_max_confidence": target.edited_max_confidence if target else 0.0,
+            "train/gen_skips": float(len(result.attempts) - (1 if accepted else 0)),
+            "train/gen_attempts": float(len(result.attempts)),
+            "train/edited_max_confidence": result.target.edited_max_confidence if accepted else 0.0,
         })
 
     buffer = TargetBuffer(config.buffer_size)
@@ -297,7 +427,7 @@ def main(config: Config) -> None:
         refresh_buffer(buffer)
         if len(buffer) == prev_len:  # student produced no fire even during warm-up
             raise RuntimeError(
-                "Could not generate any fire clip during warm-up; check prompts / detector."
+                "Could not generate any partial fire clip during warm-up; check prompts / detector."
             )
 
     print(f"Starting online frame_replace SFT over {config.steps} steps...")
