@@ -26,6 +26,7 @@ experiments/*/outputs_*/
 experiments/*/logs_*/
 experiments/*/grid/
 experiments/*/grid_*/
+experiments/*/eval_outputs*/
 
 # MLflow tracking data
 mlruns/
