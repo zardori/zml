@@ -48,7 +48,7 @@ DTYPE = torch.bfloat16
 @dataclass
 class Config:
     model_id: str
-    train_prompts: str  # CSV with a 'prompt' column; clips are generated from these online
+    train_prompts: str  # CSV with 'prompt' + 'seed' columns; clips are generated online from these trusted pairs
     control_concept_prompts: str
     control_related_prompts: str
     control_unrelated_prompts: str
@@ -78,6 +78,13 @@ class Config:
     global_seed: int | None = None
     disable_mlflow: bool = False
     metrics_log_interval: int = 50
+
+
+@dataclass
+class TrainPrompt:
+    """A trusted (prompt, seed) pair that reliably renders partial fire (see seed policy)."""
+    prompt: str
+    seed: int
 
 
 @dataclass
@@ -116,6 +123,11 @@ def _load_eval_prompts(path: str) -> list[EvalPrompt]:
     return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
+def _load_train_prompts(path: str) -> list[TrainPrompt]:
+    df = pd.read_csv(path)
+    return [TrainPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
+
+
 def _embed_prompt(
     pipe: CogVideoXPipeline, prompt: str, cache: dict[str, torch.Tensor], device: str
 ) -> torch.Tensor:
@@ -132,23 +144,28 @@ def generate_one_target(
     transformer,
     detector: VideoFireDetector,
     config: Config,
-    prompts: list[str],
+    prompts: list[TrainPrompt],
     prompt_emb_cache: dict[str, torch.Tensor],
     device: str,
 ) -> tuple[Target | None, int]:
     """Generate, fire-check and edit one clip with the current student.
 
-    Retries on clips that fail the skip rules (no fire / too few donor frames). Returns
-    ``(None, attempts)`` if no usable fire clip is found within ``max_generation_attempts`` —
-    which is the expected, healthy outcome once the student has stopped producing fire.
+    Each clip is generated from a trusted ``(prompt, seed)`` pair using that pair's *attached*
+    seed (not the global seed) — see the seed policy in CLAUDE.md. The student still evolves, so
+    the same pair yields progressively less fire over training (the self-curriculum).
+
+    Retries (on a different pair) on clips that fail the skip rules (no fire / too few donor
+    frames). Returns ``(None, attempts)`` if no usable fire clip is found within
+    ``max_generation_attempts`` — the expected, healthy outcome once the student stops producing fire.
     """
     was_training = transformer.training
     transformer.eval()
     try:
         with torch.no_grad():
             for attempt in range(1, config.max_generation_attempts + 1):
-                prompt = random.choice(prompts)
-                generator = torch.Generator(device=device).manual_seed(random.randrange(2**31))
+                tp = random.choice(prompts)
+                prompt = tp.prompt
+                generator = torch.Generator(device=device).manual_seed(tp.seed)
                 out = pipe(
                     prompt=prompt,
                     num_frames=config.num_frames,
@@ -194,7 +211,7 @@ def main(config: Config) -> None:
     control_related = _load_eval_prompts(config.control_related_prompts)
     control_unrelated = _load_eval_prompts(config.control_unrelated_prompts)
 
-    train_prompts = pd.read_csv(config.train_prompts)["prompt"].tolist()
+    train_prompts = _load_train_prompts(config.train_prompts)
     if not train_prompts:
         raise ValueError(f"No prompts in {config.train_prompts}.")
 
