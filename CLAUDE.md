@@ -44,7 +44,7 @@ zml/
 ```
 
 ### Compute Resources
-Cluster access is not unlimited, so experiments should be designed to be research efficient. For example, we should avoid running grid search before the method used is proved to be effective. Short experiments are often sufficient to debug the method and refine the research direction.
+Cluster access is rich, but not unlimited, so experiments should be designed to be research efficient. For example, we should avoid running grid search before the method used is proved to be effective. Short experiments are often sufficient to debug the method and refine the research direction.
 
 ### Desired Research Workflow
 
