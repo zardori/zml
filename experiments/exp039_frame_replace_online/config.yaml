@@ -1,0 +1,38 @@
+method: frame_replace_online
+model_id: THUDM/CogVideoX-5b
+
+# Online variant: the student generates clips on the fly (no precompute step / latent dataset).
+# Targets are built from trusted (prompt, seed) pairs that reliably render partial fire; the
+# generator uses each pair's attached seed, not the global seed (see seed policy in CLAUDE.md).
+train_prompts: prompts/cogvideox_partial_fire.csv
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+steps: 1000
+save_interval: 100
+learning_rate: 0.001
+
+# Online generation / replay buffer. A clip (full rollout + decode + YOLO) costs ~15-20x an SFT
+# step, so generate one fresh target every regen_interval steps and sample from a rolling buffer.
+buffer_size: 8
+regen_interval: 40
+generate_inference_steps: 50
+guidance_scale: 6.0
+frame_fire_threshold: 0.5
+min_nofire_frames: 2
+
+# SFT samples raw training timesteps uniformly in [timestep_min, timestep_max).
+timestep_min: 0
+timestep_max: 1000
+
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "16:00:00"
