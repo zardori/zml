@@ -14,6 +14,7 @@ METHODS = {
     "esd_normalized": "zml.unlearn.unlearn_model_normalized",
     "unhype": "zml.unlearn.unhype",
     "frame_replace": "zml.unlearn.unlearn_frame_replace",
+    "frame_replace_online": "zml.unlearn.unlearn_frame_replace_online",
     "smoke_test": "zml.unlearn.smoke_test",
 }
 
