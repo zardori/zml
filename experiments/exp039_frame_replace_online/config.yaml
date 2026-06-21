@@ -31,6 +31,12 @@ min_nofire_frames: 2
 timestep_min: 0
 timestep_max: 1000
 
+# Save the student's generated clips (+ their edited targets) to watch the self-curriculum.
+# Decoding already happens for fire detection, so this is nearly free; the train pool is small so
+# we keep all of them. Raise save_videos_every_n_gens to subsample if a longer run gets noisy.
+save_generated_videos: true
+save_videos_every_n_gens: 1
+
 eval_num_prompts: 5
 eval_inference_steps: 50
 global_seed: 42
