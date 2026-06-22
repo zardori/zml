@@ -16,6 +16,8 @@ hf_cache
 
 # Local config
 cluster.conf
+# API keys for the search job's proposer (also kept at $HOME/.openrouter_env on clusters)
+.openrouter_env
 
 # Script outputs
 outputs/

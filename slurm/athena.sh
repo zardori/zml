@@ -25,9 +25,14 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
+# Untracked secrets (e.g. OPENROUTER_API_KEY for the search job's prompt proposer). Never commit it.
+# NOTE: athena compute nodes may lack outbound internet; the search job is intended for helios.
+set -a; source "$HOME/.openrouter_env" 2>/dev/null; set +a
+
 case "${JOB_TYPE:-unlearn}" in
     unlearn)    uv run scripts/unlearn.py    --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     eval)       uv run scripts/eval.py       --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     precompute) uv run scripts/precompute.py --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
+    search)     uv run scripts/search.py     --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     *) echo "Unknown JOB_TYPE: ${JOB_TYPE}" >&2; exit 1 ;;
 esac

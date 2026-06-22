@@ -1,0 +1,29 @@
+job_type: search
+model_id: THUDM/CogVideoX-5b
+
+# Tiny end-to-end smoke test for the partial-fire search loop: 1 round, 2 prompts, 1 seed each,
+# few inference steps. Confirms the full pipeline (propose -> generate -> score -> persist) and that
+# all output files (results.jsonl, accepted_pairs.csv, summary.json, proposer_log.jsonl, videos/)
+# are written. Not meant to produce useful pairs. See config.yaml for the real run.
+
+proposer_model: z-ai/glm-5.2
+proposer_temperature: 1.0
+candidates_per_round: 2
+num_rounds: 1
+seeds_per_prompt: 1
+target_accepted: null
+
+num_inference_steps: 50
+num_frames: 49
+guidance_scale: 6.0
+fps: 8
+
+frame_fire_threshold: 0.5
+min_nofire_latent_frames: 2
+clip_min: 0.22
+colorfulness_min: 8.0
+
+save_videos: all  # keep both clips so the dry run is inspectable
+global_seed: 42
+
+slurm_time: "0-1:00:00"

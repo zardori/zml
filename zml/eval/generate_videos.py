@@ -39,21 +39,22 @@ def load_prompts(path: str, default_seed: int | None) -> list[GenPrompt]:
         return [GenPrompt(line.strip(), default_seed) for line in f if line.strip()]
 
 
-def _build_pipeline(config: GenerateConfig) -> CogVideoXPipeline:
+def build_pipeline(model_id: str, lora_checkpoint_dir: str | None = None) -> CogVideoXPipeline:
+    """Load a CogVideoX pipeline (optionally with a LoRA adapter) with VAE slicing/tiling on."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=torch.bfloat16).to(device)
+    pipe = CogVideoXPipeline.from_pretrained(model_id, torch_dtype=torch.bfloat16).to(device)
     pipe.vae.enable_slicing()
     pipe.vae.enable_tiling()
 
-    if config.lora_checkpoint_dir is not None:
-        pipe.transformer = PeftModel.from_pretrained(pipe.transformer, config.lora_checkpoint_dir)
-        print(f"Loaded LoRA checkpoint from {config.lora_checkpoint_dir}")
+    if lora_checkpoint_dir is not None:
+        pipe.transformer = PeftModel.from_pretrained(pipe.transformer, lora_checkpoint_dir)
+        print(f"Loaded LoRA checkpoint from {lora_checkpoint_dir}")
     return pipe
 
 
 def main(config: GenerateConfig) -> None:
     prompts = load_prompts(config.prompts_file, config.seed)
-    pipe = _build_pipeline(config)
+    pipe = build_pipeline(config.model_id, config.lora_checkpoint_dir)
     os.makedirs(config.output_dir, exist_ok=True)
 
     with torch.no_grad():
