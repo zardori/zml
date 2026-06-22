@@ -24,6 +24,7 @@ dependencies = [
     "wandb>=0.19.0",
     "dover @ git+https://github.com/QualityAssessment/DOVER.git ; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "decord>=0.6.0 ; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "openai>=2.43.0",
 ]
 
 [tool.uv]
