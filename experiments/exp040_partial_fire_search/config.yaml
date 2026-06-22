@@ -1,0 +1,35 @@
+job_type: search
+model_id: THUDM/CogVideoX-5b
+
+# Autonomous search for partial-fire (prompt, seed) pairs to feed the frame_replace_online method.
+# One job loads CogVideoX once, then loops: an OpenRouter model proposes prompts given feedback ->
+# generate a few seeds per prompt -> score how cleanly fire is separated -> feed results back.
+# Accepted pairs land in outputs_*/accepted_pairs.csv, ready to merge into
+# prompts/cogvideox_partial_fire.csv. Intended for helios (compute-node internet for the API call).
+
+# Proposer (OpenRouter is OpenAI-compatible; any model id works). OPENROUTER_API_KEY must be present
+# on the compute node (see slurm/helios.sh, which sources $HOME/.openrouter_env).
+proposer_model: anthropic/claude-sonnet-4.6
+proposer_temperature: 1.0
+candidates_per_round: 6
+num_rounds: 8
+seeds_per_prompt: 3
+target_accepted: 50  # stop early once this many accepted pairs are collected
+
+# Generation (matches the eval/online-trainer geometry: 49 frames, guidance 6.0).
+num_inference_steps: 50
+num_frames: 49
+guidance_scale: 6.0
+fps: 8
+
+# Scoring / acceptance. frame_fire_threshold + min_nofire_latent_frames mirror frame_replace_online
+# so accepted pairs are usable by edit_latent. clip_min/colorfulness_min are quality floors.
+frame_fire_threshold: 0.5
+min_nofire_latent_frames: 2
+clip_min: 0.22
+colorfulness_min: 8.0
+
+save_videos: accepted  # "all" | "accepted" | "none"
+global_seed: 42
+
+slurm_time: "12:00:00"
