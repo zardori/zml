@@ -1,0 +1,36 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# Erase targets: edited fireless latents from the curated fire precompute (exp042) — the 21
+# original partial-fire prompts plus the 50 the exp040 search agent discovered. Fill the
+# timestamp dir in after that precompute run finishes (same pattern as the retention paths below).
+metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_TIMESTAMP/metadata.json
+latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_TIMESTAMP/latents
+
+# Retention anchors: base-model preservation latents from exp041. Fill the timestamp dir in
+# after that precompute run finishes (same pattern as the erase paths above).
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_TIMESTAMP/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_TIMESTAMP/latents
+retention_weight: 1.0
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+steps: 1000
+save_interval: 100
+learning_rate: 0.001
+
+# SFT samples raw training timesteps uniformly in [timestep_min, timestep_max).
+timestep_min: 0
+timestep_max: 1000
+
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "12:00:00"
