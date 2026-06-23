@@ -56,6 +56,12 @@ class Config:
     output_dir: str
     eval_num_prompts: int
     eval_inference_steps: int
+    # Retention anchor: SFT toward the base model's *unedited* preservation latents (built by
+    # zml/precompute/preservation_precompute.py) to keep erasure local. Disabled when the
+    # metadata file is unset, in which case the loop is plain erase-only SFT.
+    retention_metadata_file: str | None = None
+    retention_latents_dir: str | None = None
+    retention_weight: float = 1.0
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -69,6 +75,42 @@ class Config:
 def _load_eval_prompts(path: str) -> list[EvalPrompt]:
     df = pd.read_csv(path)
     return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
+
+
+def _load_target_latent(latents_dir: str, latent_path: str, device: str) -> torch.Tensor:
+    x0 = torch.load(os.path.join(latents_dir, latent_path), map_location=device).to(dtype=DTYPE)
+    assert x0.shape == EXPECTED_LATENT_SHAPE, f"unexpected target shape {x0.shape}"
+    return x0
+
+
+def _sft_velocity_loss(
+    transformer,
+    scheduler,
+    x0: torch.Tensor,
+    concept_emb: torch.Tensor,
+    image_rotary_emb,
+    config: Config,
+    device: str,
+) -> torch.Tensor:
+    """One v-prediction SFT loss: noise ``x0`` at a random timestep and MSE the predicted velocity.
+
+    Shared by the erase branch (toward an edited fireless latent) and the retention branch
+    (toward an unedited preservation latent); see the offline-trainer header for the SNR-shift
+    reasoning behind uniform integer timesteps.
+    """
+    t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
+    noise = torch.randn_like(x0)
+    x_t = scheduler.add_noise(x0, noise, t)
+    v_target = scheduler.get_velocity(x0, noise, t)  # (B, C, F, H, W)
+
+    v_pred = transformer(
+        hidden_states=x_t.permute(0, 2, 1, 3, 4),  # -> (B, F, C, H, W)
+        encoder_hidden_states=concept_emb,
+        timestep=t,
+        image_rotary_emb=image_rotary_emb,
+    ).sample  # (B, F, C, H, W)
+
+    return F.mse_loss(v_pred.float(), v_target.permute(0, 2, 1, 3, 4).float())
 
 
 def main(config: Config) -> None:
@@ -100,6 +142,19 @@ def main(config: Config) -> None:
         f"Latents were built with scaling_factor {metadata_scaling}, model uses {expected_scaling}."
     )
 
+    retention_metadata: list[dict] = []
+    if config.retention_metadata_file is not None:
+        with open(config.retention_metadata_file) as f:
+            retention_metadata = json.load(f)
+        if not retention_metadata:
+            raise ValueError(f"No entries in {config.retention_metadata_file}; retention is enabled but empty.")
+        if config.retention_latents_dir is None:
+            raise ValueError("retention_metadata_file is set but retention_latents_dir is not.")
+        retention_scaling = float(retention_metadata[0].get("scaling_factor", expected_scaling))
+        assert abs(retention_scaling - expected_scaling) < 1e-6, (
+            f"Retention latents use scaling_factor {retention_scaling}, model uses {expected_scaling}."
+        )
+
     transformer = pipe.transformer
     transformer.train()
     transformer.requires_grad_(False)
@@ -119,9 +174,11 @@ def main(config: Config) -> None:
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
 
     # Cache one T5 embedding per unique prompt (CFG-free; we handle no guidance here).
+    # Both the erase and retention targets are keyed by prompt, so cache both prompt sets.
     prompt_emb_cache: dict[str, torch.Tensor] = {}
     with torch.no_grad():
-        for prompt in {entry["prompt"] for entry in metadata}:
+        all_prompts = {entry["prompt"] for entry in metadata} | {entry["prompt"] for entry in retention_metadata}
+        for prompt in all_prompts:
             embeds, _ = pipe.encode_prompt(prompt=prompt, do_classifier_free_guidance=False)
             prompt_emb_cache[prompt] = embeds.to(device, dtype=DTYPE)
 
@@ -151,6 +208,8 @@ def main(config: Config) -> None:
             "timestep_min": config.timestep_min,
             "timestep_max": config.timestep_max,
             "num_targets": len(metadata),
+            "num_retention_targets": len(retention_metadata),
+            "retention_weight": config.retention_weight if retention_metadata else 0.0,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
             "global_seed": config.global_seed,
@@ -158,45 +217,53 @@ def main(config: Config) -> None:
         flush_interval=config.metrics_log_interval,
     )
 
-    print(f"Starting frame_replace SFT over {len(metadata)} edited targets...")
+    retention_enabled = bool(retention_metadata)
+    print(
+        f"Starting frame_replace SFT over {len(metadata)} edited targets"
+        + (f" + {len(retention_metadata)} retention anchors (w={config.retention_weight})" if retention_enabled else "")
+        + "..."
+    )
     pbar = tqdm(range(config.steps))
     for step in pbar:
-        entry = random.choice(metadata)
-        x0 = torch.load(
-            os.path.join(config.latents_dir, entry["latent_path"]), map_location=device
-        ).to(dtype=DTYPE)  # (B, C, F, H, W), scaled latent space
-        assert x0.shape == EXPECTED_LATENT_SHAPE, f"unexpected target shape {x0.shape}"
-        concept_emb = prompt_emb_cache[entry["prompt"]]
+        # Erase branch: pull the fire prompt toward its edited (fireless) latent.
+        erase_entry = random.choice(metadata)
+        x0_erase = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+        loss_erase = _sft_velocity_loss(
+            transformer, scheduler, x0_erase, prompt_emb_cache[erase_entry["prompt"]],
+            image_rotary_emb, config, device,
+        )
 
-        # Uniform integer timesteps are correct here: CogVideoX's SNR shift lives in the
-        # scheduler's alphas_cumprod (not the timestep grid), so add_noise/get_velocity map each
-        # sampled t through the shifted noise levels automatically. No need to match the inference
-        # timestep grid — that grid is ~evenly spaced in index, so sampling from it would give the
-        # same noise-level distribution. To upweight high-noise steps (where the concept is
-        # decided), raise timestep_min rather than reshaping the sampler.
-        t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
-        noise = torch.randn_like(x0)
-        x_t = scheduler.add_noise(x0, noise, t)
-        v_target = scheduler.get_velocity(x0, noise, t)  # (B, C, F, H, W)
-
-        v_pred = transformer(
-            hidden_states=x_t.permute(0, 2, 1, 3, 4),  # -> (B, F, C, H, W)
-            encoder_hidden_states=concept_emb,
-            timestep=t,
-            image_rotary_emb=image_rotary_emb,
-        ).sample  # (B, F, C, H, W)
-
-        loss = F.mse_loss(v_pred.float(), v_target.permute(0, 2, 1, 3, 4).float())
-
+        # Accumulate grads across branches then step once, so the two forward graphs never
+        # coexist in memory (lower peak than backprop on a summed loss).
         optimizer.zero_grad()
-        loss.backward()
+        loss_erase.backward()
+
+        loss_retain_value = 0.0
+        if retention_enabled:
+            # Retention branch: independent sample/timestep anchors a preservation prompt to the
+            # base model's unedited latent, keeping erasure from collapsing general quality.
+            retain_entry = random.choice(retention_metadata)
+            x0_retain = _load_target_latent(config.retention_latents_dir, retain_entry["latent_path"], device)
+            loss_retain = _sft_velocity_loss(
+                transformer, scheduler, x0_retain, prompt_emb_cache[retain_entry["prompt"]],
+                image_rotary_emb, config, device,
+            )
+            (config.retention_weight * loss_retain).backward()
+            loss_retain_value = loss_retain.item()
+
         optimizer.step()
 
-        recorder.log_train(step, {"train/loss": loss.item(), "train/timestep": float(t[0].item())})
+        loss_total = loss_erase.item() + config.retention_weight * loss_retain_value
+        train_metrics = {"train/loss": loss_total, "train/loss_erase": loss_erase.item()}
+        if retention_enabled:
+            train_metrics["train/loss_retain"] = loss_retain_value
+        recorder.log_train(step, train_metrics)
         if not config.disable_mlflow:
-            mlflow.log_metric("train/loss", loss.item(), step=step)
-        wandb.log({"train/loss": loss.item()}, step=step)
-        pbar.set_description(f"loss={loss.item():.4f}")
+            mlflow.log_metrics(train_metrics, step=step)
+        wandb.log(train_metrics, step=step)
+        pbar.set_description(
+            f"loss={loss_total:.4f}" + (f" (e={loss_erase.item():.4f} r={loss_retain_value:.4f})" if retention_enabled else "")
+        )
 
         if (step + 1) % config.save_interval == 0:
             ckpt_dir = os.path.join(config.output_dir, f"frame_replace_lora_step{step + 1}")
