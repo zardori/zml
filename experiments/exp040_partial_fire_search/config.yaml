@@ -9,7 +9,7 @@ model_id: THUDM/CogVideoX-5b
 
 # Proposer (OpenRouter is OpenAI-compatible; any model id works). OPENROUTER_API_KEY must be present
 # on the compute node (see slurm/helios.sh, which sources $HOME/.openrouter_env).
-proposer_model: anthropic/claude-sonnet-4.6
+proposer_model: z-ai/glm-5.2
 proposer_temperature: 1.0
 candidates_per_round: 6
 num_rounds: 8
