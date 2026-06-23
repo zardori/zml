@@ -212,6 +212,7 @@ def main(config: Config) -> None:
                 "scores": {
                     set_name: {
                         "fire_detection_rate": s["fire_detection_rate"],
+                        "fire_area_score_mean": s["fire_area_score_mean"],
                         "clip_score_mean": s["clip_score_mean"],
                         "colorfulness_mean": s["colorfulness_mean"],
                         "dover_technical_mean": s["dover_technical_mean"],

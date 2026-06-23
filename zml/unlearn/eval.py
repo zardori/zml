@@ -125,6 +125,7 @@ def evaluate(
     if log_mlflow:
         for set_name, scores in metrics.items():
             mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
+            mlflow.log_metric(f"eval/{set_name}_fire_area_score_mean", round(scores["fire_area_score_mean"], 4), step=step)
             mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
             mlflow.log_metric(f"eval/{set_name}_colorfulness_mean", round(scores["colorfulness_mean"], 2), step=step)
             if DOVER_AVAILABLE:
@@ -132,10 +133,11 @@ def evaluate(
                 mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
 
     wandb_metrics = {
-        f"eval/{set_name}_{k}": round(v, 2)
+        f"eval/{set_name}_{k}": round(v, 4)
         for set_name, scores in metrics.items()
         for k, v in [
             ("fire_detection_rate", scores["fire_detection_rate"]),
+            ("fire_area_score_mean", scores["fire_area_score_mean"]),
             ("clip_score_mean", scores["clip_score_mean"]),
             ("colorfulness_mean", scores["colorfulness_mean"]),
         ]
