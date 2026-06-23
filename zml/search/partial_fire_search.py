@@ -57,7 +57,6 @@ class SearchConfig:
     save_videos: str = "accepted"  # "all" | "accepted" | "none"
     global_seed: int = 42
     seed_example_files: tuple[str, ...] = (
-        "prompts/part_fire_prompts.txt",
         "prompts/cogvideox_partial_fire.csv",
     )
 
