@@ -1,0 +1,17 @@
+# Precompute the base-model preservation latents consumed by the `frame_replace` retention anchor.
+# Run with: ./submit_job.py athena experiments/exp041_preservation_precompute/config.yaml
+job_type: precompute
+method: preservation
+
+# Built dataset (latents/ + metadata.json) lands in this run's outputs_{timestamp} dir.
+# The retention training run (exp042) points its retention_metadata_file/retention_latents_dir
+# at that directory. These prompts are "warm/orange but not fire" scenes — exactly the kind the
+# erasure must not damage.
+csv_path: prompts/cogvideox_fire_preservation.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+save_videos: false
+
+slurm_time: "8:00:00"
