@@ -62,6 +62,9 @@ class Config:
     retention_metadata_file: str | None = None
     retention_latents_dir: str | None = None
     retention_weight: float = 1.0
+    # Erase loss is restricted to the edited (fire) latent frames; unedited frames get this
+    # weight (0.0 = hard mask). They match the base output, so weighting them in dilutes erasure.
+    nonfire_frame_weight: float = 0.0
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -83,6 +86,18 @@ def _load_target_latent(latents_dir: str, latent_path: str, device: str) -> torc
     return x0
 
 
+def _fire_frame_mask(entry: dict, nonfire_weight: float, device: str) -> torch.Tensor:
+    """Per-frame weights from a target's ``fire_latent_mask`` for the masked erase loss.
+
+    Edited (fire) frames get weight 1.0; unedited frames get ``nonfire_weight`` (0.0 hard-masks
+    them out). Returned as ``(1, F, 1, 1, 1)`` to broadcast over the (B, F, C, H, W) velocity.
+    """
+    fire = entry["fire_latent_mask"]
+    assert len(fire) == NUM_LATENT_FRAMES, f"expected {NUM_LATENT_FRAMES} mask frames, got {len(fire)}"
+    weights = [1.0 if is_fire else nonfire_weight for is_fire in fire]
+    return torch.tensor(weights, device=device).view(1, NUM_LATENT_FRAMES, 1, 1, 1)
+
+
 def _sft_velocity_loss(
     transformer,
     scheduler,
@@ -91,12 +106,17 @@ def _sft_velocity_loss(
     image_rotary_emb,
     config: Config,
     device: str,
+    frame_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """One v-prediction SFT loss: noise ``x0`` at a random timestep and MSE the predicted velocity.
 
     Shared by the erase branch (toward an edited fireless latent) and the retention branch
     (toward an unedited preservation latent); see the offline-trainer header for the SNR-shift
     reasoning behind uniform integer timesteps.
+
+    ``frame_mask`` (erase branch only) restricts the MSE to the edited frames: unedited frames
+    match the base model's own output, so averaging them in dilutes — and even reinforces — the
+    fire behavior we want to remove. ``None`` gives the plain full-tensor mean (retention branch).
     """
     t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
     noise = torch.randn_like(x0)
@@ -110,7 +130,13 @@ def _sft_velocity_loss(
         image_rotary_emb=image_rotary_emb,
     ).sample  # (B, F, C, H, W)
 
-    return F.mse_loss(v_pred.float(), v_target.permute(0, 2, 1, 3, 4).float())
+    v_target = v_target.permute(0, 2, 1, 3, 4).float()  # -> (B, F, C, H, W)
+    if frame_mask is None:
+        return F.mse_loss(v_pred.float(), v_target)
+
+    se = (v_pred.float() - v_target) ** 2
+    weighted = se * frame_mask
+    return weighted.sum() / frame_mask.expand_as(se).sum().clamp(min=1.0)
 
 
 def main(config: Config) -> None:
@@ -210,6 +236,7 @@ def main(config: Config) -> None:
             "num_targets": len(metadata),
             "num_retention_targets": len(retention_metadata),
             "retention_weight": config.retention_weight if retention_metadata else 0.0,
+            "nonfire_frame_weight": config.nonfire_frame_weight,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
             "global_seed": config.global_seed,
@@ -228,9 +255,10 @@ def main(config: Config) -> None:
         # Erase branch: pull the fire prompt toward its edited (fireless) latent.
         erase_entry = random.choice(metadata)
         x0_erase = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+        erase_frame_mask = _fire_frame_mask(erase_entry, config.nonfire_frame_weight, device)
         loss_erase = _sft_velocity_loss(
             transformer, scheduler, x0_erase, prompt_emb_cache[erase_entry["prompt"]],
-            image_rotary_emb, config, device,
+            image_rotary_emb, config, device, frame_mask=erase_frame_mask,
         )
 
         # Accumulate grads across branches then step once, so the two forward graphs never
