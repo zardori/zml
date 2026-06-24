@@ -26,7 +26,9 @@ its own output. First feasibility check; not tuned, not expecting spectacular re
 ## Things to watch
 - **Coverage**: the method only applies to prompts that actually produce partial-fire clips.
   the precompute run's `skipped.json` tells us how many fire prompts were unusable (all-fire /
-  no-fire / too few donor frames) — a key viability signal.
+  no-fire / too few donor frames) — a key viability signal. Prompts engineered for a clean
+  fire/no-fire split (see `prompts/part_fire_prompts.txt`, exp033) are the ideal source; consider
+  building a seeded CSV of such prompts if `cogvideox_fire.csv` yields too few usable clips.
 - **No retention loss in v1** (kept minimal). If preservation degrades, the natural next step is
   an SFT anchor toward the *original* (unedited) latents of preservation prompts.
 

@@ -4,13 +4,13 @@ model_id: THUDM/CogVideoX-5b
 # Erase targets: edited fireless latents from the curated fire precompute (exp042) — the 21
 # original partial-fire prompts plus the 50 the exp040 search agent discovered. Fill the
 # timestamp dir in after that precompute run finishes (same pattern as the retention paths below).
-metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_TIMESTAMP/latents
+metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_20260623_214012/metadata.json
+latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_20260623_214012/latents
 
 # Retention anchors: base-model preservation latents from exp041. Fill the timestamp dir in
 # after that precompute run finishes (same pattern as the erase paths above).
-retention_metadata_file: experiments/exp041_preservation_precompute/outputs_TIMESTAMP/metadata.json
-retention_latents_dir: experiments/exp041_preservation_precompute/outputs_TIMESTAMP/latents
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
 
 control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
