@@ -146,10 +146,16 @@ def main(config: Config) -> None:
 
             latent_filename = f"{stem}_x0edited.pt"
             torch.save(x0_edited.cpu(), os.path.join(latents_dir, latent_filename))
+            # Also save the pre-edit (fire-bearing) latent: the denoising-redirection trainer
+            # noises *this* (the kind of state the model actually traverses when generating fire)
+            # and regresses toward x0_edited, instead of reconstructing x0_edited from itself.
+            original_filename = f"{stem}_x0original.pt"
+            torch.save(z_bcfhw.cpu(), os.path.join(latents_dir, original_filename))
             metadata.append({
                 "prompt": prompt,
                 "seed": seed,
                 "latent_path": latent_filename,
+                "original_latent_path": original_filename,
                 "fire_pixel_mask": fire_pixel,
                 "fire_latent_mask": fire_latent,
                 "donor_map": {str(k): v for k, v in donor_map.items()},
