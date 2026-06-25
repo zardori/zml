@@ -1,0 +1,47 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# Erase targets: edited fireless latents from the curated fire precompute (exp042) — the 21
+# original partial-fire prompts plus the 50 the exp040 search agent discovered. Reused as-is
+# from exp043/exp044; no new precompute needed.
+metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_20260623_214012/metadata.json
+latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_20260623_214012/latents
+
+# Retention anchors: base-model preservation latents from exp041 (reused from exp043/exp044).
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+# Restrict the erase loss to the edited (fire) latent frames (unchanged from exp044).
+nonfire_frame_weight: 0.0
+
+# THE variable under test vs exp043/exp044. exp044 proved the velocity-space erase loss is
+# inert: its masked loss_erase was step-for-step identical to exp043's full-frame loss, because
+# the fireless edit is a vanishing fraction of the velocity target and fire/non-fire frames carry
+# equal MSE. "x0" recovers the predicted clean latent and MSEs that against the edited target, so
+# the edit is the full supervision signal at every timestep. Retention stays velocity-space.
+erase_loss_space: x0
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+steps: 1000
+save_interval: 100
+# Halved vs exp043/exp044 (1e-3) as a divergence guardrail: the x0-space loss has a different
+# gradient scale, and exp044 collapsed at 1e-3 once the masked gradient concentrated.
+learning_rate: 0.0005
+
+# SFT samples raw training timesteps uniformly in [timestep_min, timestep_max).
+timestep_min: 0
+timestep_max: 1000
+
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "12:00:00"
