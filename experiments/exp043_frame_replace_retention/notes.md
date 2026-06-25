@@ -35,4 +35,20 @@ to the base model's own output. The expectation: concept fire (and the new conti
   Start at 1.0, sweep later only if the single run looks promising.
 
 ## Results
-- (pending first run)
+Run `outputs_20260624_161343` (1000 steps). **The retention anchor fixed preservation but
+erasure did not happen.**
+
+- **Preservation held — the exp038/039 collapse is gone.** `unrelated` clip_score stayed
+  ~0.32–0.34 and colorfulness 40–70 across the whole run; no crater. This is the decoupling the
+  retention anchor was added for.
+- **Zero erasure.** Concept `fire_detection_rate` stayed 0.6–1.0 and `fire_area_score_mean`
+  oscillated 0.037–0.127 with no downward trend (0.060 → 0.095 over steps 100→1000). The run sits
+  in the stabilized "no erasure" regime of exp035/036.
+- **`loss_erase` flat at ~0.07** from step 49 to 999 — essentially at its floor from the start.
+  `health.notes` empty (no divergence).
+
+Diagnosis: the velocity-space erase MSE is too weak to move fire selectively. The retention
+branch works, but the erase signal carries almost no information about fire (see exp044, which
+shows the per-frame velocity-MSE is the same on fire and non-fire frames). Motivated exp044's
+masking attempt — and, when that failed for the same reason, the x0-space reparameterization in
+exp045.

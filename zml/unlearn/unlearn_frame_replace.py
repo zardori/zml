@@ -65,6 +65,12 @@ class Config:
     # Erase loss is restricted to the edited (fire) latent frames; unedited frames get this
     # weight (0.0 = hard mask). They match the base output, so weighting them in dilutes erasure.
     nonfire_frame_weight: float = 0.0
+    # Space the erase MSE is computed in. "velocity" (default) reproduces exp043/044: it MSEs
+    # the predicted velocity, where the fireless edit is a vanishing fraction of the target at
+    # high-noise timesteps and the gradient is swamped by noise-matching. "x0" recovers the
+    # predicted clean latent and MSEs that against the edited target, making the edit the full
+    # supervision signal at every timestep. The retention branch always stays in velocity space.
+    erase_loss_space: str = "velocity"
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -98,6 +104,20 @@ def _fire_frame_mask(entry: dict, nonfire_weight: float, device: str) -> torch.T
     return torch.tensor(weights, device=device).view(1, NUM_LATENT_FRAMES, 1, 1, 1)
 
 
+def _predict_x0(x_t: torch.Tensor, v_pred: torch.Tensor, t: torch.Tensor, scheduler) -> torch.Tensor:
+    """Recover the predicted clean latent from a v-prediction output.
+
+    For v-parameterization ``v = sqrt(acp) * noise - sqrt(1 - acp) * x0`` and
+    ``x_t = sqrt(acp) * x0 + sqrt(1 - acp) * noise``, which invert to
+    ``x0 = sqrt(acp) * x_t - sqrt(1 - acp) * v`` with ``acp = alphas_cumprod[t]``.
+    All tensors are in ``(B, F, C, H, W)`` layout; the per-sample coefficients broadcast.
+    """
+    acp = scheduler.alphas_cumprod.to(device=x_t.device, dtype=torch.float32)[t]
+    sqrt_acp = acp.sqrt().view(-1, 1, 1, 1, 1)
+    sqrt_one_minus_acp = (1.0 - acp).sqrt().view(-1, 1, 1, 1, 1)
+    return sqrt_acp * x_t.float() - sqrt_one_minus_acp * v_pred.float()
+
+
 def _sft_velocity_loss(
     transformer,
     scheduler,
@@ -107,12 +127,18 @@ def _sft_velocity_loss(
     config: Config,
     device: str,
     frame_mask: torch.Tensor | None = None,
+    loss_space: str = "velocity",
 ) -> torch.Tensor:
-    """One v-prediction SFT loss: noise ``x0`` at a random timestep and MSE the predicted velocity.
+    """One SFT loss: noise ``x0`` at a random timestep, predict velocity, MSE against the target.
 
     Shared by the erase branch (toward an edited fireless latent) and the retention branch
     (toward an unedited preservation latent); see the offline-trainer header for the SNR-shift
     reasoning behind uniform integer timesteps.
+
+    ``loss_space`` picks what the MSE compares. ``"velocity"`` matches the predicted velocity
+    (the noise-schedule scales the edit down, swamping it at high t). ``"x0"`` recovers the
+    predicted clean latent and matches that against the edited target, so the fireless edit is
+    the full signal at every timestep — used by the erase branch when erasure stalls.
 
     ``frame_mask`` (erase branch only) restricts the MSE to the edited frames: unedited frames
     match the base model's own output, so averaging them in dilutes — and even reinforces — the
@@ -121,7 +147,6 @@ def _sft_velocity_loss(
     t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
     noise = torch.randn_like(x0)
     x_t = scheduler.add_noise(x0, noise, t)
-    v_target = scheduler.get_velocity(x0, noise, t)  # (B, C, F, H, W)
 
     v_pred = transformer(
         hidden_states=x_t.permute(0, 2, 1, 3, 4),  # -> (B, F, C, H, W)
@@ -130,11 +155,20 @@ def _sft_velocity_loss(
         image_rotary_emb=image_rotary_emb,
     ).sample  # (B, F, C, H, W)
 
-    v_target = v_target.permute(0, 2, 1, 3, 4).float()  # -> (B, F, C, H, W)
-    if frame_mask is None:
-        return F.mse_loss(v_pred.float(), v_target)
+    if loss_space == "x0":
+        x_t = x_t.permute(0, 2, 1, 3, 4)  # -> (B, F, C, H, W)
+        pred = _predict_x0(x_t, v_pred, t, scheduler)
+        target = x0.permute(0, 2, 1, 3, 4).float()
+    elif loss_space == "velocity":
+        pred = v_pred.float()
+        target = scheduler.get_velocity(x0, noise, t).permute(0, 2, 1, 3, 4).float()
+    else:
+        raise ValueError(f"Unknown loss_space {loss_space!r}; expected 'velocity' or 'x0'.")
 
-    se = (v_pred.float() - v_target) ** 2
+    if frame_mask is None:
+        return F.mse_loss(pred, target)
+
+    se = (pred - target) ** 2
     weighted = se * frame_mask
     return weighted.sum() / frame_mask.expand_as(se).sum().clamp(min=1.0)
 
@@ -237,6 +271,7 @@ def main(config: Config) -> None:
             "num_retention_targets": len(retention_metadata),
             "retention_weight": config.retention_weight if retention_metadata else 0.0,
             "nonfire_frame_weight": config.nonfire_frame_weight,
+            "erase_loss_space": config.erase_loss_space,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
             "global_seed": config.global_seed,
@@ -259,6 +294,7 @@ def main(config: Config) -> None:
         loss_erase = _sft_velocity_loss(
             transformer, scheduler, x0_erase, prompt_emb_cache[erase_entry["prompt"]],
             image_rotary_emb, config, device, frame_mask=erase_frame_mask,
+            loss_space=config.erase_loss_space,
         )
 
         # Accumulate grads across branches then step once, so the two forward graphs never

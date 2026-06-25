@@ -35,4 +35,25 @@ precompute. Config paths point at the same `outputs_{timestamp}` dirs as exp043.
   `retention_weight` reduction — deferred to keep this a single-variable test.
 
 ## Results
-- (pending first run)
+Run `outputs_20260625_010847` (1000 steps). **Masking changed almost nothing, then the model
+collapsed — the hypothesis was wrong.**
+
+- **The mask was inert.** With the same seed, the masked `train/loss_erase` is step-for-step
+  nearly identical to exp043's full-frame loss (0.073 vs 0.074, 0.069 vs 0.071, …) through step
+  ~850. The exp042 targets have a *median 50% fire frames*, so masking drops half the frames from
+  the average — yet the mean is unchanged. That algebraically forces the conclusion:
+  **fire frames and non-fire frames carry essentially equal velocity-MSE.** The "unedited frames
+  dilute/reinforce fire" premise is false; the fireless edit is simply invisible in the velocity
+  objective (it's a vanishing fraction of the v-target at high-noise timesteps).
+- **No erasure for 85% of the run, then full collapse.** Concept `fire_detection_rate` stayed
+  0.6–1.0 through step 800 (like exp043). Then training diverged — `loss_erase` 0.072→0.326,
+  `loss_retain` 0.116→0.334 climbing — and at step 1000 *everything* cratered: concept clip 0.18,
+  unrelated clip 0.18, colorfulness 15/25. Fire hits 0 only because the whole model collapsed (the
+  exp038/039 failure mode, delayed). `health.notes`: "loss not decreasing — erasure may be
+  stalled."
+
+Diagnosis: masking which frames you average over cannot help when every frame carries the same
+near-zero fire signal; concentrating the gradient on fewer frames just raised its norm enough to
+destabilize training at LR 1e-3. The real fix is to change *what space the loss lives in* so the
+edit stops being buried → exp045 reparameterizes the erase loss into x0-space (with LR halved to
+5e-4 as a divergence guardrail).
