@@ -71,6 +71,13 @@ class Config:
     # predicted clean latent and MSEs that against the edited target, making the edit the full
     # supervision signal at every timestep. The retention branch always stays in velocity space.
     erase_loss_space: str = "velocity"
+    # Which latent the erase branch noises to form x_t. "edited" (default) reconstructs the
+    # fireless target from its own noised versions — self-consistency on the fireless manifold,
+    # which exp043-045 showed never redirects the fire prompt at inference. "original" noises the
+    # pre-edit fire latent (the state the model actually traverses when generating fire) and still
+    # regresses toward the edited fireless target, teaching a fire->fireless denoising redirection.
+    # Requires "original_latent_path" in the target metadata (precompute saves it).
+    erase_input_latent: str = "edited"
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -121,32 +128,41 @@ def _predict_x0(x_t: torch.Tensor, v_pred: torch.Tensor, t: torch.Tensor, schedu
 def _sft_velocity_loss(
     transformer,
     scheduler,
-    x0: torch.Tensor,
+    x0_input: torch.Tensor,
     concept_emb: torch.Tensor,
     image_rotary_emb,
     config: Config,
     device: str,
     frame_mask: torch.Tensor | None = None,
     loss_space: str = "velocity",
+    x0_target: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    """One SFT loss: noise ``x0`` at a random timestep, predict velocity, MSE against the target.
+    """One SFT loss: noise ``x0_input`` at a random timestep, predict velocity, MSE against target.
 
     Shared by the erase branch (toward an edited fireless latent) and the retention branch
     (toward an unedited preservation latent); see the offline-trainer header for the SNR-shift
     reasoning behind uniform integer timesteps.
 
+    ``x0_target`` defaults to ``x0_input`` — plain reconstruction (noise a latent, predict it
+    back). Passing a *different* ``x0_target`` decouples the two: the erase branch noises the
+    original fire latent (``x0_input``) but regresses toward the edited fireless latent
+    (``x0_target``), turning reconstruction into a fire->fireless denoising redirection.
+
     ``loss_space`` picks what the MSE compares. ``"velocity"`` matches the predicted velocity
     (the noise-schedule scales the edit down, swamping it at high t). ``"x0"`` recovers the
-    predicted clean latent and matches that against the edited target, so the fireless edit is
-    the full signal at every timestep — used by the erase branch when erasure stalls.
+    predicted clean latent and matches that against the target, so the edit is the full signal at
+    every timestep — used by the erase branch when erasure stalls.
 
     ``frame_mask`` (erase branch only) restricts the MSE to the edited frames: unedited frames
     match the base model's own output, so averaging them in dilutes — and even reinforces — the
     fire behavior we want to remove. ``None`` gives the plain full-tensor mean (retention branch).
     """
-    t = torch.randint(config.timestep_min, config.timestep_max, (x0.shape[0],), device=device)
-    noise = torch.randn_like(x0)
-    x_t = scheduler.add_noise(x0, noise, t)
+    if x0_target is None:
+        x0_target = x0_input
+
+    t = torch.randint(config.timestep_min, config.timestep_max, (x0_input.shape[0],), device=device)
+    noise = torch.randn_like(x0_input)
+    x_t = scheduler.add_noise(x0_input, noise, t)
 
     v_pred = transformer(
         hidden_states=x_t.permute(0, 2, 1, 3, 4),  # -> (B, F, C, H, W)
@@ -158,10 +174,10 @@ def _sft_velocity_loss(
     if loss_space == "x0":
         x_t = x_t.permute(0, 2, 1, 3, 4)  # -> (B, F, C, H, W)
         pred = _predict_x0(x_t, v_pred, t, scheduler)
-        target = x0.permute(0, 2, 1, 3, 4).float()
+        target = x0_target.permute(0, 2, 1, 3, 4).float()
     elif loss_space == "velocity":
         pred = v_pred.float()
-        target = scheduler.get_velocity(x0, noise, t).permute(0, 2, 1, 3, 4).float()
+        target = scheduler.get_velocity(x0_target, noise, t).permute(0, 2, 1, 3, 4).float()
     else:
         raise ValueError(f"Unknown loss_space {loss_space!r}; expected 'velocity' or 'x0'.")
 
@@ -272,6 +288,7 @@ def main(config: Config) -> None:
             "retention_weight": config.retention_weight if retention_metadata else 0.0,
             "nonfire_frame_weight": config.nonfire_frame_weight,
             "erase_loss_space": config.erase_loss_space,
+            "erase_input_latent": config.erase_input_latent,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
             "global_seed": config.global_seed,
@@ -289,12 +306,23 @@ def main(config: Config) -> None:
     for step in pbar:
         # Erase branch: pull the fire prompt toward its edited (fireless) latent.
         erase_entry = random.choice(metadata)
-        x0_erase = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+        x0_edited = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+        # "original" noises the pre-edit fire latent (x0_input) while still regressing toward the
+        # edited fireless latent (x0_target) — a fire->fireless redirection on the states the model
+        # actually traverses. "edited" keeps plain reconstruction (x0_input == x0_target).
+        if config.erase_input_latent == "original":
+            assert "original_latent_path" in erase_entry, (
+                "erase_input_latent='original' needs 'original_latent_path' in the target metadata; "
+                "re-run the precompute with the original-latent-saving version."
+            )
+            x0_input = _load_target_latent(config.latents_dir, erase_entry["original_latent_path"], device)
+        else:
+            x0_input = x0_edited
         erase_frame_mask = _fire_frame_mask(erase_entry, config.nonfire_frame_weight, device)
         loss_erase = _sft_velocity_loss(
-            transformer, scheduler, x0_erase, prompt_emb_cache[erase_entry["prompt"]],
+            transformer, scheduler, x0_input, prompt_emb_cache[erase_entry["prompt"]],
             image_rotary_emb, config, device, frame_mask=erase_frame_mask,
-            loss_space=config.erase_loss_space,
+            loss_space=config.erase_loss_space, x0_target=x0_edited,
         )
 
         # Accumulate grads across branches then step once, so the two forward graphs never

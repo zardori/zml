@@ -43,4 +43,23 @@ precompute. Config paths point at the same `outputs_{timestamp}` dirs as exp043/
   reduction — deferred to keep this a single-variable test.
 
 ## Results
-- (pending first run)
+Run `outputs_20260625_164320` (1000 steps, x0-space erase loss, lr 5e-4). **The x0-space
+reparameterization did not unlock erasure — and the result is decisive about the method.**
+
+- **No erasure at inference.** Concept `fire_detection_rate` stayed 0.6–1.0 and
+  `fire_area_score_mean` oscillated 0.041–0.087 with no downward trend across all checkpoints.
+- **Preservation held.** `unrelated` clip_score ~0.30–0.33, colorfulness 50–70; no collapse,
+  `health.notes` empty.
+- **`loss_erase` flat at ~0.043** (mean per window), lower in magnitude than velocity-space
+  (~0.07) with individual low-noise samples reaching ~0 (min 3.8e-5) — but **no downward trend**.
+  The model trivially reconstructs the fireless target at low noise and never improves on the hard
+  high-noise samples; the two-branch system sits at a stable erase/retain equilibrium.
+
+Conclusion (with exp043/044): edited-latent reconstruction SFT cannot erase fire regardless of
+loss space, masking, retention, or timestep weighting. The deeper cause is a **train/inference
+distribution mismatch** — training only noises the *edited fireless* latent, so it teaches
+self-consistency on the fireless manifold and never visits the fire-bearing states the model
+actually traverses when sampling under the fire prompt. Driving the reconstruction loss down
+therefore leaves the fire mode of `p(x0 | fire prompt)` untouched. This motivates exp046's
+denoising-redirection: noise the *original* fire latent and regress toward the edited fireless
+target.
