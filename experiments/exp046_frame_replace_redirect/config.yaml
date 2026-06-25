@@ -1,0 +1,54 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# Erase targets: edited fireless latents AND their pre-edit fire latents from a *fresh* curated
+# precompute (exp042 config re-run with the original-latent-saving precompute). The old exp042
+# outputs lack `*_x0original.pt` / `original_latent_path`, so a new precompute run is required;
+# fill in its outputs_{timestamp} dir below (same pattern as exp043 placeholders).
+metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_20260625_215904/metadata.json
+latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_20260625_215904/latents
+
+# Retention anchors: base-model preservation latents from exp041 (reused from exp043-045).
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+# Restrict the erase loss to the edited (fire) latent frames (unchanged from exp044/045). The
+# original and edited latents are identical on non-fire frames, so masking focuses the loss on the
+# frames that actually change between fire input and fireless target.
+nonfire_frame_weight: 0.0
+
+# THE variable under test. exp043-045 proved that reconstructing the edited fireless latent from
+# its own noised versions (erase_input_latent="edited") never erases fire at inference — a
+# train/inference distribution mismatch (training only visits the fireless manifold). "original"
+# noises the pre-edit fire latent (the state the model actually traverses when generating fire)
+# while still regressing toward the edited fireless target, teaching a fire->fireless redirection.
+erase_input_latent: original
+
+# Canonical frame_replace velocity loss (drop exp045's x0-space confound). The redirection target
+# differs genuinely from the input, so velocity-space carries a meaningful gradient at all t.
+erase_loss_space: velocity
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+steps: 1000
+save_interval: 100
+# Halved vs exp043/044 (1e-3), matching exp045: a divergence guardrail. The redirection loss is
+# genuinely non-trivial (input != target), so gradients are real — stay conservative on LR.
+learning_rate: 0.0005
+
+# SFT samples raw training timesteps uniformly in [timestep_min, timestep_max).
+timestep_min: 0
+timestep_max: 1000
+
+eval_num_prompts: 5
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "12:00:00"
