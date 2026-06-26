@@ -50,5 +50,8 @@ unlearning_dataset
 # Sharing images with claude
 screenshots/
 
+# Report (local, not committed)
+report/
+
 # Other
 *.pdf
