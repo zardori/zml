@@ -32,7 +32,7 @@ zml/
 │   │       ├── run_002/
 │   │       └── ...
 │   └── ...                      
-├── scripts/                     # thin generic entrypoints (call zml/)
+├── scripts/                     # thin generic entrypoints to the experiments (all should call zml/)
 │   ├── unlearn.py               
 │   ├── precompute.py            
 │   └── eval.py                  
@@ -40,6 +40,7 @@ zml/
 │   ├── athena.sh                # dispatches on JOB_TYPE (unlearn|eval|precompute)
 │   └── helios.sh                
 ├── prompts/                     # prompts used in experiments
+├── tools/                       # utility scripts
 └── docs/                        # method write-ups & design notes (e.g. unhype.md)
 ```
 
