@@ -38,6 +38,9 @@ EXPECTED_LATENT_SHAPE = (1, NUM_CHANNELS, NUM_LATENT_FRAMES, LATENT_HEIGHT, LATE
 LORA_TARGET_MODULES = ["to_q", "to_k", "to_v", "to_out.0"]
 DTYPE = torch.bfloat16
 
+# Cosine LR decay floor, as a fraction of the initial learning_rate.
+COSINE_LR_FLOOR_FRACTION = 0.05
+
 
 @dataclass
 class Config:
@@ -78,6 +81,14 @@ class Config:
     # regresses toward the edited fireless target, teaching a fire->fireless denoising redirection.
     # Requires "original_latent_path" in the target metadata (precompute saves it).
     erase_input_latent: str = "edited"
+    # Micro-batch size per optimizer step: each micro-step draws an independent (target,
+    # timestep, noise) sample for both branches and gradients are averaged. >1 cuts the
+    # batch-1 gradient noise that made exp046's eval oscillate through the erasure basin.
+    gradient_accumulation_steps: int = 1
+    # "constant" keeps the fixed learning_rate; "cosine" anneals it over `steps` down to
+    # COSINE_LR_FLOOR_FRACTION * learning_rate so the LoRA settles instead of wandering
+    # around the solution at full step size.
+    lr_scheduler: str = "constant"
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -247,7 +258,18 @@ def main(config: Config) -> None:
     transformer.print_trainable_parameters()
     
 
+    if config.gradient_accumulation_steps < 1:
+        raise ValueError(f"gradient_accumulation_steps must be >= 1, got {config.gradient_accumulation_steps}")
+
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
+    if config.lr_scheduler == "cosine":
+        lr_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=config.steps, eta_min=COSINE_LR_FLOOR_FRACTION * config.learning_rate
+        )
+    elif config.lr_scheduler == "constant":
+        lr_sched = None
+    else:
+        raise ValueError(f"Unknown lr_scheduler {config.lr_scheduler!r}; expected 'constant' or 'cosine'.")
 
     # Cache one T5 embedding per unique prompt (CFG-free; we handle no guidance here).
     # Both the erase and retention targets are keyed by prompt, so cache both prompt sets.
@@ -279,6 +301,8 @@ def main(config: Config) -> None:
             "lora_alpha": config.lora_alpha,
             "lora_dropout": config.lora_dropout,
             "learning_rate": config.learning_rate,
+            "lr_scheduler": config.lr_scheduler,
+            "gradient_accumulation_steps": config.gradient_accumulation_steps,
             "steps": config.steps,
             "save_interval": config.save_interval,
             "timestep_min": config.timestep_min,
@@ -302,59 +326,69 @@ def main(config: Config) -> None:
         + (f" + {len(retention_metadata)} retention anchors (w={config.retention_weight})" if retention_enabled else "")
         + "..."
     )
+    accum = config.gradient_accumulation_steps
     pbar = tqdm(range(config.steps))
     for step in pbar:
-        # Erase branch: pull the fire prompt toward its edited (fireless) latent.
-        erase_entry = random.choice(metadata)
-        x0_edited = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
-        # "original" noises the pre-edit fire latent (x0_input) while still regressing toward the
-        # edited fireless latent (x0_target) — a fire->fireless redirection on the states the model
-        # actually traverses. "edited" keeps plain reconstruction (x0_input == x0_target).
-        if config.erase_input_latent == "original":
-            assert "original_latent_path" in erase_entry, (
-                "erase_input_latent='original' needs 'original_latent_path' in the target metadata; "
-                "re-run the precompute with the original-latent-saving version."
-            )
-            x0_input = _load_target_latent(config.latents_dir, erase_entry["original_latent_path"], device)
-        else:
-            x0_input = x0_edited
-        erase_frame_mask = _fire_frame_mask(erase_entry, config.nonfire_frame_weight, device)
-        loss_erase = _sft_velocity_loss(
-            transformer, scheduler, x0_input, prompt_emb_cache[erase_entry["prompt"]],
-            image_rotary_emb, config, device, frame_mask=erase_frame_mask,
-            loss_space=config.erase_loss_space, x0_target=x0_edited,
-        )
-
-        # Accumulate grads across branches then step once, so the two forward graphs never
-        # coexist in memory (lower peak than backprop on a summed loss).
         optimizer.zero_grad()
-        loss_erase.backward()
-
-        loss_retain_value = 0.0
-        if retention_enabled:
-            # Retention branch: independent sample/timestep anchors a preservation prompt to the
-            # base model's unedited latent, keeping erasure from collapsing general quality.
-            retain_entry = random.choice(retention_metadata)
-            x0_retain = _load_target_latent(config.retention_latents_dir, retain_entry["latent_path"], device)
-            loss_retain = _sft_velocity_loss(
-                transformer, scheduler, x0_retain, prompt_emb_cache[retain_entry["prompt"]],
-                image_rotary_emb, config, device,
+        erase_loss_sum = 0.0
+        retain_loss_sum = 0.0
+        # Each micro-step draws an independent (target, timestep, noise) sample; gradients are
+        # scaled by 1/accum so the single optimizer step sees the micro-batch mean. Losses are
+        # backpropped per branch so the two forward graphs never coexist in memory (lower peak
+        # than backprop on a summed loss).
+        for _ in range(accum):
+            # Erase branch: pull the fire prompt toward its edited (fireless) latent.
+            erase_entry = random.choice(metadata)
+            x0_edited = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+            # "original" noises the pre-edit fire latent (x0_input) while still regressing toward
+            # the edited fireless latent (x0_target) — a fire->fireless redirection on the states
+            # the model actually traverses. "edited" keeps plain reconstruction (x0_input == x0_target).
+            if config.erase_input_latent == "original":
+                assert "original_latent_path" in erase_entry, (
+                    "erase_input_latent='original' needs 'original_latent_path' in the target metadata; "
+                    "re-run the precompute with the original-latent-saving version."
+                )
+                x0_input = _load_target_latent(config.latents_dir, erase_entry["original_latent_path"], device)
+            else:
+                x0_input = x0_edited
+            erase_frame_mask = _fire_frame_mask(erase_entry, config.nonfire_frame_weight, device)
+            loss_erase = _sft_velocity_loss(
+                transformer, scheduler, x0_input, prompt_emb_cache[erase_entry["prompt"]],
+                image_rotary_emb, config, device, frame_mask=erase_frame_mask,
+                loss_space=config.erase_loss_space, x0_target=x0_edited,
             )
-            (config.retention_weight * loss_retain).backward()
-            loss_retain_value = loss_retain.item()
+            (loss_erase / accum).backward()
+            erase_loss_sum += loss_erase.item()
+
+            if retention_enabled:
+                # Retention branch: independent sample/timestep anchors a preservation prompt to
+                # the base model's unedited latent, keeping erasure from collapsing general quality.
+                retain_entry = random.choice(retention_metadata)
+                x0_retain = _load_target_latent(config.retention_latents_dir, retain_entry["latent_path"], device)
+                loss_retain = _sft_velocity_loss(
+                    transformer, scheduler, x0_retain, prompt_emb_cache[retain_entry["prompt"]],
+                    image_rotary_emb, config, device,
+                )
+                (config.retention_weight * loss_retain / accum).backward()
+                retain_loss_sum += loss_retain.item()
 
         optimizer.step()
+        current_lr = optimizer.param_groups[0]["lr"]
+        if lr_sched is not None:
+            lr_sched.step()
 
-        loss_total = loss_erase.item() + config.retention_weight * loss_retain_value
-        train_metrics = {"train/loss": loss_total, "train/loss_erase": loss_erase.item()}
+        loss_erase_mean = erase_loss_sum / accum
+        loss_retain_mean = retain_loss_sum / accum
+        loss_total = loss_erase_mean + config.retention_weight * loss_retain_mean
+        train_metrics = {"train/loss": loss_total, "train/loss_erase": loss_erase_mean, "train/lr": current_lr}
         if retention_enabled:
-            train_metrics["train/loss_retain"] = loss_retain_value
+            train_metrics["train/loss_retain"] = loss_retain_mean
         recorder.log_train(step, train_metrics)
         if not config.disable_mlflow:
             mlflow.log_metrics(train_metrics, step=step)
         wandb.log(train_metrics, step=step)
         pbar.set_description(
-            f"loss={loss_total:.4f}" + (f" (e={loss_erase.item():.4f} r={loss_retain_value:.4f})" if retention_enabled else "")
+            f"loss={loss_total:.4f}" + (f" (e={loss_erase_mean:.4f} r={loss_retain_mean:.4f})" if retention_enabled else "")
         )
 
         if (step + 1) % config.save_interval == 0:
