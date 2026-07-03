@@ -1,4 +1,4 @@
-job_type: generate
+job_type: eval
 model_id: THUDM/CogVideoX-5b
 
 slurm_time: "12:00:00"
