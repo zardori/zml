@@ -1,0 +1,7 @@
+mode: generate
+model_id: THUDM/CogVideoX-5b
+prompts_file: prompts/partial_nudity.csv
+num_inference_steps: 50
+
+
+slurm_time: "12:00:00"
