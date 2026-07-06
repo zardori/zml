@@ -1,5 +1,8 @@
 import contextlib
+import json
+import time
 from argparse import ArgumentParser
+from datetime import datetime
 from pathlib import Path
 
 import mlflow
@@ -8,6 +11,20 @@ import yaml
 
 from zml.eval.eval_model import Config, main as eval_main
 from zml.eval.generate_videos import GenerateConfig, main as generate_main
+
+
+def _write_runtime(output_dir: str, start_time: float, started_at: str) -> None:
+    """Record wall-clock runtime next to the eval outputs (synced by pull_results.sh),
+    so slurm_time for future eval jobs can be calibrated from measured runs."""
+    elapsed_hours = (time.time() - start_time) / 3600.0
+    runtime = {
+        "started_at": started_at,
+        "finished_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "elapsed_hours": round(elapsed_hours, 3),
+    }
+    with open(Path(output_dir) / "runtime.json", "w") as f:
+        json.dump(runtime, f, indent=2)
+    print(f"Eval wall-clock time: {elapsed_hours:.2f} h")
 
 
 def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: str) -> None:
@@ -35,7 +52,13 @@ def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: s
         except Exception as e:
             print(f"WARNING: wandb init failed ({e}), continuing without W&B tracking.")
             wandb.init(mode="disabled")
-        eval_main(Config(**params, output_dir=output_dir))
+        start_time = time.time()
+        started_at = datetime.now().astimezone().isoformat(timespec="seconds")
+        try:
+            eval_main(Config(**params, output_dir=output_dir))
+        finally:
+            # Written even on failure so a partial/killed job still leaves its runtime on disk.
+            _write_runtime(output_dir, start_time, started_at)
         wandb.finish()
 
 
