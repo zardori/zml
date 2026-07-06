@@ -1,0 +1,44 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# Same data as exp046/exp048: curated fire targets with pre-edit original latents, exp041 retention.
+metadata_file: experiments/exp042_frame_replace_precompute_curated/outputs_20260625_215904/metadata.json
+latents_dir: experiments/exp042_frame_replace_precompute_curated/outputs_20260625_215904/latents
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+# Objective unchanged from exp046/exp048 — the redirection that produced the step-500 erasure.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+# Keep exp048's gradient noise reduction but revert its cosine decay: exp048's integrated LR
+# (~0.157) only reached the distance-equivalent of exp046 step ~315, before exp046's action
+# zone (~450-600). Constant 5e-4 over 1000 steps gives integrated LR 0.5 = 2x exp046@500.
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 1000
+save_interval: 100
+
+# Mid/high-t bias: in velocity space the fire->fireless target component is
+# sqrt(1-acp_t)*dx0, which vanishes at low t — samples with t < ~400 are nearly pure
+# noise-matching and dilute the erase gradient (~1.67x signal per step from dropping them).
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+# exp048 (2400 micro-steps + 6 evals) took 10 h; this is 4000 micro-steps + 10 evals ~ 17 h.
+slurm_time: "1-00:00:00"
