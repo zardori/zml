@@ -1,0 +1,13 @@
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+
+# No lora_checkpoint_dir: evaluates the unmodified base model. Full prompt sets (no
+# eval_num_prompts -> all rows; 15 fire + 10 related_v2 + 15 unrelated = 40 videos, all
+# saved and scored) — the reference point every unlearning run is compared against.
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related_v2.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+slurm_time: "0-6:00:00"

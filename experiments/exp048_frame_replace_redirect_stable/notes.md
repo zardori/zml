@@ -46,4 +46,21 @@ Code: `zml/unlearn/unlearn_frame_replace.py` gained `gradient_accumulation_steps
   was 5-prompt luck, this run's larger eval set is the first trustworthy read on the method.
 
 ## Results
-- (pending run)
+- **No erasure at any checkpoint:** concept `fire_detection_rate` 0.8 / 0.8 / 0.8 / 0.8 / 1.0
+  / 0.7 across steps 100–600. The win condition (two consecutive evals ≤ 0.1) was never
+  approached.
+- **The stabilization mechanics worked:** loss oscillation visibly reduced vs exp046
+  (loss max 0.53 vs 1.27), `train/lr` traced the cosine, preservation held perfectly
+  (unrelated clip 0.333–0.338, colorfulness 47–55), `health.notes` empty. Run took **10 h**
+  (per wandb; not recorded on disk at the time — `summary.json` now has a `runtime` block).
+- **Post-mortem — this run never tested the hypothesis.** Gradient accumulation at the same LR
+  leaves the step along the true gradient unchanged (only noise shrinks); what changed the
+  trajectory was the cosine decay. Integrated LR here ≈ 600 × (5e-4 + 2.5e-5)/2 ≈ **0.157**,
+  vs exp046's **0.25** at its step-500 dip — i.e. this run ended at the distance-equivalent of
+  exp046 step ~315, where exp046 also showed detection 0.8–1.0, and the final 100 steps ran at
+  lr < 6e-5, contributing almost nothing. The flat detection is therefore consistent with
+  "undertrained", not "the stable objective cannot erase". The schedule front-loaded the decay
+  before the run reached exp046's action zone (~450–600).
+- **Next:** exp051 keeps grad accum 4, reverts to constant 5e-4 over 1000 steps (integrated LR
+  0.5 = 2× exp046@500) and adds `timestep_min: 400` to concentrate the erase signal — the
+  redirection objective's best stable shot and the go/no-go before an ESD pivot.

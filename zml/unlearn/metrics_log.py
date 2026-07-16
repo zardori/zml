@@ -18,8 +18,14 @@ readable rows instead of 2000.
 import json
 import math
 import os
+import time
 from collections import defaultdict
+from datetime import datetime
 from typing import Any
+
+
+def _now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _sig(x: float, n: int = 4) -> float:
@@ -45,6 +51,8 @@ class MetricsRecorder:
         self.run_name = run_name
         self.config = config
         self.flush_interval = max(1, flush_interval)
+        self._start_time = time.time()
+        self._started_at = _now_iso()
 
         # Truncate any stale sink from a previous run in the same dir.
         open(self.jsonl_path, "w").close()
@@ -175,6 +183,13 @@ class MetricsRecorder:
         summary = {
             "run": self.run_name,
             "updated_step": self._last_step,
+            # Refreshed on every flush, so elapsed_hours stays current even if the job is
+            # killed — the on-disk record of how long the run actually took (for slurm_time).
+            "runtime": {
+                "started_at": self._started_at,
+                "updated_at": _now_iso(),
+                "elapsed_hours": _sig((time.time() - self._start_time) / 3600.0),
+            },
             "config": self.config,
             "train": trends,
             "eval": self._eval_rows,
