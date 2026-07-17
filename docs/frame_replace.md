@@ -4,11 +4,12 @@ This document describes the **frame_replace** unlearning method for the "fire" c
 CogVideoX-5b. It is the reference behind `zml/precompute/frame_replace_precompute.py`
 (target construction) and `zml/unlearn/unlearn_frame_replace.py` (training).
 
-Unlike the ESD / UnHype family (see [`unhype.md`](unhype.md)), frame_replace uses **no teacher,
-no classifier-free guidance, and no negative steering**. It is plain supervised diffusion
-fine-tuning: take a clean latent, noise it, predict the velocity, regress against the true
+In its base form, and unlike the ESD / UnHype family (see [`unhype.md`](unhype.md)), frame_replace
+uses **no teacher, no classifier-free guidance, and no negative steering**. It is plain supervised
+diffusion fine-tuning: take a clean latent, noise it, predict the velocity, regress against the true
 velocity. The only twist is *what* the clean latent is — a fire-removed edit of the model's own
-output.
+output. (An optional ESD-style variant, §4.4, adds a single frozen-teacher pass to soften that
+target; it is off by default.)
 
 ---
 
@@ -182,6 +183,37 @@ stay flat).
 
 Metrics are mirrored to wandb + mlflow and to the plain `metrics.jsonl` / `summary.json` files
 via `MetricsRecorder` (see the metrics-logging note in the project `CLAUDE.md`).
+
+### 4.4 Optional: ESD-style interpolated erase target (`erase_esd_eta`)
+
+The plain erase branch regresses the fire prompt **all the way** to the donor (edited fireless)
+target and drives the loss toward 0. But that specific donor latent is not our true goal — it is
+just one fire-free clip, and pinning the loss to 0 means memorizing it. What we actually want is to
+push the fire prompt *toward* fireless and stop at a sensible midpoint.
+
+Setting `erase_esd_eta` (`η`) borrows the ESD trick of regressing toward a linear blend of the
+model's own current prediction and the goal, rather than the goal alone. Per erase micro-step we do
+one extra **frozen-teacher** forward — the same noised fire latent + fire prompt, but with the LoRA
+adapter disabled and under `no_grad` — to get the base model's prediction `teacher`, then form
+
+```
+target = teacher − η · (teacher − donor) = (1 − η) · teacher + η · donor
+```
+
+and MSE the student against that (detached) target. The blend is computed in whichever space
+`erase_loss_space` selects, so `teacher` is the base **velocity** (velocity space) or the base
+**predicted-x0** (x0 space), matching `pred` and the donor term.
+
+- `η = 1` → the plain donor target (identical to the base method; the teacher pass is redundant).
+- `η = 0` → a no-op (target == base prediction; nothing is unlearned).
+- `0 < η < 1` → partial redirection: the loss can settle at a genuine midpoint instead of
+  overfitting the donor, trading erasure strength for lower collateral risk.
+
+Only the **erase** branch uses `η`; the retention branch always regresses fully to its anchor
+latent. `erase_esd_eta` is `None` by default, so existing configs are unaffected. Cost: one extra
+no-grad base forward per erase micro-step (the teacher shares the LoRA weights with the adapter
+disabled, so no second model is loaded). Swept in `exp053_frame_replace_esd_eta`, with
+`exp051` serving as the `η = 1` reference.
 
 ---
 

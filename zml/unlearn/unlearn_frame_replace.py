@@ -81,6 +81,16 @@ class Config:
     # regresses toward the edited fireless target, teaching a fire->fireless denoising redirection.
     # Requires "original_latent_path" in the target metadata (precompute saves it).
     erase_input_latent: str = "edited"
+    # ESD-style partial redirection for the erase branch. ``None`` (default) keeps plain SFT: the
+    # student regresses *all the way* to the donor (edited) target. When set, the erase target
+    # becomes ``teacher - eta*(teacher - donor) = (1-eta)*teacher + eta*donor``, where ``teacher``
+    # is the frozen base model's own prediction on the same noisy fire latent+prompt (LoRA
+    # disabled). The donor is not our true target — we only want to move *toward* fireless, not
+    # onto the specific edited latent — so eta<1 stops the target partway and the loss can fall to
+    # ~0 while the student sits at a genuine midpoint instead of overfitting the donor. eta=1
+    # reproduces the plain-SFT target; eta=0 is a no-op (target == base prediction). Only the
+    # erase branch uses this; the retention branch always regresses fully to its anchor latent.
+    erase_esd_eta: float | None = None
     # Micro-batch size per optimizer step: each micro-step draws an independent (target,
     # timestep, noise) sample for both branches and gradients are averaged. >1 cuts the
     # batch-1 gradient noise that made exp046's eval oscillate through the erasure basin.
@@ -147,6 +157,7 @@ def _sft_velocity_loss(
     frame_mask: torch.Tensor | None = None,
     loss_space: str = "velocity",
     x0_target: torch.Tensor | None = None,
+    esd_eta: float | None = None,
 ) -> torch.Tensor:
     """One SFT loss: noise ``x0_input`` at a random timestep, predict velocity, MSE against target.
 
@@ -167,6 +178,14 @@ def _sft_velocity_loss(
     ``frame_mask`` (erase branch only) restricts the MSE to the edited frames: unedited frames
     match the base model's own output, so averaging them in dilutes — and even reinforces — the
     fire behavior we want to remove. ``None`` gives the plain full-tensor mean (retention branch).
+
+    ``esd_eta`` (erase branch only) turns the plain donor target into an ESD-style interpolation:
+    instead of regressing fully to the donor, the target becomes
+    ``teacher - eta*(teacher - donor)``, where ``teacher`` is the frozen base model's prediction on
+    the same noisy input+prompt (computed with the LoRA adapter disabled). ``None`` keeps the plain
+    donor target (equivalent to ``eta == 1``). The interpolation is done in whichever space
+    ``loss_space`` selects, so ``teacher`` is the base velocity (velocity space) or the base
+    predicted-x0 (x0 space), matching ``pred`` and the donor target.
     """
     if x0_target is None:
         x0_target = x0_input
@@ -182,15 +201,36 @@ def _sft_velocity_loss(
         image_rotary_emb=image_rotary_emb,
     ).sample  # (B, F, C, H, W)
 
+    # Base-model (LoRA-disabled) prediction on the same noised input+prompt, used only to build the
+    # ESD interpolation target below. No grad: it is a fixed reference the student regresses toward.
+    v_pred_teacher = None
+    if esd_eta is not None:
+        with torch.no_grad(), transformer.disable_adapter():
+            v_pred_teacher = transformer(
+                hidden_states=x_t.permute(0, 2, 1, 3, 4),  # -> (B, F, C, H, W)
+                encoder_hidden_states=concept_emb,
+                timestep=t,
+                image_rotary_emb=image_rotary_emb,
+            ).sample  # (B, F, C, H, W)
+
     if loss_space == "x0":
         x_t = x_t.permute(0, 2, 1, 3, 4)  # -> (B, F, C, H, W)
         pred = _predict_x0(x_t, v_pred, t, scheduler)
-        target = x0_target.permute(0, 2, 1, 3, 4).float()
+        donor_target = x0_target.permute(0, 2, 1, 3, 4).float()
+        teacher_ref = _predict_x0(x_t, v_pred_teacher, t, scheduler) if v_pred_teacher is not None else None
     elif loss_space == "velocity":
         pred = v_pred.float()
-        target = scheduler.get_velocity(x0_target, noise, t).permute(0, 2, 1, 3, 4).float()
+        donor_target = scheduler.get_velocity(x0_target, noise, t).permute(0, 2, 1, 3, 4).float()
+        teacher_ref = v_pred_teacher.float() if v_pred_teacher is not None else None
     else:
         raise ValueError(f"Unknown loss_space {loss_space!r}; expected 'velocity' or 'x0'.")
+
+    # target = teacher - eta*(teacher - donor) = (1-eta)*teacher + eta*donor; detached so only the
+    # student prediction carries gradient. Plain donor target when esd_eta is unset.
+    if teacher_ref is None:
+        target = donor_target
+    else:
+        target = (teacher_ref - esd_eta * (teacher_ref - donor_target)).detach()
 
     if frame_mask is None:
         return F.mse_loss(pred, target)
@@ -313,6 +353,7 @@ def main(config: Config) -> None:
             "nonfire_frame_weight": config.nonfire_frame_weight,
             "erase_loss_space": config.erase_loss_space,
             "erase_input_latent": config.erase_input_latent,
+            "erase_esd_eta": config.erase_esd_eta,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
             "global_seed": config.global_seed,
@@ -356,6 +397,7 @@ def main(config: Config) -> None:
                 transformer, scheduler, x0_input, prompt_emb_cache[erase_entry["prompt"]],
                 image_rotary_emb, config, device, frame_mask=erase_frame_mask,
                 loss_space=config.erase_loss_space, x0_target=x0_edited,
+                esd_eta=config.erase_esd_eta,
             )
             (loss_erase / accum).backward()
             erase_loss_sum += loss_erase.item()
