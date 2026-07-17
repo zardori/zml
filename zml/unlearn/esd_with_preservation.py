@@ -12,6 +12,11 @@ from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
 from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.mask_localization import (
+    LocalizationHelper,
+    find_concept_token_indices,
+    non_padding_token_indices,
+)
 from zml.utils import set_seed
 
 
@@ -35,6 +40,12 @@ class Config:
     eval_num_prompts: int
     eval_inference_steps: int
     global_seed: int | None = None
+    # Optional mask-based localization (T2VUnlearning L_loc). Off by default: when False the
+    # training loop is identical to plain ESD + preservation.
+    use_localization: bool = False
+    localization_weight: float = 1.0
+    mask_concept_word: str | None = None
+    mask_threshold: float = 0.0
 
 
 def _load_prompts_from_file(path: str) -> list[EvalPrompt]:
@@ -95,6 +106,24 @@ def main(config: Config) -> None:
 
     latent_shape = (batch_size, num_channels, num_frames, height, width)
 
+    localization: LocalizationHelper | None = None
+    if config.use_localization:
+        grid_shape = LocalizationHelper.compute_grid_shape(transformer, num_frames, height, width)
+        localization = LocalizationHelper(
+            transformer=transformer,
+            grid_shape=grid_shape,
+            text_seq_len=transformer.config.max_text_seq_length,
+            threshold=config.mask_threshold,
+        )
+        print(f"Localization enabled: mask grid {grid_shape}, word={config.mask_concept_word!r}")
+
+    def concept_mask_token_indices(prompt: str) -> list[int]:
+        """Text positions defining the mask: the concept word's tokens, else all non-pad tokens."""
+        idx: list[int] = []
+        if config.mask_concept_word:
+            idx = find_concept_token_indices(pipe.tokenizer, prompt, config.mask_concept_word)
+        return idx or non_padding_token_indices(pipe.tokenizer, prompt)
+
     print("Starting ESD with Preservation Training...")
 
     pbar = tqdm(range(config.steps))
@@ -140,7 +169,9 @@ def main(config: Config) -> None:
         forget_model_input = forget_latents.permute(0, 2, 1, 3, 4)
         preserve_model_input = preserve_latents.permute(0, 2, 1, 3, 4)
 
-        # Teacher predictions (frozen base model, no LoRA)
+        # Teacher predictions (frozen base model, no LoRA). The concept forward doubles as the
+        # mask-building pass when localization is on (no extra forward needed).
+        mask: torch.Tensor | None = None
         with torch.no_grad():
             with transformer.disable_adapter():
                 pred_uncond = transformer(
@@ -148,11 +179,20 @@ def main(config: Config) -> None:
                     encoder_hidden_states=null_emb,
                     timestep=timesteps,
                 ).sample
-                pred_concept = transformer(
-                    hidden_states=forget_model_input,
-                    encoder_hidden_states=concept_emb,
-                    timestep=timesteps,
-                ).sample
+                if localization is not None:
+                    with localization.build_mask(concept_mask_token_indices(concept_prompt)) as built:
+                        pred_concept = transformer(
+                            hidden_states=forget_model_input,
+                            encoder_hidden_states=concept_emb,
+                            timestep=timesteps,
+                        ).sample
+                    mask = built[0]
+                else:
+                    pred_concept = transformer(
+                        hidden_states=forget_model_input,
+                        encoder_hidden_states=concept_emb,
+                        timestep=timesteps,
+                    ).sample
                 esd_target = pred_uncond - config.negative_guidance_scale * (pred_concept - pred_uncond)
 
                 teacher_preserve = transformer(
@@ -161,12 +201,27 @@ def main(config: Config) -> None:
                     timestep=timesteps,
                 ).sample
 
-        # Student predictions (trainable LoRA active)
-        student_forget = transformer(
-            hidden_states=forget_model_input,
-            encoder_hidden_states=concept_emb,
-            timestep=timesteps,
-        ).sample
+        # Student predictions (trainable LoRA active). Capturing per-block adapter outputs for the
+        # localization loss requires the block internals to stay live, so gradient checkpointing is
+        # disabled for this single forward when localization is on.
+        adapter_outputs: list[torch.Tensor] = []
+        if localization is not None:
+            # Gradient checkpointing detaches recomputed block internals from the forward graph,
+            # so the hooked adapter tensors would carry no gradient. Disable it for this forward.
+            transformer.disable_gradient_checkpointing()
+            with localization.capture_adapter_outputs() as adapter_outputs:
+                student_forget = transformer(
+                    hidden_states=forget_model_input,
+                    encoder_hidden_states=concept_emb,
+                    timestep=timesteps,
+                ).sample
+            transformer.enable_gradient_checkpointing()
+        else:
+            student_forget = transformer(
+                hidden_states=forget_model_input,
+                encoder_hidden_states=concept_emb,
+                timestep=timesteps,
+            ).sample
 
         student_preserve = transformer(
             hidden_states=preserve_model_input,
@@ -178,21 +233,28 @@ def main(config: Config) -> None:
         loss_preserve = F.mse_loss(student_preserve.float(), teacher_preserve.float())
         loss_total = loss_forget + config.preservation_weight * loss_preserve
 
+        loss_loc = None
+        if localization is not None:
+            loss_loc = localization.localization_loss(mask, adapter_outputs)
+            loss_total = loss_total + config.localization_weight * loss_loc
+
         loss_total.backward()
         optimizer.step()
 
-        mlflow.log_metric("train/loss_forget", loss_forget.item(), step=step)
-        mlflow.log_metric("train/loss_preserve", loss_preserve.item(), step=step)
-        mlflow.log_metric("train/loss_total", loss_total.item(), step=step)
-        wandb.log(
-            {
-                "train/loss_forget": loss_forget.item(),
-                "train/loss_preserve": loss_preserve.item(),
-                "train/loss_total": loss_total.item(),
-            },
-            step=step,
-        )
-        pbar.set_description(f"forget={loss_forget.item():.4f} preserve={loss_preserve.item():.4f}")
+        metrics = {
+            "train/loss_forget": loss_forget.item(),
+            "train/loss_preserve": loss_preserve.item(),
+            "train/loss_total": loss_total.item(),
+        }
+        if loss_loc is not None:
+            metrics["train/loss_loc"] = loss_loc.item()
+        for name, value in metrics.items():
+            mlflow.log_metric(name, value, step=step)
+        wandb.log(metrics, step=step)
+        desc = f"forget={loss_forget.item():.4f} preserve={loss_preserve.item():.4f}"
+        if loss_loc is not None:
+            desc += f" loc={loss_loc.item():.4f}"
+        pbar.set_description(desc)
 
         if (step + 1) % config.save_interval == 0:
             lora_output_dir = os.path.join(config.output_dir, f"cogvideox_erasure_lora_step{step + 1}")
