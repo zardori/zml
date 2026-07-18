@@ -132,7 +132,7 @@ def main(config: Config) -> None:
                 continue
 
             x0_edited, donor_map = edit_latent(z_bcfhw, fire_latent)
-            if 0 in donor_map.values():
+            if any(0 in endpoints for endpoints in donor_map.values()):
                 donor_from_frame0 += 1
 
             # Decode the post-edit latent so we can confirm fire was actually removed, and

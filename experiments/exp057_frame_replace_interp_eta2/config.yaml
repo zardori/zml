@@ -1,0 +1,45 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+
+# === FILL AFTER exp056 PRECOMPUTE COMPLETES ===
+# Point these at exp056's outputs_{timestamp} dir (the motion-preserving interpolated targets).
+# Same layout as exp042; replace TIMESTAMP with the actual precompute run stamp before submitting.
+metadata_file: experiments/exp056_frame_replace_precompute_interp/outputs_TIMESTAMP/metadata.json
+latents_dir: experiments/exp056_frame_replace_precompute_interp/outputs_TIMESTAMP/latents
+# Retention anchors unchanged (exp041), as in exp053.
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+# Objective + regime identical to exp053 run_002 (the eta=2 point we are re-testing). The only
+# difference from exp053 is the training data: interpolated (exp056) instead of frozen-copy (exp042)
+# targets. So exp057-vs-exp053-run002 isolates the effect of fix A on motion.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+# 600 steps (not exp053's 1000): the eta=2 result peaked at step 300 and regressed after, so this
+# captures step 300 plus a short trajectory at lower cost.
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "16:00:00"

@@ -44,16 +44,41 @@ def build_latent_fire_mask(fire_pixel: list[bool]) -> list[bool]:
 
 def edit_latent(
     latent: torch.Tensor, fire_latent: list[bool]
-) -> tuple[torch.Tensor, dict[int, int]]:
-    """Replace each fire latent frame (along the F axis) with the nearest fire-free one."""
+) -> tuple[torch.Tensor, dict[int, list[int]]]:
+    """Replace each fire latent frame (along the F axis) with a motion-preserving fire-free target.
+
+    For a fire frame ``i`` bracketed by fire-free frames on both sides, linearly interpolate in latent
+    space between the nearest fire-free frame *before* it (``lo``) and *after* it (``hi``):
+    ``edited[i] = (1-w)*latent[lo] + w*latent[hi]`` with ``w = (i-lo)/(hi-lo)``. This ramps smoothly
+    across a fire block instead of copying one frozen frame across the whole block — the hard copy
+    taught the model to hold still and globally suppressed motion (exp055: concept -84%, unrelated
+    -29%). Fire frames at the clip start/end have a fire-free neighbour on only one side and fall back
+    to copying that nearest frame.
+
+    Returns the edited latent and a ``donor_map`` mapping each fire frame to the fire-free endpoint
+    frame index/indices used (two for an interpolated frame, one for a one-sided edge copy).
+    """
     nofire = [i for i, is_fire in enumerate(fire_latent) if not is_fire]
     edited = latent.clone()
-    donor_map: dict[int, int] = {}
+    donor_map: dict[int, list[int]] = {}
     for i in range(NUM_LATENT_FRAMES):
-        if fire_latent[i]:
-            donor = min(nofire, key=lambda j: abs(j - i))
+        if not fire_latent[i]:
+            continue
+        lo = max((j for j in nofire if j < i), default=None)
+        hi = min((j for j in nofire if j > i), default=None)
+        if lo is None and hi is None:
+            continue  # no donors at all; callers guarantee >= min_nofire_frames, so unreachable
+        if lo is None or hi is None:
+            donor = hi if lo is None else lo  # edge block: only one side available -> copy it
             edited[:, :, i] = latent[:, :, donor]
-            donor_map[i] = donor
+            donor_map[i] = [donor]
+        else:
+            w = (i - lo) / (hi - lo)
+            # Interpolate in float to avoid bf16 rounding, then cast back to the latent dtype.
+            edited[:, :, i] = (
+                (1.0 - w) * latent[:, :, lo].float() + w * latent[:, :, hi].float()
+            ).to(latent.dtype)
+            donor_map[i] = [lo, hi]
     return edited, donor_map
 
 

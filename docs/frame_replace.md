@@ -82,19 +82,30 @@ This `any` is deliberately conservative — because a single latent frame bundle
 frames, marking it fire-free requires *all* of its pixel frames to be fire-free, so no fire
 leaks through the edit.
 
-### 3.3 Replace fire frames with the nearest donor
+### 3.3 Replace fire frames by interpolating between bracketing donors
 
-`edit_latent` replaces each fire latent frame along the `F` axis with the **nearest** fire-free
-("donor") latent frame from the same clip:
+`edit_latent` replaces each fire latent frame along the `F` axis with a fire-free target that
+**preserves motion across the fire block**. For a fire frame `i` bracketed by fire-free frames on
+both sides, it linearly interpolates in latent space between the nearest fire-free frame before
+(`lo`) and after (`hi`) it:
 
 ```python
-donor = min(nofire_frames, key=lambda j: abs(j - i))   # nearest fire-free frame
-edited[:, :, i] = latent[:, :, donor]
+w = (i - lo) / (hi - lo)
+edited[:, :, i] = (1 - w) * latent[:, :, lo] + w * latent[:, :, hi]
 ```
 
-Choosing the *nearest* fire-free frame keeps the edit temporally local, so the patched clip
-stays as close as possible to the original motion/content. The result is `x0_edited`: the
-model's own clip with its fire frames overwritten by neighboring fire-free ones.
+Fire frames at the clip start/end have a fire-free neighbour on only one side and fall back to a
+one-sided copy of it. The result is `x0_edited`: the model's own clip with its fire frames replaced
+by a smooth fire-free ramp.
+
+> **Why not just copy the nearest donor?** The original method hard-copied the single nearest
+> fire-free frame into *every* fire frame, so a contiguous fire block became several *identical
+> frozen* frames. SFT then learned "hold still," which suppressed motion globally — exp055 measured
+> the eta=2 model losing 84% of concept motion and, tellingly, 29–43% on prompts with no fire to
+> remove. Interpolating across the block keeps a plausible trajectory, so the target no longer
+> teaches stillness. (Caveat: latent-space lerp is not pixel-linear, so a *long* fire block becomes
+> a slow cross-fade rather than true motion — still far better than a freeze, and long all-fire
+> spans are skipped by `min_nofire_frames`.)
 
 ### 3.4 Skipping & verification
 
