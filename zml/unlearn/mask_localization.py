@@ -227,28 +227,41 @@ class LocalizationHelper:
         return norm.reshape(self.grid_shape).detach()
 
     @contextmanager
-    def capture_adapter_outputs(self) -> Iterator[list[torch.Tensor]]:
-        """Register hooks collecting each block's LoRA delta at ``to_out.0`` (video tokens only).
+    def capture_adapter_inputs(self) -> Iterator[list[tuple]]:
+        """Register pre-hooks capturing each ``to_out.0`` LoRA's *input* (video tokens, detached).
 
-        Yields a list that, after the wrapped (student) forward pass, holds one ``[V, dim]`` tensor
-        per block, carrying gradients so it can enter the localization loss.
+        The localization delta ``o^l = scaling * B(A(x))`` is recomputed afterwards from these
+        inputs (see ``localization_loss``) rather than captured during the forward. Detaching ``x``
+        keeps the enormous base forward graph out of the localization loss — grad then flows only
+        through the LoRA ``A``/``B`` weights, which is exactly what ``L_loc`` regularizes — so
+        gradient checkpointing can stay *enabled* for the student forward. Capturing the ~rank-r
+        delta output live instead would force the whole forward graph to be retained (OOM).
+
+        Yields a list holding one ``(lora_module, x_video)`` pair per block after the forward.
         """
-        outputs: list[torch.Tensor] = []
+        captured: list[tuple] = []
         handles = []
         for lora in self._out_proj_loras:
-            handles.append(lora.lora_B[_active_adapter(lora)].register_forward_hook(
-                _make_delta_hook(lora, outputs, self.text_seq_len)
+            handles.append(lora.register_forward_pre_hook(
+                _make_input_hook(captured, self.text_seq_len)
             ))
         try:
-            yield outputs
+            yield captured
         finally:
             for h in handles:
                 h.remove()
 
-    def localization_loss(self, mask: torch.Tensor, outputs: list[torch.Tensor]) -> torch.Tensor:
-        """`mean_l mean_pos || o^l_video ⊙ (1 - M) ||^2`, with M detached and broadcast over dim."""
-        keep = (1.0 - mask).reshape(self.num_video_tokens, 1).to(outputs[0].dtype)  # [V, 1]
-        per_layer = [(o * keep).pow(2).sum(dim=-1).mean() for o in outputs]
+    def localization_loss(self, mask: torch.Tensor, captured: list[tuple]) -> torch.Tensor:
+        """`mean_l mean_pos || o^l_video ⊙ (1 - M) ||^2`, with M detached and broadcast over dim.
+
+        Recomputes each block's LoRA delta ``o^l`` from its detached input, so the loss carries a
+        graph over only the (tiny, rank-r) adapter recompute — not the base transformer forward.
+        """
+        keep = (1.0 - mask).reshape(self.num_video_tokens, 1).float()  # [V, 1]
+        per_layer = [
+            (_lora_delta(lora, x_video).float() * keep).pow(2).sum(dim=-1).mean()
+            for lora, x_video in captured
+        ]
         return torch.stack(per_layer).mean()
 
 
@@ -259,13 +272,26 @@ def _active_adapter(lora_module) -> str:
     return next(iter(lora_module.lora_B.keys()))
 
 
-def _make_delta_hook(lora_module, sink: list[torch.Tensor], text_seq_len: int):
-    """Forward hook on a ``lora_B`` submodule capturing the scaled delta on video tokens."""
-    adapter = _active_adapter(lora_module)
-    scaling = float(lora_module.scaling[adapter])
+def _make_input_hook(sink: list[tuple], text_seq_len: int):
+    """Forward pre-hook on a ``to_out.0`` LoRA layer capturing its detached input on video tokens."""
 
-    def hook(_module, _inputs, output: torch.Tensor) -> None:
-        # output: [B, seq, dim]; keep video tokens of the single-sample batch, apply LoRA scaling.
-        sink.append(output[0, text_seq_len:] * scaling)
+    def hook(module, args: tuple) -> None:
+        # args[0]: [B, seq, dim_in]; keep video tokens of the single-sample batch, detach so the
+        # base forward graph is not retained through the localization loss.
+        sink.append((module, args[0][0, text_seq_len:].detach()))
 
     return hook
+
+
+def _lora_delta(lora_module, x_video: torch.Tensor) -> torch.Tensor:
+    """Recompute the scaled LoRA output ``scaling * B(A(dropout(x)))`` for the given input.
+
+    Mirrors PEFT's ``lora.Linear`` update. With ``x_video`` detached, the resulting delta's graph
+    reaches only the adapter weights, keeping the localization loss cheap.
+    """
+    adapter = _active_adapter(lora_module)
+    lora_a = lora_module.lora_A[adapter]
+    lora_b = lora_module.lora_B[adapter]
+    dropout = lora_module.lora_dropout[adapter]
+    scaling = lora_module.scaling[adapter]
+    return lora_b(lora_a(dropout(x_video))) * scaling

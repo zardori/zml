@@ -450,6 +450,7 @@ def main(config: Config) -> None:
                         "fire_area_score_mean": s["fire_area_score_mean"],
                         "clip_score_mean": s["clip_score_mean"],
                         "colorfulness_mean": s["colorfulness_mean"],
+                        "motion_score_mean": s["motion_score_mean"],
                         "dover_technical_mean": s["dover_technical_mean"],
                         "dover_aesthetic_mean": s["dover_aesthetic_mean"],
                     }

@@ -201,21 +201,17 @@ def main(config: Config) -> None:
                     timestep=timesteps,
                 ).sample
 
-        # Student predictions (trainable LoRA active). Capturing per-block adapter outputs for the
-        # localization loss requires the block internals to stay live, so gradient checkpointing is
-        # disabled for this single forward when localization is on.
-        adapter_outputs: list[torch.Tensor] = []
+        # Student predictions (trainable LoRA active). For the localization loss we capture only the
+        # detached *inputs* to each to_out.0 LoRA and recompute the adapter delta afterwards, so the
+        # base forward graph is not retained and gradient checkpointing stays on (avoids OOM).
+        captured_adapter_inputs: list = []
         if localization is not None:
-            # Gradient checkpointing detaches recomputed block internals from the forward graph,
-            # so the hooked adapter tensors would carry no gradient. Disable it for this forward.
-            transformer.disable_gradient_checkpointing()
-            with localization.capture_adapter_outputs() as adapter_outputs:
+            with localization.capture_adapter_inputs() as captured_adapter_inputs:
                 student_forget = transformer(
                     hidden_states=forget_model_input,
                     encoder_hidden_states=concept_emb,
                     timestep=timesteps,
                 ).sample
-            transformer.enable_gradient_checkpointing()
         else:
             student_forget = transformer(
                 hidden_states=forget_model_input,
@@ -235,7 +231,7 @@ def main(config: Config) -> None:
 
         loss_loc = None
         if localization is not None:
-            loss_loc = localization.localization_loss(mask, adapter_outputs)
+            loss_loc = localization.localization_loss(mask, captured_adapter_inputs)
             loss_total = loss_total + config.localization_weight * loss_loc
 
         loss_total.backward()
