@@ -294,4 +294,6 @@ def _lora_delta(lora_module, x_video: torch.Tensor) -> torch.Tensor:
     lora_b = lora_module.lora_B[adapter]
     dropout = lora_module.lora_dropout[adapter]
     scaling = lora_module.scaling[adapter]
-    return lora_b(lora_a(dropout(x_video))) * scaling
+    # PEFT keeps LoRA weights in fp32 even under a bf16 base; mirror its input cast (_cast_input_dtype).
+    x = dropout(x_video.to(lora_a.weight.dtype))
+    return lora_b(lora_a(x)) * scaling
