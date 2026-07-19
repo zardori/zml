@@ -1,0 +1,37 @@
+method: esd_preservation
+model_id: THUDM/CogVideoX-5b
+prompts_path: prompts/cogvideox_fire_100.csv
+control_concept_prompts: prompts/cogvideox_fire_control_fire.txt
+control_related_prompts: prompts/cogvideox_fire_control_related.txt
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.txt
+preservation_prompts_path: prompts/cogvideox_fire_preservation.csv
+preservation_weight: 1.0
+lora_rank: 8
+lora_alpha: 8.0
+steps: 1000
+save_interval: 200
+lora_dropout: 0.0
+eval_num_prompts: 5
+eval_inference_steps: 50
+negative_guidance_scale: 1.0
+learning_rate: 0.0005
+# Same seed across both arms so the only difference is the L_loc term.
+global_seed: 42
+
+# --- Ablation grid: ESD+preservation with vs. without mask-based localization ---
+# The single list field expands to exactly two runs (see submit_job.py's Cartesian expansion):
+#   run_001: use_localization=false -> plain ESD + preservation (baseline)
+#   run_002: use_localization=true  -> baseline + T2VUnlearning L_loc (arXiv:2505.17550, Eq. 9)
+# Everything else is held fixed, so the arms are directly comparable at each eval step.
+use_localization: [false, true]
+
+# Ignored when use_localization is false. The mask comes from the "fire" token's text->video
+# attention; mask_threshold 0.0 -> soft normalized mask (>0 binarizes).
+localization_weight: 1.0
+mask_concept_word: "fire"
+mask_threshold: 0.0
+
+# Localization keeps gradient checkpointing on (the L_loc adapter delta is recomputed from detached
+# to_out.0 inputs), so its memory profile is close to the baseline arm's. 24h covers 1000 steps
+# plus the periodic control-set evals for either arm.
+slurm_time: "1-00:00:00"
