@@ -27,5 +27,6 @@ regime as exp053 run_002; then re-run the exp055 motion eval on the new checkpoi
 global motion collapse is fixed.
 
 ## Status
-- [ ] Submitted.
-- [ ] Results pulled (fill exp057's metadata_file/latents_dir with this run's outputs_{timestamp}).
+- [x] Submitted.
+- [x] Results pulled — `outputs_20260718_170407`: 66 targets (matches exp042), 132 latents
+  (edited + original), `donor_map` now list-valued. exp057 path filled.

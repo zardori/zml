@@ -1,11 +1,9 @@
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 
-# === FILL AFTER exp056 PRECOMPUTE COMPLETES ===
-# Point these at exp056's outputs_{timestamp} dir (the motion-preserving interpolated targets).
-# Same layout as exp042; replace TIMESTAMP with the actual precompute run stamp before submitting.
-metadata_file: experiments/exp056_frame_replace_precompute_interp/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/exp056_frame_replace_precompute_interp/outputs_TIMESTAMP/latents
+# Motion-preserving interpolated targets from exp056 (66 targets, same clips/seeds as exp042).
+metadata_file: experiments/exp056_frame_replace_precompute_interp/outputs_20260718_170407/metadata.json
+latents_dir: experiments/exp056_frame_replace_precompute_interp/outputs_20260718_170407/latents
 # Retention anchors unchanged (exp041), as in exp053.
 retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
 retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents

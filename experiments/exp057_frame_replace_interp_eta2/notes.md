@@ -27,6 +27,6 @@ If related/unrelated motion is still depressed, escalate to fix B (motion-preser
 the retention branch) — see exp055 notes.
 
 ## Status
-- [ ] exp056 precompute done + path filled.
+- [x] exp056 precompute done + path filled (outputs_20260718_170407).
 - [ ] Submitted.
 - [ ] Motion eval vs exp055 baseline.
