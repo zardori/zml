@@ -11,7 +11,7 @@ from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 import pandas as pd
 
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import evaluate, load_eval_prompts
 from zml.unlearn.metrics_log import MetricsRecorder
 from zml.utils import set_seed
 
@@ -60,12 +60,9 @@ def main(config: Config):
     data = pd.read_csv(config.prompts_path)
     CONCEPT_PROMPTS = data["prompt"].tolist()
 
-    with open(config.control_concept_prompts) as f:
-        CONTROL_CONCEPT_PROMPTS = [EvalPrompt(p, 42 + i) for i, p in enumerate(l.strip() for l in f if l.strip())]
-    with open(config.control_related_prompts) as f:
-        CONTROL_RELATED_PROMPTS = [EvalPrompt(p, 42 + i) for i, p in enumerate(l.strip() for l in f if l.strip())]
-    with open(config.control_unrelated_prompts) as f:
-        CONTROL_UNRELATED_PROMPTS = [EvalPrompt(p, 42 + i) for i, p in enumerate(l.strip() for l in f if l.strip())]
+    CONTROL_CONCEPT_PROMPTS = load_eval_prompts(config.control_concept_prompts)
+    CONTROL_RELATED_PROMPTS = load_eval_prompts(config.control_related_prompts)
+    CONTROL_UNRELATED_PROMPTS = load_eval_prompts(config.control_unrelated_prompts)
 
     # @title 2. Setup Configuration
     # Using CogVideoX-2b (Fits on approx 12-16GB VRAM with optimizations)

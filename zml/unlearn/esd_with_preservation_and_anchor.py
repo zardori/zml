@@ -11,7 +11,7 @@ from diffusers import CogVideoXPipeline
 from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import evaluate, load_eval_prompts
 from zml.utils import set_seed
 
 
@@ -39,20 +39,16 @@ class Config:
     global_seed: int | None = None
 
 
-def _load_prompts_from_file(path: str) -> list[EvalPrompt]:
-    with open(path) as f:
-        lines = [line.strip() for line in f if line.strip()]
-    return [EvalPrompt(prompt=p, seed=42 + i) for i, p in enumerate(lines)]
 
 
 def main(config: Config) -> None:
     if config.global_seed is not None:
         set_seed(config.global_seed)
 
-    control_concept_prompts = _load_prompts_from_file(config.control_concept_prompts)
-    control_anchor_prompts = _load_prompts_from_file(config.control_anchor_prompts)
-    control_related_prompts = _load_prompts_from_file(config.control_related_prompts)
-    control_unrelated_prompts = _load_prompts_from_file(config.control_unrelated_prompts)
+    control_concept_prompts = load_eval_prompts(config.control_concept_prompts)
+    control_anchor_prompts = load_eval_prompts(config.control_anchor_prompts)
+    control_related_prompts = load_eval_prompts(config.control_related_prompts)
+    control_unrelated_prompts = load_eval_prompts(config.control_unrelated_prompts)
 
     concept_prompts = pd.read_csv(config.prompts_path)["prompt"].tolist()
     preservation_prompts = pd.read_csv(config.preservation_prompts_path)["prompt"].tolist()

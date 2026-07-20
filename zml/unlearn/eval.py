@@ -5,6 +5,7 @@ from typing import Callable, Protocol
 
 import mlflow
 import numpy as np
+import pandas as pd
 import wandb
 from diffusers.utils import export_to_video
 import torch
@@ -20,6 +21,33 @@ from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
 class EvalPrompt:
     prompt: str
     seed: int
+
+
+def load_eval_prompts(path: str | None) -> list[EvalPrompt]:
+    """Load a control-prompt CSV into ``EvalPrompt``s using the per-prompt seed baked into the file.
+
+    This is the single canonical eval-prompt loader; every method should use it so results are
+    comparable. Per the project seed policy (CLAUDE.md), evaluation seeds live in the CSV so that
+    every experiment scores identical ``(prompt, seed)`` pairs.
+
+    A seedless ``.txt`` prompt list is rejected rather than silently seeded. The ESD family used to
+    fall back to index seeds (``EvalPrompt(p, 42 + i)``), which made those runs generate *different
+    videos* from the CSV-based runs for the same prompts — exp058 (ESD) could not be compared to
+    exp057 (frame_replace) because of it. Failing loudly keeps that from recurring.
+    """
+    if path is None:
+        return []
+    if not path.endswith(".csv"):
+        raise ValueError(
+            f"Eval prompts must come from a seeded CSV, got {path!r}. A .txt list has no seeds, so "
+            f"loading it would score this run on different (prompt, seed) pairs than every CSV-based "
+            f"experiment. Use the .csv equivalent (e.g. {path.rsplit('.', 1)[0]}.csv)."
+        )
+    df = pd.read_csv(path)
+    missing = {"prompt", "seed"} - set(df.columns)
+    if missing:
+        raise ValueError(f"{path} is missing required column(s) {sorted(missing)}.")
+    return [EvalPrompt(prompt=str(p), seed=int(s)) for p, s in zip(df["prompt"], df["seed"])]
 
 
 def _round_metrics(obj: object, ndigits: int = 2) -> object:
