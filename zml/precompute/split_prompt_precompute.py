@@ -1,0 +1,218 @@
+"""Temporal split-prompt generation for building *partial-concept* clips.
+
+Motivation. ``frame_replace`` needs clips where the target concept is present in only *some* frames,
+with concept-free "donor" frames elsewhere. Fire gives that for free (it flickers in and out); nudity
+and characters do not — the concept is present the whole clip, so there are no donors and the method
+has nothing to build a target from. This algorithm *manufactures* the partiality: it steers the first
+temporal half of the video with a concept-free prompt (B) and the second half with a concept prompt
+(A), then heals the seam with a shared neutral prompt (C), yielding one coherent clip that is
+concept-free early and concept-bearing late — donors and concept frames in a single on-distribution
+generation.
+
+Mechanism (MultiDiffusion-style, no attention surgery). For the first ``split_step_frac`` of the
+denoising schedule, each step runs the transformer twice — once conditioned on prompt A, once on
+prompt B — and assembles one velocity where latent frames ``[:split_latent_frame]`` take B's
+prediction and ``[split_latent_frame:]`` take A's, then does a single scheduler step on the full
+latent (so the DPM-solver state stays coherent). After the split phase, every step conditions on the
+shared neutral prompt C, letting the two halves denoise into a temporally coherent whole while keeping
+the layout each half already committed to.
+
+This first milestone just *generates and saves* the four videos per row — A, B, C (each a plain
+generation) and the combined split clip — sharing one initial noise per row so they are directly
+comparable (and so A/B double as a paired same-seed donor baseline). Fire/nudity detection and the
+donor edit that turn the combined clip into a frame_replace target are a later step.
+"""
+
+import argparse
+import json
+import os
+from dataclasses import dataclass
+
+import pandas as pd
+import torch
+from diffusers import CogVideoXPipeline
+from tqdm import tqdm
+
+from zml.unlearn.frame_replace_ops import (
+    EXPECTED_LATENT_SHAPE,
+    NUM_LATENT_FRAMES,
+    NUM_PIXEL_FRAMES,
+    decode_to_bgr_frames,
+    write_mp4,
+)
+
+DTYPE = torch.bfloat16
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+@dataclass
+class Config:
+    # CSV with columns: prompt_a (concept), prompt_b (concept-free), prompt_c (neutral shared), seed.
+    csv_path: str
+    model_id: str = "THUDM/CogVideoX-5b"
+    num_inference_steps: int = 50
+    guidance_scale: float = 6.0
+    num_frames: int = NUM_PIXEL_FRAMES
+    height: int = 480
+    width: int = 720
+    # Latent frame index that splits the two regions: frames [:split] follow prompt B (concept-free),
+    # frames [split:] follow prompt A (concept). Default ~halfway of the 13 latent frames.
+    split_latent_frame: int = 7
+    # Fraction of the denoising schedule to keep the A/B split before switching to the shared prompt C.
+    # Early steps set global content (is the concept there?); the C tail heals the temporal seam.
+    split_step_frac: float = 0.5
+    output_dir: str = "."
+    videos_subdir: str = "videos"
+    # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
+    save_latents: bool = True
+
+
+def _cfg_embeds(pipe, prompt: str, do_cfg: bool):
+    """Encode ``prompt`` and return the [neg, pos] CFG batch (or just pos when CFG is off)."""
+    pos, neg = pipe.encode_prompt(prompt, None, do_cfg, device=pipe._execution_device)
+    return torch.cat([neg, pos], dim=0) if do_cfg else pos
+
+
+def _predict(pipe, latents, embeds, t, rope, guidance_scale: float, do_cfg: bool) -> torch.Tensor:
+    """One CFG-combined velocity prediction for ``latents`` conditioned on ``embeds`` at timestep ``t``."""
+    latent_model_input = torch.cat([latents] * 2) if do_cfg else latents
+    latent_model_input = pipe.scheduler.scale_model_input(latent_model_input, t)
+    timestep = t.expand(latent_model_input.shape[0])
+    pred = pipe.transformer(
+        hidden_states=latent_model_input,
+        encoder_hidden_states=embeds,
+        timestep=timestep,
+        image_rotary_emb=rope,
+        return_dict=False,
+    )[0].float()
+    if do_cfg:
+        uncond, text = pred.chunk(2)
+        pred = uncond + guidance_scale * (text - uncond)
+    return pred
+
+
+@torch.no_grad()
+def _generate_plain(pipe, prompt: str, seed: int, config: Config) -> torch.Tensor:
+    """Vanilla generation -> clean latent in (B, C, F, H, W). Fresh generator so init noise == seed."""
+    generator = torch.Generator(device=DEVICE).manual_seed(seed)
+    out = pipe(
+        prompt=prompt,
+        num_frames=config.num_frames,
+        num_inference_steps=config.num_inference_steps,
+        guidance_scale=config.guidance_scale,
+        generator=generator,
+        output_type="latent",
+    )
+    return out.frames.permute(0, 2, 1, 3, 4).contiguous()  # (B, F, C, H, W) -> (B, C, F, H, W)
+
+
+@torch.no_grad()
+def _generate_split(pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int, config: Config) -> torch.Tensor:
+    """Temporal split-prompt generation -> clean latent in (B, C, F, H, W).
+
+    Shares its initial noise with ``_generate_plain`` for the same seed (same generator seeding), so
+    the combined clip is directly comparable to the plain A/B/C clips.
+    """
+    device = pipe._execution_device
+    do_cfg = config.guidance_scale > 1.0
+    emb_a = _cfg_embeds(pipe, prompt_a, do_cfg)
+    emb_b = _cfg_embeds(pipe, prompt_b, do_cfg)
+    emb_c = _cfg_embeds(pipe, prompt_c, do_cfg)
+
+    pipe.scheduler.set_timesteps(config.num_inference_steps, device=device)
+    timesteps = pipe.scheduler.timesteps
+    num_steps = len(timesteps)
+    split_step = int(round(config.split_step_frac * num_steps))
+    sf = config.split_latent_frame
+
+    generator = torch.Generator(device=DEVICE).manual_seed(seed)
+    latents = pipe.prepare_latents(
+        1, pipe.transformer.config.in_channels, config.num_frames,
+        config.height, config.width, emb_a.dtype, device, generator, None,
+    )  # (B, F, C, H, W), frames on dim 1
+    extra_step_kwargs = pipe.prepare_extra_step_kwargs(generator, 0.0)
+    rope = (
+        pipe._prepare_rotary_positional_embeddings(config.height, config.width, latents.size(1), device)
+        if pipe.transformer.config.use_rotary_positional_embeddings else None
+    )
+
+    old_pred = None
+    for i, t in enumerate(timesteps):
+        if i < split_step:
+            pred_a = _predict(pipe, latents, emb_a, t, rope, config.guidance_scale, do_cfg)
+            pred_b = _predict(pipe, latents, emb_b, t, rope, config.guidance_scale, do_cfg)
+            noise_pred = pred_b.clone()
+            noise_pred[:, sf:] = pred_a[:, sf:]  # early: [:sf] concept-free (B), [sf:] concept (A)
+        else:
+            noise_pred = _predict(pipe, latents, emb_c, t, rope, config.guidance_scale, do_cfg)  # heal seam
+        latents, old_pred = pipe.scheduler.step(
+            noise_pred, old_pred, t, timesteps[i - 1] if i > 0 else None, latents,
+            **extra_step_kwargs, return_dict=False,
+        )
+        latents = latents.to(emb_a.dtype)
+
+    return latents.permute(0, 2, 1, 3, 4).contiguous()  # (B, F, C, H, W) -> (B, C, F, H, W)
+
+
+def _save(pipe, z_bcfhw: torch.Tensor, stem: str, tag: str, videos_dir: str, latents_dir, save_latents: bool) -> str:
+    assert z_bcfhw.shape == EXPECTED_LATENT_SHAPE, f"unexpected latent shape {z_bcfhw.shape} for {stem}_{tag}"
+    video_path = os.path.join(videos_dir, f"{stem}_{tag}.mp4")
+    write_mp4(decode_to_bgr_frames(pipe, z_bcfhw), video_path)
+    if save_latents and latents_dir is not None:
+        torch.save(z_bcfhw.cpu(), os.path.join(latents_dir, f"{stem}_{tag}.pt"))
+    return os.path.relpath(video_path, os.path.dirname(videos_dir))
+
+
+def main(config: Config) -> None:
+    videos_dir = os.path.join(config.output_dir, config.videos_subdir)
+    os.makedirs(videos_dir, exist_ok=True)
+    latents_dir = os.path.join(config.output_dir, "latents") if config.save_latents else None
+    if latents_dir is not None:
+        os.makedirs(latents_dir, exist_ok=True)
+
+    pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=DTYPE).to(DEVICE)
+    pipe.vae.enable_slicing()
+    pipe.vae.enable_tiling()
+    assert pipe.scheduler.config.prediction_type == "v_prediction", (
+        f"Expected v_prediction scheduler, got {pipe.scheduler.config.prediction_type!r}"
+    )
+    assert 0 < config.split_latent_frame < NUM_LATENT_FRAMES, (
+        f"split_latent_frame must be in (0, {NUM_LATENT_FRAMES}), got {config.split_latent_frame}"
+    )
+
+    df = pd.read_csv(config.csv_path)
+    for col in ("prompt_a", "prompt_b", "prompt_c", "seed"):
+        if col not in df.columns:
+            raise ValueError(f"{config.csv_path} missing required column '{col}'.")
+
+    metadata: list[dict] = []
+    with torch.no_grad():
+        for idx, row in tqdm(df.iterrows(), total=len(df)):
+            seed = int(row["seed"])
+            stem = f"p{idx}_s{seed}"
+            clips = {
+                "A": _generate_plain(pipe, row["prompt_a"], seed, config),
+                "B": _generate_plain(pipe, row["prompt_b"], seed, config),
+                "C": _generate_plain(pipe, row["prompt_c"], seed, config),
+                "combined": _generate_split(pipe, row["prompt_a"], row["prompt_b"], row["prompt_c"], seed, config),
+            }
+            paths = {tag: _save(pipe, z, stem, tag, videos_dir, latents_dir, config.save_latents)
+                     for tag, z in clips.items()}
+            metadata.append({
+                "stem": stem, "seed": seed,
+                "prompt_a": row["prompt_a"], "prompt_b": row["prompt_b"], "prompt_c": row["prompt_c"],
+                "split_latent_frame": config.split_latent_frame, "split_step_frac": config.split_step_frac,
+                "videos": paths,
+            })
+            with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:
+                json.dump(metadata, f, indent=2)
+
+    print(f"split-prompt precompute done: {len(metadata)} rows x 4 clips -> {videos_dir}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--csv_path", type=str, required=True, help="CSV with prompt_a/prompt_b/prompt_c/seed")
+    parser.add_argument("--output_dir", type=str, default=".")
+    args = parser.parse_args()
+    main(Config(csv_path=args.csv_path, output_dir=args.output_dir))

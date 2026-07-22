@@ -13,6 +13,7 @@ import yaml
 METHODS = {
     "frame_replace": "zml.precompute.frame_replace_precompute",
     "preservation": "zml.precompute.preservation_precompute",
+    "split_prompt": "zml.precompute.split_prompt_precompute",
 }
 
 
