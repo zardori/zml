@@ -30,7 +30,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 import torch
-from diffusers import CogVideoXPipeline
+from diffusers import CogVideoXDPMScheduler, CogVideoXPipeline
 from tqdm import tqdm
 
 from zml.unlearn.frame_replace_ops import (
@@ -145,10 +145,14 @@ def _generate_split(pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int
             noise_pred[:, sf:] = pred_a[:, sf:]  # early: [:sf] concept-free (B), [sf:] concept (A)
         else:
             noise_pred = _predict(pipe, latents, emb_c, t, rope, config.guidance_scale, do_cfg)  # heal seam
-        latents, old_pred = pipe.scheduler.step(
-            noise_pred, old_pred, t, timesteps[i - 1] if i > 0 else None, latents,
-            **extra_step_kwargs, return_dict=False,
-        )
+        # Mirror the pipeline: DDIM takes (pred, t, sample); DPM-solver++ is a stateful multistep.
+        if not isinstance(pipe.scheduler, CogVideoXDPMScheduler):
+            latents = pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
+        else:
+            latents, old_pred = pipe.scheduler.step(
+                noise_pred, old_pred, t, timesteps[i - 1] if i > 0 else None, latents,
+                **extra_step_kwargs, return_dict=False,
+            )
         latents = latents.to(emb_a.dtype)
 
     return latents.permute(0, 2, 1, 3, 4).contiguous()  # (B, F, C, H, W) -> (B, C, F, H, W)
