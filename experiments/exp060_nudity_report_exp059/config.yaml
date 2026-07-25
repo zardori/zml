@@ -1,0 +1,13 @@
+# Queued validation of the exp059 split-prompt generation: run the per-frame nudity detector over
+# exp059's clips and confirm nudity is localized to the SECOND half of the combined clips (and to A,
+# not B/C). No model, no generation — CPU/detector only. Also the first real test that NudeNet works
+# on our decoded frames. Run: ./submit_job.py athena experiments/exp060_nudity_report_exp059/config.yaml
+job_type: benchmark
+method: nudity
+
+videos_dir: experiments/exp059_split_prompt_nudity/outputs_20260724_201654/videos
+# split_latent_frame was 7 -> concept region starts at pixel frame 25 (1+4*6 under the 1+4k mapping).
+second_half_start: 25
+frame_nudity_threshold: 0.3
+
+slurm_time: "0-01:00:00"

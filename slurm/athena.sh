@@ -34,5 +34,6 @@ case "${JOB_TYPE:-unlearn}" in
     eval)       uv run scripts/eval.py       --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     precompute) uv run scripts/precompute.py --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     search)     uv run scripts/search.py     --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
+    benchmark)  uv run scripts/benchmark.py  --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     *) echo "Unknown JOB_TYPE: ${JOB_TYPE}" >&2; exit 1 ;;
 esac
