@@ -66,6 +66,17 @@ class EvalConfig(Protocol):
     eval_inference_steps: int
 
 
+def _concept_detector(concept: str, video_dir: str):
+    """Return the video detector for ``concept``. The nudity detector is imported lazily so the fire
+    path (and every trainer that imports this module) never requires ``nudenet`` to be installed."""
+    if concept == "fire":
+        return VideoFireDetector(video_dir=video_dir)
+    if concept == "nudity":
+        from zml.benchmarks.check_for_nudity import VideoNudeDetector
+        return VideoNudeDetector(video_dir=video_dir)
+    raise ValueError(f"Unknown concept {concept!r}; expected 'fire' or 'nudity'.")
+
+
 def evaluate(
     pipe,
     transformer,
@@ -110,10 +121,15 @@ def evaluate(
                 export_to_video(result.frames[0], video_path, fps=8)
                 print(f"Saved eval video: {video_path}")
 
+    # Which concept the detector scores; defaults to fire so existing configs are unchanged. The
+    # per-concept detector returns "<concept>_detection_rate"/"<concept>_area_score_mean" keys.
+    concept = getattr(config, "concept", "fire")
+    rate_key, area_key = f"{concept}_detection_rate", f"{concept}_area_score_mean"
+
     metrics = {}
     for set_name, eval_prompts in prompt_sets.items():
         video_dir = os.path.join(eval_root, set_name)
-        fire_scores = VideoFireDetector(video_dir=video_dir).process_videos()
+        concept_scores = _concept_detector(concept, video_dir).process_videos()
         clip_scores = VideoClipScorer(
             video_dir=video_dir, prompts=[ep.prompt for ep in eval_prompts]
         ).process_videos()
@@ -132,7 +148,10 @@ def evaluate(
         aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
 
         metrics[set_name] = {
-            **fire_scores,
+            **concept_scores,
+            # Concept-agnostic aliases so downstream (recorder/summary) reads one key across concepts.
+            "concept_detection_rate": concept_scores[rate_key],
+            "concept_area_score_mean": concept_scores[area_key],
             "clip_scores": clip_scores,
             "clip_score_mean": float(clip_arr.mean()),
             "clip_score_std": float(clip_arr.std()),
@@ -158,8 +177,8 @@ def evaluate(
 
     if log_mlflow:
         for set_name, scores in metrics.items():
-            mlflow.log_metric(f"eval/{set_name}_fire_detection_rate", round(scores["fire_detection_rate"], 2), step=step)
-            mlflow.log_metric(f"eval/{set_name}_fire_area_score_mean", round(scores["fire_area_score_mean"], 4), step=step)
+            mlflow.log_metric(f"eval/{set_name}_{rate_key}", round(scores[rate_key], 2), step=step)
+            mlflow.log_metric(f"eval/{set_name}_{area_key}", round(scores[area_key], 4), step=step)
             mlflow.log_metric(f"eval/{set_name}_clip_score_mean", round(scores["clip_score_mean"], 2), step=step)
             mlflow.log_metric(f"eval/{set_name}_colorfulness_mean", round(scores["colorfulness_mean"], 2), step=step)
             mlflow.log_metric(f"eval/{set_name}_motion_score_mean", round(scores["motion_score_mean"], 3), step=step)
@@ -171,8 +190,8 @@ def evaluate(
         f"eval/{set_name}_{k}": round(v, 4)
         for set_name, scores in metrics.items()
         for k, v in [
-            ("fire_detection_rate", scores["fire_detection_rate"]),
-            ("fire_area_score_mean", scores["fire_area_score_mean"]),
+            (rate_key, scores[rate_key]),
+            (area_key, scores[area_key]),
             ("clip_score_mean", scores["clip_score_mean"]),
             ("colorfulness_mean", scores["colorfulness_mean"]),
             ("motion_score_mean", scores["motion_score_mean"]),

@@ -23,6 +23,7 @@ class Config:
     control_concept_prompts: str | None = None
     control_related_prompts: str | None = None
     control_unrelated_prompts: str | None = None
+    concept: str = "fire"  # detector to score with at eval: "fire" or "nudity"
     disable_mlflow: bool = False
 
     def __post_init__(self) -> None:

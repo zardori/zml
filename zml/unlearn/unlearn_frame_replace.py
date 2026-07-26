@@ -59,6 +59,9 @@ class Config:
     output_dir: str
     eval_num_prompts: int
     eval_inference_steps: int
+    # Concept whose detector runs at eval time: "fire" (default) or "nudity". Selects the video
+    # detector in zml/unlearn/eval.py; unrelated to the training data itself.
+    concept: str = "fire"
     # Retention anchor: SFT toward the base model's *unedited* preservation latents (built by
     # zml/precompute/preservation_precompute.py) to keep erasure local. Disabled when the
     # metadata file is unset, in which case the loop is plain erase-only SFT.
@@ -121,14 +124,17 @@ def _load_target_latent(latents_dir: str, latent_path: str, device: str) -> torc
 
 
 def _fire_frame_mask(entry: dict, nonfire_weight: float, device: str) -> torch.Tensor:
-    """Per-frame weights from a target's ``fire_latent_mask`` for the masked erase loss.
+    """Per-frame weights from a target's concept mask for the masked erase loss.
 
-    Edited (fire) frames get weight 1.0; unedited frames get ``nonfire_weight`` (0.0 hard-masks
-    them out). Returned as ``(1, F, 1, 1, 1)`` to broadcast over the (B, F, C, H, W) velocity.
+    Reads ``concept_latent_mask`` (the concept-agnostic key written by the split builder), falling
+    back to ``fire_latent_mask`` for the original fire datasets (exp042/exp056). Edited (concept)
+    frames get weight 1.0; unedited frames get ``nonfire_weight`` (0.0 hard-masks them out). Returned
+    as ``(1, F, 1, 1, 1)`` to broadcast over the (B, F, C, H, W) velocity.
     """
-    fire = entry["fire_latent_mask"]
-    assert len(fire) == NUM_LATENT_FRAMES, f"expected {NUM_LATENT_FRAMES} mask frames, got {len(fire)}"
-    weights = [1.0 if is_fire else nonfire_weight for is_fire in fire]
+    mask = entry.get("concept_latent_mask") or entry.get("fire_latent_mask")
+    assert mask is not None, "target metadata has neither 'concept_latent_mask' nor 'fire_latent_mask'"
+    assert len(mask) == NUM_LATENT_FRAMES, f"expected {NUM_LATENT_FRAMES} mask frames, got {len(mask)}"
+    weights = [1.0 if is_concept else nonfire_weight for is_concept in mask]
     return torch.tensor(weights, device=device).view(1, NUM_LATENT_FRAMES, 1, 1, 1)
 
 
@@ -446,8 +452,8 @@ def main(config: Config) -> None:
             recorder.log_eval(step + 1, {
                 "scores": {
                     set_name: {
-                        "fire_detection_rate": s["fire_detection_rate"],
-                        "fire_area_score_mean": s["fire_area_score_mean"],
+                        "concept_detection_rate": s["concept_detection_rate"],
+                        "concept_area_score_mean": s["concept_area_score_mean"],
                         "clip_score_mean": s["clip_score_mean"],
                         "colorfulness_mean": s["colorfulness_mean"],
                         "motion_score_mean": s["motion_score_mean"],
