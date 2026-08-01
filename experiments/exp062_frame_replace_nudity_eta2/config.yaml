@@ -6,8 +6,8 @@ concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept select
 # Point these at exp061's outputs_{timestamp} dir (the split-prompt nudity dataset).
 # Keep the paths repo-relative even if another member ran exp061: inputs missing from the
 # running user's repo are looked up in the other members' repos (see "Cross-User Inputs").
-metadata_file: experiments/exp061_split_nudity_dataset/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/exp061_split_nudity_dataset/outputs_TIMESTAMP/latents
+metadata_file: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/metadata.json
+latents_dir: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/latents
 # Retention: reuse exp041 general-quality preservation anchors (fire-era, but concept-agnostic
 # general prompts — good enough to keep the pilot from collapsing overall quality).
 retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
