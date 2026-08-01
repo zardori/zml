@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 
 import yaml
 
+from zml.paths import resolve_config_paths
+
 
 METHODS = {
     "frame_replace": "zml.precompute.frame_replace_precompute",
@@ -31,7 +33,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.config) as f:
-        params = yaml.safe_load(f)
+        params = resolve_config_paths(yaml.safe_load(f))
 
     method = params.pop("method", "frame_replace")
     params.pop("job_type", None)  # infra key, not a precompute param

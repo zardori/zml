@@ -25,6 +25,9 @@ mkdir -p "$HF_HOME"
 export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
+# Search path for config inputs produced by another member's run (see slurm/peer_roots.sh).
+ZML_PEER_ROOT_TEMPLATE="$PLG_GROUPS_STORAGE/plggtriplane/{name}/zml" source slurm/peer_roots.sh
+
 # Untracked secrets (e.g. OPENROUTER_API_KEY for the search job's prompt proposer). Never commit it.
 # NOTE: athena compute nodes may lack outbound internet; the search job is intended for helios.
 set -a; source "$HOME/.openrouter_env" 2>/dev/null; set +a
