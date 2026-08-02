@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Keep this file concise** — it is loaded into every session. It holds project-wide facts and
+conventions only; detailed write-ups (methods, design rationale, status of a research thread) belong
+in `docs/` and are linked from here. See the `project-docs` skill for placement rules and the
+structure a `docs/` page should follow.
+
 ## Project Overview
 
 The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. The real challenge is to erase the target concept without harming the model's performance.
@@ -47,7 +52,13 @@ zml/
 │   └── helios.sh                
 ├── prompts/                     # prompts used in experiments
 ├── tools/                       # utility scripts
-└── docs/                        # method write-ups & design notes (e.g. unhype.md)
+└── docs/                        # method write-ups & design notes
+    ├── frame_replace.md         # main method: supervised SFT toward a concept-removed edit
+    ├── split_prompt.md          # manufacturing partial-concept clips (A/B/C triples)
+    ├── comparison_targets.md    # which concepts other T2V unlearning papers erase, and our order
+    ├── unhype.md                # UnHype: CLIP-guided hypernetwork unlearning (the paper method)
+    ├── unhype_video_attempts.md # porting UnHype to CogVideoX (exp016-exp031)
+    └── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
 ```
 
 ### Compute Resources
