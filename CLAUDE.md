@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. Previously we tried to erase the "nudity" concept, now we focus on the "fire" concept. The real challenge is to erase the target concept without harming the model's performance. The project uses python 3.12 and uv for python packages. Experiments are run on PLGrid HPC infrastructure athena cluster (A100 GPUs with 40GB VRAM) and helios cluster (GH200 chips with 96GB VRAM) via SLURM.
+The goal of this research project is to propose a method for effective concept unlearning from text to video models. The project uses CogVideoX-5b, a video diffusion transformer, as the primary model for experiments. The real challenge is to erase the target concept without harming the model's performance.
+
+The main method is **frame_replace** (`docs/frame_replace.md`): supervised v-prediction fine-tuning toward a *concept-removed edit of the model's own output*, built by swapping the concept-containing latent frames for concept-free donor frames from the same clip. It was developed and validated on **fire**. We are now **transferring it to other concepts** — starting with **nudity** — so our numbers can be compared against published T2V unlearning papers.
+
+The project uses python 3.12 and uv for python packages. Experiments are run on PLGrid HPC infrastructure athena cluster (A100 GPUs with 40GB VRAM) and helios cluster (GH200 chips with 96GB VRAM) via SLURM.
 
 ## Desired Repository Structure
 ```
@@ -12,6 +16,8 @@ zml/
 ├── zml/                         # shared "library" code
 │   ├── unlearn/                 # scripts for unlearning
 │   ├── precompute/              # scripts for precomputing latents used in unlearning
+│   ├── benchmarks/              # concept detectors & reports (e.g. NudeNet wrapper)
+│   ├── search/                  # prompt/hyperparameter search helpers
 │   └── eval/                    # scripts and utils for evaluation
 ├── experiments/                 # one folder per experiment run
 │   ├── exp001_esd_nudity/        # single-run experiment
@@ -51,7 +57,7 @@ Cluster access is rich, but not unlimited, so experiments should be designed to 
 
 1. **Prepare Unlearning methods** (`zml/unlearn`): Add code for different unlearning methods there.
 2. **Prepare Evaluation methods** (`zml/eval`): Prepare code for different evaluation methods there. Some functions from here should be used during unlearning for live evaluation.
-3. **Prepare Precompute methods** (optional) (`zml/precompute`): If we can speed up unlearning, by precomputing some latents or other intermediate results, we add code here.
+3. **Prepare Precompute methods** (optional) (`zml/precompute`): If we can speed up unlearning, by precomputing some latents or other intermediate results, we add code here. This is also where frame_replace training targets are built (see "Partial-Concept Data Construction").
 4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
 5. **Prepare SLURM templates** (`slurm/`): There is one generic script per cluster (`slurm/athena.sh`, `slurm/helios.sh`). Each holds only that cluster's account/partition/repo-dir and dispatches on the `JOB_TYPE` env var to the right thin entrypoint. `submit_job.py` supplies the job name, time, and log paths as `sbatch` flags, so they are not baked into the scripts.
 6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed.
@@ -84,14 +90,36 @@ steps (config field, default 50) to keep the files small. When analyzing a run, 
 `summary.json` first. Currently wired into `zml/unlearn/unhype.py`; other unlearning scripts
 can adopt the recorder the same way.
 
+### Partial-Concept Data Construction
+
+frame_replace needs **partial-concept clips** (concept in some frames, concept-free donor frames in
+the same clip). Fire is naturally partial; nudity and most other concepts are not — which is what
+blocked the transfer. **split-prompt** (`zml/precompute/split_prompt_precompute.py` +
+`frame_replace_split_precompute.py`) manufactures the partiality from an A/B/C prompt triple
+(concept / safe / neutral): the early denoising steps condition one temporal region on A and the
+other on B, the tail conditions everything on C to heal the seam. Full write-up, de-biasing knobs and
+status: **`docs/split_prompt.md`**.
+
+A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame detector in
+`zml/benchmarks/`.
+
 ### Current Goals
-- Continue improving the concept unlearning method for the "fire" concept in CogVideoX-5b.
+
+1. **Nudity** — finish split-prompt → frame_replace (exp062 pilot: does erasure transfer, and is the
+   positional shortcut gone?). Then scale the dataset and add a nudity `related`/preservation set.
+2. **Second concept: ImageNet / Imagenette objects** — recommended next; best overlap with published
+   work and the regime frame_replace was designed for.
+3. Keep improving the core method (retention/collateral, eta regime, localization).
+
+Which concepts other T2V unlearning papers erase, with what detectors and prompt sets, and why we
+pick them in this order: **`docs/comparison_targets.md`**.
 
 ### Seed Management Policy
 
 - **Training**: use a single global `seed` field in `config.yaml`. It controls process-level randomness (model initialization, batch ordering, dropout, etc.).
 - **Evaluation**: use per-prompt seeds baked into the CSV prompt files. Commit these seeds once and never change them, so every experiment is evaluated on identical `(prompt, seed)` pairs and results are comparable across runs.
 - Never use a global seed for evaluation — adding, removing, or reordering prompts would silently change which seed each prompt gets.
+- **Dataset construction** (`split_prompt` / `frame_replace_split` precompute): one seed per CSV row, shared by A, B, C and the combined clip; `split_jitter` derives from it, so rebuilds are reproducible. Commit these CSVs.
 - **Exception — `frame_replace_online`**: this method generates its training targets online from the trusted `(prompt, seed)` pairs in its train-prompts CSV, using each pair's *attached* seed for generation (not the global seed). Those pairs are pre-checked to render partial fire, so a fixed seed is what makes them trustworthy. The global seed still governs everything else in the run (which pair is drawn, dropout, etc.).
 
 ### Additional Notes
