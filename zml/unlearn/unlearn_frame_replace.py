@@ -59,15 +59,21 @@ class Config:
     output_dir: str
     eval_num_prompts: int
     eval_inference_steps: int
-    # Concept whose detector runs at eval time: "fire" (default) or "nudity". Selects the video
-    # detector in zml/unlearn/eval.py; unrelated to the training data itself.
+    # Concept whose detector runs at eval time (see zml/benchmarks/registry.py). Selects the video
+    # detector in zml/unlearn/eval.py; unrelated to the training data itself. `concept_target` names
+    # the specific thing inside a concept family — the ImageNet class for concept "object".
     concept: str = "fire"
+    concept_target: str | None = None
     # Retention anchor: SFT toward the base model's *unedited* preservation latents (built by
     # zml/precompute/preservation_precompute.py) to keep erasure local. Disabled when the
     # metadata file is unset, in which case the loop is plain erase-only SFT.
     retention_metadata_file: str | None = None
     retention_latents_dir: str | None = None
     retention_weight: float = 1.0
+    # Drop retention anchors whose metadata `class_name` equals this. One preservation dataset can
+    # then cover every class in an object-erasure protocol while each run anchors only the classes it
+    # must preserve — anchoring the erased class itself would fight the erase branch directly.
+    retention_exclude: str | None = None
     # Erase loss is restricted to the edited (fire) latent frames; unedited frames get this
     # weight (0.0 = hard mask). They match the base output, so weighting them in dilutes erasure.
     nonfire_frame_weight: float = 0.0
@@ -281,6 +287,15 @@ def main(config: Config) -> None:
             retention_metadata = json.load(f)
         if not retention_metadata:
             raise ValueError(f"No entries in {config.retention_metadata_file}; retention is enabled but empty.")
+        if config.retention_exclude is not None:
+            kept = [e for e in retention_metadata if e.get("class_name") != config.retention_exclude]
+            if len(kept) == len(retention_metadata):
+                raise ValueError(
+                    f"retention_exclude={config.retention_exclude!r} matched no anchor; "
+                    f"{config.retention_metadata_file} has no such 'class_name' (typo, or the wrong dataset)."
+                )
+            print(f"Retention: dropped {len(retention_metadata) - len(kept)} anchors for {config.retention_exclude!r}")
+            retention_metadata = kept
         if config.retention_latents_dir is None:
             raise ValueError("retention_metadata_file is set but retention_latents_dir is not.")
         retention_scaling = float(retention_metadata[0].get("scaling_factor", expected_scaling))

@@ -1,0 +1,19 @@
+# NegPrompt baseline for the ImageNet object-erasure protocol (docs/imagenet_objects.md).
+# No training: the erased class name is passed to the base model as an inference-time negative
+# prompt (`negative_prompt: auto` resolves to `erased_class`). This is one of the three baselines
+# T2VUnlearning compares against, and it costs only generation.
+# `erased_class` is a list, so submit_job.py grids it into one job per pilot class.
+# Run: ./submit_job.py athena experiments/exp065_negprompt_imagenet/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-5b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: ["chain saw", "church"]
+negative_prompt: auto
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Same 200-video cost as exp064, per grid run.
+slurm_time: "0-10:00:00"

@@ -17,6 +17,7 @@ dependencies = [
     "protobuf>=3.12.0",
     "sentencepiece>=0.2.1",
     "torch>=2.11.0",
+    "torchvision>=0.27.0",  # ResNet-50 for the ImageNet object-erasure metric (zml/benchmarks)
     "tqdm>=4.67.3",
     "transformers>=5.0.0",
     "ultralytics>=8.4.33",

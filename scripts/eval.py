@@ -28,7 +28,8 @@ def _write_runtime(output_dir: str, start_time: float, started_at: str) -> None:
     print(f"Eval wall-clock time: {elapsed_hours:.2f} h")
 
 
-def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: str) -> None:
+def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: str,
+             config_cls=Config, eval_fn=eval_main) -> None:
     # `disable_mlflow` is read (not popped) so `Config` still receives it via **params.
     disable_mlflow = params.get("disable_mlflow", False)
 
@@ -36,8 +37,8 @@ def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: s
         mlflow.set_tracking_uri("mlruns")
         mlflow.set_experiment(experiment_name)
 
-    # eval_main() routes through zml.unlearn.eval.evaluate(), which logs all eval metrics to
-    # mlflow/wandb itself; the entrypoint only owns the run lifecycle.
+    # The eval module logs all its metrics to mlflow/wandb itself; the entrypoint only owns the run
+    # lifecycle (and the runtime record, written even when the job dies).
     with (contextlib.nullcontext() if disable_mlflow else mlflow.start_run()):
         if not disable_mlflow:
             mlflow.log_params(params)
@@ -56,7 +57,7 @@ def run_eval(params: dict, config_path: str, output_dir: str, experiment_name: s
         start_time = time.time()
         started_at = datetime.now().astimezone().isoformat(timespec="seconds")
         try:
-            eval_main(Config(**params, output_dir=output_dir))
+            eval_fn(config_cls(**params, output_dir=output_dir))
         finally:
             # Written even on failure so a partial/killed job still leaves its runtime on disk.
             _write_runtime(output_dir, start_time, started_at)
@@ -91,5 +92,12 @@ if __name__ == "__main__":
         run_generate(params, args.output_dir)
     elif mode == "eval":
         run_eval(params, args.config, args.output_dir, experiment_name)
+    elif mode == "imagenet":
+        # Imported here so the fire/nudity eval paths keep no import-time dependency on the
+        # object-classification stack (same reason zml/benchmarks/registry.py imports lazily).
+        from zml.eval.imagenet_eval import Config as ImageNetConfig, main as imagenet_main
+
+        run_eval(params, args.config, args.output_dir, experiment_name,
+                 config_cls=ImageNetConfig, eval_fn=imagenet_main)
     else:
-        raise ValueError(f"Unknown mode '{mode}'; expected 'eval' or 'generate'.")
+        raise ValueError(f"Unknown mode '{mode}'; expected 'eval', 'imagenet' or 'generate'.")

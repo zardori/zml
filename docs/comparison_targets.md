@@ -11,7 +11,7 @@ papers do and recommends the order in which we should follow.
 
 | Paper | Base models | Concepts | Detectors / metrics |
 |---|---|---|---|
-| [T2VUnlearning (2505.17550)](https://arxiv.org/abs/2505.17550) | CogVideoX-2B/5B, HunyuanVideo | nudity; 5 celebrity identities; 10 ImageNet objects | NudeNet nudity rate; ArcFace ID-similarity; per-frame classifier ESR/PSR; VBench |
+| [T2VUnlearning (2505.17550)](https://arxiv.org/abs/2505.17550) | CogVideoX-2B/5B, HunyuanVideo | nudity; 5 celebrity identities; 10 ImageNet objects | NudeNet nudity rate; ArcFace ID-similarity; per-frame classifier ESR/PSR (classifier unnamed — we use ResNet-50, see [`imagenet_objects.md`](imagenet_objects.md)); VBench |
 | [VideoEraser (2508.15314)](https://arxiv.org/abs/2508.15314) | AnimateDiff, LaVie, ZeroScope, ModelScope, CogVideoX | Imagenette objects; 5 artists (Van Gogh, Picasso, …); 5 celebrities; toxic categories (violence, pornography, …) | ResNet-50 ACCe/ACCu; GIPHY celebrity detector; DOVER; attack success rate vs Ring-A-Bell / MMA-Diffusion / UnlearnDiffAtk |
 | [Video Unlearning via Low-Rank Refusal Vector (2506.07891)](https://arxiv.org/abs/2506.07891) | Open-Sora, ZeroScope | T2VSafetyBench / SafeSora categories | benchmark-native safety scores |
 
@@ -37,7 +37,7 @@ Remaining work for a publishable comparison:
   currently missing, `control_related_prompts` is a required-but-unused slot in exp062;
 - replace the fire-era exp041 retention anchors with a nudity-appropriate preservation set.
 
-### 2.2 ImageNet / Imagenette objects — recommended next
+### 2.2 ImageNet / Imagenette objects — in progress
 
 The best second axis, for four reasons:
 
@@ -48,10 +48,12 @@ The best second axis, for four reasons:
 3. **Unambiguous metric** — ESR/PSR (erasure/preservation success rate) via top-k accuracy, no
    judgement calls.
 4. **Native regime for frame_replace** — an object is *spatially and temporally localized*, which is
-   precisely what the frame-local edit was designed for. A/B/C triples are trivial to write
-   ("a chain saw on a workbench" / "a hammer on a workbench" / "a workbench"), and some clips may
-   even come out naturally partial as with fire — which would let us compare manufactured vs.
-   natural partiality on the same concept and validate split-prompt itself.
+   precisely what the frame-local edit was designed for.
+
+The protocol is implemented: a per-frame ResNet-50 (`zml/benchmarks/check_for_object.py`), an ESR/PSR
+eval mode (`mode: imagenet`), the ten-class prompt sets, and a two-class pilot (chain saw and church)
+in exp064–exp072. Full write-up — class list with ImageNet indices, exact metric definitions, our
+deviations from the papers, threshold calibration, and status: **[`imagenet_objects.md`](imagenet_objects.md)**.
 
 ### 2.3 Celebrity identity — if time allows
 

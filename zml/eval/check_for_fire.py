@@ -157,6 +157,10 @@ class VideoFireDetector:
             scores.append(frame_max)
         return scores
 
+    def frame_confidences(self, frames: list[np.ndarray]) -> list[float]:
+        """Concept-agnostic name for ``frame_fire_confidences`` (see ``zml/benchmarks/registry.py``)."""
+        return self.frame_fire_confidences(frames)
+
     def process_videos(self) -> dict[str, float]:
         """Returns the concept detection rate (CDR) and mean fire-area score over all videos."""
         video_files = [

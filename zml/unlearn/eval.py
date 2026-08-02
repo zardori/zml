@@ -10,7 +10,7 @@ import wandb
 from diffusers.utils import export_to_video
 import torch
 
-from zml.eval.check_for_fire import VideoFireDetector
+from zml.benchmarks.registry import build_detector
 from zml.eval.clip_score import VideoClipScorer
 from zml.eval.colorfulness import VideoColorfulnessScorer
 from zml.eval.motion import VideoMotionScorer
@@ -66,15 +66,11 @@ class EvalConfig(Protocol):
     eval_inference_steps: int
 
 
-def _concept_detector(concept: str, video_dir: str):
-    """Return the video detector for ``concept``. The nudity detector is imported lazily so the fire
-    path (and every trainer that imports this module) never requires ``nudenet`` to be installed."""
-    if concept == "fire":
-        return VideoFireDetector(video_dir=video_dir)
-    if concept == "nudity":
-        from zml.benchmarks.check_for_nudity import VideoNudeDetector
-        return VideoNudeDetector(video_dir=video_dir)
-    raise ValueError(f"Unknown concept {concept!r}; expected 'fire' or 'nudity'.")
+class EvalConceptConfig(Protocol):
+    """The concept fields ``evaluate`` reads off whatever config it is handed."""
+
+    concept: str
+    concept_target: str | None
 
 
 def evaluate(
@@ -123,13 +119,16 @@ def evaluate(
 
     # Which concept the detector scores; defaults to fire so existing configs are unchanged. The
     # per-concept detector returns "<concept>_detection_rate"/"<concept>_area_score_mean" keys.
+    # `concept_target` names the specific thing within a concept family (the ImageNet class for
+    # concept "object"); it is unused by fire and nudity.
     concept = getattr(config, "concept", "fire")
+    concept_target = getattr(config, "concept_target", None)
     rate_key, area_key = f"{concept}_detection_rate", f"{concept}_area_score_mean"
 
     metrics = {}
     for set_name, eval_prompts in prompt_sets.items():
         video_dir = os.path.join(eval_root, set_name)
-        concept_scores = _concept_detector(concept, video_dir).process_videos()
+        concept_scores = build_detector(concept, video_dir, concept_target).process_videos()
         clip_scores = VideoClipScorer(
             video_dir=video_dir, prompts=[ep.prompt for ep in eval_prompts]
         ).process_videos()

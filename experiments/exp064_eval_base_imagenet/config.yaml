@@ -1,0 +1,19 @@
+# Base-model ESR/PSR reference for the ImageNet object-erasure protocol (docs/imagenet_objects.md).
+# No lora_checkpoint_dir and no erased_class: this evaluates the unmodified CogVideoX-5b over all
+# ten classes and reports ESR/PSR with each class in turn as the hypothetical erased one, plus
+# mean/std across the ten — i.e. the whole published `Original` row from a single generation pass.
+# This is also the sanity gate for the classifier and the prompt set: run it before building any
+# dataset. Run: ./submit_job.py athena experiments/exp064_eval_base_imagenet/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-5b
+prompts_csv: prompts/imagenet_objects.csv   # 10 classes x 20 prompts, seeds baked in
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# 200 videos @ 50 steps. exp052 measured 40 videos in 1.2 h on athena (~1.8 min/video) -> ~6 h here,
+# plus per-frame ResNet-50 classification (minutes). Generation is resumable, so a job that runs out
+# of wall clock can simply be resubmitted against the same outputs dir.
+slurm_time: "0-10:00:00"

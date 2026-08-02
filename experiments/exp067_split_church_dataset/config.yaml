@@ -1,0 +1,27 @@
+# frame_replace dataset for the CHURCH class, built from split-prompt (manufactured partial) clips.
+# Identical recipe to exp066; church is the hard half of the pilot — a scene-level class that fills
+# the frame rather than a compact object, so this is where the frame-local edit is most likely to
+# struggle. Run: ./submit_job.py helios experiments/exp067_split_church_dataset/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/split_imagenet_church.csv   # 30 A/B/C triples, seeds 3301-3330
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: random
+split_jitter: 2
+split_step_frac: 0.5
+
+concept: object
+concept_target: "church"
+# See exp066: calibrate against exp064's church/ videos before submitting. Church is a whole-frame
+# scene, so its per-frame probability may sit higher than a compact object's — do not assume 0.15
+# transfers.
+frame_concept_threshold: 0.15
+min_donor_frames: 2
+save_videos: true
+
+slurm_time: "0-08:00:00"

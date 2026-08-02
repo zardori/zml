@@ -1,0 +1,52 @@
+# frame_replace erasure of the CHAIN SAW class, in exp057/exp062's eta=2 regime.
+# Everything except the dataset, the concept and the retention set is field-for-field identical to
+# exp062 (nudity), so a difference in outcome is attributable to the concept, not the recipe.
+# Run: ./submit_job.py helios experiments/exp069_frame_replace_chainsaw/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: object            # live eval scores with the per-frame ResNet-50 classifier
+concept_target: "chain saw"
+
+# FILL IN with exp066's outputs_{timestamp} once that dataset is built and reviewed.
+metadata_file: experiments/exp066_split_chainsaw_dataset/outputs_TIMESTAMP/metadata.json
+latents_dir: experiments/exp066_split_chainsaw_dataset/outputs_TIMESTAMP/latents
+
+# Retention: the nine preserved classes. `retention_exclude` drops chain-saw anchors, which would
+# otherwise pull directly against the erase branch. FILL IN the timestamp from exp068.
+retention_metadata_file: experiments/exp068_imagenet_preservation/outputs_TIMESTAMP/metadata.json
+retention_latents_dir: experiments/exp068_imagenet_preservation/outputs_TIMESTAMP/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Same erase regime as exp057/exp062 (interpolated targets, eta=2).
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Live-eval sets. The concept set is the 20 full chain-saw eval prompts — none of which has an
+# object-free half — so erasure here is also the positional-shortcut test: a LoRA that only learned
+# "copy the other half" fails on them. `others_chain_saw.csv` holds one prompt per preserved class.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp062 (600 steps, same eval cadence) ran 10.9 h against a 16 h allotment.
+slurm_time: "16:00:00"

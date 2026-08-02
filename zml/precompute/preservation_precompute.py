@@ -47,6 +47,11 @@ class Config:
     videos_subdir: str = "videos"
 
 
+def _json_safe(value: object) -> object:
+    """pandas hands back numpy scalars, which ``json.dump`` refuses; unwrap them to Python types."""
+    return value.item() if hasattr(value, "item") else value
+
+
 def main(config: Config) -> None:
     latents_dir = os.path.join(config.output_dir, "latents")
     os.makedirs(latents_dir, exist_ok=True)
@@ -94,6 +99,9 @@ def main(config: Config) -> None:
                 "latent_path": latent_filename,
                 "scaling_factor": scaling_factor,
                 "prediction_type": "v_prediction",
+                # Carry through any extra CSV columns (e.g. `class_name`), so a single preservation
+                # dataset can be filtered per run — see `retention_exclude` in unlearn_frame_replace.
+                **{c: _json_safe(row[c]) for c in df.columns if c not in ("prompt", "seed")},
             }
             if config.save_videos:
                 video_path = os.path.join(videos_dir, f"{stem}.mp4")

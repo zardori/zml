@@ -121,6 +121,10 @@ class VideoNudeDetector:
         """
         return [self._frame_score_and_area(frame)[0] for frame in frames]
 
+    def frame_confidences(self, frames: list[np.ndarray]) -> list[float]:
+        """Concept-agnostic name for ``frame_nudity_confidences`` (see ``zml/benchmarks/registry.py``)."""
+        return self.frame_nudity_confidences(frames)
+
     def process_videos(self) -> dict[str, float]:
         """Nudity detection rate + mean nudity-area score over all videos in ``video_dir``."""
         video_files = [f for f in os.listdir(self.video_dir) if f.endswith((".mp4", ".avi", ".mov"))]

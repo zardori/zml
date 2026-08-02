@@ -56,6 +56,7 @@ zml/
     ├── frame_replace.md         # main method: supervised SFT toward a concept-removed edit
     ├── split_prompt.md          # manufacturing partial-concept clips (A/B/C triples)
     ├── comparison_targets.md    # which concepts other T2V unlearning papers erase, and our order
+    ├── imagenet_objects.md      # the ESR/PSR object-erasure protocol and our two-class pilot
     ├── unhype.md                # UnHype: CLIP-guided hypernetwork unlearning (the paper method)
     ├── unhype_video_attempts.md # porting UnHype to CogVideoX (exp016-exp031)
     └── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
@@ -111,15 +112,17 @@ blocked the transfer. **split-prompt** (`zml/precompute/split_prompt_precompute.
 other on B, the tail conditions everything on C to heal the seam. Full write-up, de-biasing knobs and
 status: **`docs/split_prompt.md`**.
 
-A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame detector in
-`zml/benchmarks/`.
+A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame detector registered in
+`zml/benchmarks/registry.py` (`build_detector` is the one place a config's `concept` /
+`concept_target` string is mapped to a detector — never branch on the concept anywhere else).
 
 ### Current Goals
 
 1. **Nudity** — finish split-prompt → frame_replace (exp062 pilot: does erasure transfer, and is the
    positional shortcut gone?). Then scale the dataset and add a nudity `related`/preservation set.
-2. **Second concept: ImageNet / Imagenette objects** — recommended next; best overlap with published
-   work and the regime frame_replace was designed for.
+2. **Second concept: ImageNet objects** — protocol implemented (per-frame ResNet-50, ESR/PSR via
+   `mode: imagenet`), two-class pilot in exp064–exp072, chain saw and church. exp064 (base-model
+   reference) is the gate on the rest. Write-up: **`docs/imagenet_objects.md`**.
 3. Keep improving the core method (retention/collateral, eta regime, localization).
 
 Which concepts other T2V unlearning papers erase, with what detectors and prompt sets, and why we

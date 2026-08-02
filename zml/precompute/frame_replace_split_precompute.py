@@ -1,12 +1,17 @@
 """Build frame_replace targets from split-prompt (manufactured partial-concept) clips.
 
-This is the nudity analogue of ``frame_replace_precompute``. Fire is naturally partial (it flickers
-in and out), so that script generates from a single prompt and detects which frames happen to contain
-fire. Nudity is not partial — a naked body is present the whole clip — so here we *manufacture* the
-partiality with the split-prompt sampler (``generate_split_clip``): one temporal region follows the
-concept prompt A, the other the concept-free prompt B, healed by neutral prompt C. Then, exactly like
-the fire builder, we detect the concept per frame, replace the concept latent frames with donor
-frames (``edit_latent``, interpolating), and save ``x0_original`` + ``x0_edited`` for the trainer.
+This is the concept-agnostic counterpart of ``frame_replace_precompute``. Fire is naturally partial
+(it flickers in and out), so that script generates from a single prompt and detects which frames
+happen to contain fire. Most concepts are not partial — a naked body, or an object sitting on a
+bench, is present the whole clip — so here we *manufacture* the partiality with the split-prompt
+sampler (``generate_split_clip``): one temporal region follows the concept prompt A, the other the
+concept-free prompt B, healed by neutral prompt C. Then, exactly like the fire builder, we detect the
+concept per frame, replace the concept latent frames with donor frames (``edit_latent``,
+interpolating), and save ``x0_original`` + ``x0_edited`` for the trainer.
+
+Which detector runs is chosen by ``concept`` (+ ``concept_target``) through
+``zml/benchmarks/registry.py``, so a new concept costs a prompt CSV and a detector, not a fork of
+this file.
 
 Two de-biasing knobs (see ``split_prompt_precompute.Config``) matter for the resulting dataset:
 ``concept_region`` (mix "first"/"second"/"random") and ``split_jitter`` decorrelate concept *position*
@@ -28,7 +33,7 @@ import torch
 from diffusers import CogVideoXPipeline
 from tqdm import tqdm
 
-from zml.benchmarks.check_for_nudity import VideoNudeDetector
+from zml.benchmarks.registry import build_detector
 from zml.precompute.split_prompt_precompute import generate_split_clip, resolve_split
 from zml.precompute.split_prompt_precompute import Config as SplitConfig
 from zml.unlearn.frame_replace_ops import (
@@ -60,12 +65,21 @@ class Config:
     split_jitter: int = 2
     split_step_frac: float = 0.5
     # Detection -> mask.
-    frame_nudity_threshold: float = 0.3  # per-frame NudeNet score above which a frame counts as concept
+    # Per-frame detector score above which a frame counts as containing the concept. The scale is
+    # detector-specific (NudeNet detection score, ResNet-50 class probability), so it must be
+    # recalibrated whenever `concept` changes.
+    frame_concept_threshold: float = 0.3
+    frame_nudity_threshold: float | None = None  # deprecated alias, kept so exp061's config still loads
     min_donor_frames: int = 2  # skip clips with fewer concept-free latent frames (avoids static targets)
-    concept: str = "nudity"
+    concept: str = "nudity"  # selects the detector, see zml/benchmarks/registry.py
+    concept_target: str | None = None  # target within a concept family, e.g. "chain saw" for "object"
     output_dir: str = "."
     save_videos: bool = True
     videos_subdir: str = "videos"
+
+    def __post_init__(self) -> None:
+        if self.frame_nudity_threshold is not None:
+            self.frame_concept_threshold = self.frame_nudity_threshold
 
     def split_config(self) -> SplitConfig:
         """Adapt to the split sampler's Config (shared generation + split fields)."""
@@ -92,7 +106,7 @@ def main(config: Config) -> None:
     )
     scaling_factor = float(pipe.vae.config.scaling_factor)
 
-    detector = VideoNudeDetector(video_dir=config.output_dir)
+    detector = build_detector(config.concept, config.output_dir, config.concept_target)
     split_cfg = config.split_config()
 
     df = pd.read_csv(config.csv_path)
@@ -115,8 +129,8 @@ def main(config: Config) -> None:
 
             # 2. Detect the concept per frame -> pixel mask -> latent mask.
             original_frames = decode_to_bgr_frames(pipe, z_bcfhw)
-            confidences = detector.frame_nudity_confidences(original_frames)
-            concept_pixel = [c >= config.frame_nudity_threshold for c in confidences]
+            confidences = detector.frame_confidences(original_frames)
+            concept_pixel = [c >= config.frame_concept_threshold for c in confidences]
             concept_latent = build_latent_fire_mask(concept_pixel)
             nofire = [i for i, is_c in enumerate(concept_latent) if not is_c]
 
@@ -132,7 +146,7 @@ def main(config: Config) -> None:
 
             # 3. Replace concept frames with (interpolated) donors -> x0_edited.
             x0_edited, donor_map = edit_latent(z_bcfhw, concept_latent)
-            edited_confidences = detector.frame_nudity_confidences(decode_to_bgr_frames(pipe, x0_edited))
+            edited_confidences = detector.frame_confidences(decode_to_bgr_frames(pipe, x0_edited))
 
             edited_path = f"{stem}_x0edited.pt"
             original_path = f"{stem}_x0original.pt"
@@ -148,6 +162,7 @@ def main(config: Config) -> None:
                 "latent_path": edited_path,
                 "original_latent_path": original_path,
                 "concept": config.concept,
+                "concept_target": config.concept_target,
                 "concept_latent_mask": concept_latent,
                 "concept_pixel_mask": concept_pixel,
                 "concept_region": region,
