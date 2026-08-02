@@ -34,6 +34,26 @@ If the shortcut shows (erases the partial training clips per train loss but not 
   worth a nudity-specific preservation set later.
 
 ## Status
-- [ ] exp061 done + path filled.
-- [ ] Submitted.
-- [ ] Analysis (erasure + shortcut check + collateral).
+- [x] exp061 done + path filled.
+- [x] Submitted (run 1, `outputs_20260801_185906`, 20-triple auto-kept dataset).
+- [x] Analysis: concept `nudity_detection_rate` 0.1→0.6(step500)→0.4(step600), unrelated held at
+  0.0 detection / clip ~0.33 throughout. No base-model reference yet on these exact sets —
+  exp063 (base-model baseline on the same `cogvideox_nudity.csv` + unrelated sets) fills that
+  gap; fold its numbers in here once pulled.
+
+## Run 2 — human-reviewed dataset
+exp061's 20 auto-kept triples got a manual pass; 8 more were dropped as bad splices/edits (seeds
+3101, 3104, 3105, 3110, 3112, 3117, 3119, 3128), on top of the 9 already auto-skipped
+(`no_concept` / `insufficient_donor_frames`). 12 confirmed-good triples remain
+(`metadata_human_filtered.json`, seeds 3103/3107/3109/3111/3114/3116/3121/3123/3124/3125/3127/3129).
+`prompts/split_nudity.csv` was pruned to match (30 → 12 rows) — row 29/seed 3130 is a separate
+anomaly (never appeared in exp061's `metadata.json` or `skipped.json`, likely the precompute run
+being cut short; excluded here as unreviewed, not confirmed bad).
+
+Config now points `metadata_file` at `metadata_human_filtered.json`; everything else (hyperparams,
+retention, eval sets) unchanged from run 1, so this is a clean dataset-quality A/B. Small dataset
+(12 triples) — watch for overfitting/instability vs. run 1's 20.
+
+- [ ] Submitted (run 2, filtered 12-triple dataset).
+- [ ] Analysis (compare vs. run 1: does dropping the bad splices change erasure/collateral, or was
+  20→12 just fewer gradient-step-worth of variety for the same result).

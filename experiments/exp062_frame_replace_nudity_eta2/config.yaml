@@ -2,11 +2,13 @@ method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept selector)
 
-# === FILL AFTER exp061 PRECOMPUTE COMPLETES ===
-# Point these at exp061's outputs_{timestamp} dir (the split-prompt nudity dataset).
-# Keep the paths repo-relative even if another member ran exp061: inputs missing from the
-# running user's repo are looked up in the other members' repos (see "Cross-User Inputs").
-metadata_file: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/metadata.json
+# Run 2: human-reviewed subset of exp061's dataset. metadata.json (20 auto-kept triples) was
+# manually reviewed; 8 more dropped as bad splices/edits on top of the 9 auto-skipped
+# (no_concept / insufficient_donor_frames), leaving 12 confirmed-good triples in
+# metadata_human_filtered.json (see exp061/notes.md and prompts/split_nudity.csv, pruned to
+# match). latents_dir is unchanged: the kept triples' latent files already exist there from
+# the original exp061 precompute run.
+metadata_file: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/metadata_human_filtered.json
 latents_dir: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/latents
 # Retention: reuse exp041 general-quality preservation anchors (fire-era, but concept-agnostic
 # general prompts — good enough to keep the pilot from collapsing overall quality).
