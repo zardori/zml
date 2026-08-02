@@ -26,6 +26,7 @@ donor edit that turn the combined clip into a frame_replace target are a later s
 import argparse
 import json
 import os
+import random
 from dataclasses import dataclass
 
 import pandas as pd
@@ -55,9 +56,16 @@ class Config:
     num_frames: int = NUM_PIXEL_FRAMES
     height: int = 480
     width: int = 720
-    # Latent frame index that splits the two regions: frames [:split] follow prompt B (concept-free),
-    # frames [split:] follow prompt A (concept). Default ~halfway of the 13 latent frames.
+    # Latent frame index that splits the two regions. Default ~halfway of the 13 latent frames.
     split_latent_frame: int = 7
+    # Which temporal region carries the concept (prompt A); the other carries prompt B (concept-free).
+    # "second" -> A on frames [split:]; "first" -> A on [:split]; "random" -> per-clip coin flip.
+    # Randomizing across the dataset breaks the "copy the concept-free half onto the other half"
+    # positional shortcut the trainer could otherwise learn instead of removing the concept.
+    concept_region: str = "second"
+    # Per-clip jitter (+/-) on split_latent_frame so the boundary is not always at a fixed position
+    # (another positional cue to decorrelate). 0 disables. Resolved with a per-clip seeded RNG.
+    split_jitter: int = 0
     # Fraction of the denoising schedule to keep the A/B split before switching to the shared prompt C.
     # Early steps set global content (is the concept there?); the C tail heals the temporal seam.
     split_step_frac: float = 0.5
@@ -65,6 +73,18 @@ class Config:
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
     save_latents: bool = True
+
+
+def resolve_split(config: Config, rng: random.Random) -> tuple[int, str]:
+    """Per-clip (split_latent_frame, concept_region), applying jitter and random-side if configured."""
+    sf = config.split_latent_frame
+    if config.split_jitter:
+        sf += rng.randint(-config.split_jitter, config.split_jitter)
+    sf = max(1, min(NUM_LATENT_FRAMES - 1, sf))
+    region = rng.choice(["first", "second"]) if config.concept_region == "random" else config.concept_region
+    if region not in ("first", "second"):
+        raise ValueError(f"concept_region must be 'first'|'second'|'random', got {config.concept_region!r}")
+    return sf, region
 
 
 def _cfg_embeds(pipe, prompt: str, do_cfg: bool):
@@ -107,11 +127,16 @@ def _generate_plain(pipe, prompt: str, seed: int, config: Config) -> torch.Tenso
 
 
 @torch.no_grad()
-def _generate_split(pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int, config: Config) -> torch.Tensor:
+def generate_split_clip(
+    pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int, config: Config,
+    split_latent_frame: int, concept_region: str,
+) -> torch.Tensor:
     """Temporal split-prompt generation -> clean latent in (B, C, F, H, W).
 
-    Shares its initial noise with ``_generate_plain`` for the same seed (same generator seeding), so
-    the combined clip is directly comparable to the plain A/B/C clips.
+    ``concept_region`` selects which side gets the concept prompt A: "second" -> frames
+    ``[split:]``; "first" -> ``[:split]``. Shares its initial noise with ``_generate_plain`` for the
+    same seed, so the combined clip is comparable to the plain A/B/C clips. Reused by the dataset
+    builder (``frame_replace_split_precompute``).
     """
     device = pipe._execution_device
     do_cfg = config.guidance_scale > 1.0
@@ -123,7 +148,7 @@ def _generate_split(pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int
     timesteps = pipe.scheduler.timesteps
     num_steps = len(timesteps)
     split_step = int(round(config.split_step_frac * num_steps))
-    sf = config.split_latent_frame
+    sf = split_latent_frame
 
     generator = torch.Generator(device=DEVICE).manual_seed(seed)
     latents = pipe.prepare_latents(
@@ -141,8 +166,11 @@ def _generate_split(pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int
         if i < split_step:
             pred_a = _predict(pipe, latents, emb_a, t, rope, config.guidance_scale, do_cfg)
             pred_b = _predict(pipe, latents, emb_b, t, rope, config.guidance_scale, do_cfg)
-            noise_pred = pred_b.clone()
-            noise_pred[:, sf:] = pred_a[:, sf:]  # early: [:sf] concept-free (B), [sf:] concept (A)
+            noise_pred = pred_b.clone()  # concept-free everywhere, then overwrite the concept region with A
+            if concept_region == "first":
+                noise_pred[:, :sf] = pred_a[:, :sf]
+            else:  # "second"
+                noise_pred[:, sf:] = pred_a[:, sf:]
         else:
             noise_pred = _predict(pipe, latents, emb_c, t, rope, config.guidance_scale, do_cfg)  # heal seam
         # Mirror the pipeline: DDIM takes (pred, t, sample); DPM-solver++ is a stateful multistep.
@@ -194,18 +222,20 @@ def main(config: Config) -> None:
         for idx, row in tqdm(df.iterrows(), total=len(df)):
             seed = int(row["seed"])
             stem = f"p{idx}_s{seed}"
+            sf, region = resolve_split(config, random.Random(seed))
             clips = {
                 "A": _generate_plain(pipe, row["prompt_a"], seed, config),
                 "B": _generate_plain(pipe, row["prompt_b"], seed, config),
                 "C": _generate_plain(pipe, row["prompt_c"], seed, config),
-                "combined": _generate_split(pipe, row["prompt_a"], row["prompt_b"], row["prompt_c"], seed, config),
+                "combined": generate_split_clip(
+                    pipe, row["prompt_a"], row["prompt_b"], row["prompt_c"], seed, config, sf, region),
             }
             paths = {tag: _save(pipe, z, stem, tag, videos_dir, latents_dir, config.save_latents)
                      for tag, z in clips.items()}
             metadata.append({
                 "stem": stem, "seed": seed,
                 "prompt_a": row["prompt_a"], "prompt_b": row["prompt_b"], "prompt_c": row["prompt_c"],
-                "split_latent_frame": config.split_latent_frame, "split_step_frac": config.split_step_frac,
+                "split_latent_frame": sf, "concept_region": region, "split_step_frac": config.split_step_frac,
                 "videos": paths,
             })
             with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:
