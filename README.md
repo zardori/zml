@@ -264,6 +264,7 @@ Rsyncs `experiments/` outputs and MLflow tracking data from all team members' re
 ./pull_results.sh --cluster helios   # helios only
 ./pull_results.sh --logs-only        # skip outputs, only SLURM logs
 ./pull_results.sh --include-weights  # also download .safetensors/.pt checkpoints (excluded by default)
+./pull_results.sh --no-videos        # skip generated .mp4 videos (much faster, e.g. metrics-only checks)
 ```
 
 ### `watch_jobs.sh` — monitor SLURM queue

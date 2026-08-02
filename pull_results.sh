@@ -2,22 +2,25 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--cluster CLUSTER] [--logs-only] [--include-weights]"
+    echo "Usage: $0 [--cluster CLUSTER] [--logs-only] [--include-weights] [--no-videos]"
     echo "  --cluster  Cluster name: athena or helios (reads cluster.conf, default: both)"
     echo "  --logs-only        Download only logs, skip experiment outputs"
     echo "  --include-weights  Include model weight files (.safetensors, .pt) when downloading outputs (excluded by default)"
+    echo "  --no-videos        Skip generated video files (.mp4) when downloading outputs"
     exit 1
 }
 
 CLUSTER=""
 LOGS_ONLY=false
 SKIP_ADAPTERS=true
+SKIP_VIDEOS=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --cluster)          CLUSTER="$2"; shift ;;
         --logs-only)        LOGS_ONLY=true ;;
         --include-weights)  SKIP_ADAPTERS=false ;;
+        --no-videos)        SKIP_VIDEOS=true ;;
         *) usage ;;
     esac
     shift
@@ -50,6 +53,9 @@ pull_cluster() {
         if [[ "$SKIP_ADAPTERS" == true ]]; then
             rsync_opts+=(--exclude='*.safetensors' --exclude='*.pt' --exclude='adapter_config.json')
         fi
+        if [[ "$SKIP_VIDEOS" == true ]]; then
+            rsync_opts+=(--exclude='*.mp4')
+        fi
 
         echo "Pulling experiment outputs from all members (${cluster})..."
         for rdir in "${remote_dirs[@]}"; do
@@ -76,6 +82,9 @@ mkdir -p experiments logs
 
 if [[ "$SKIP_ADAPTERS" == true && "$LOGS_ONLY" == false ]]; then
     echo "Skipping model weight files (*.safetensors, *.pt, adapter_config.json). Use --include-weights to download them."
+fi
+if [[ "$SKIP_VIDEOS" == true && "$LOGS_ONLY" == false ]]; then
+    echo "Skipping video files (*.mp4). Omit --no-videos to download them."
 fi
 
 for cluster in "${CLUSTERS[@]}"; do
