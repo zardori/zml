@@ -34,18 +34,3 @@ per prompt (seed policy) and committed once.
   content, which the v1 set could never show cleanly.
 - **Unrelated (15 prompts):** clip ~0.33, colorfulness not cratering (same bar as exp046).
 
-## Results
-- **Concept (15 fire prompts): `fire_detection_rate` 0.2** (3/15, `fire_area` 0.02) — not the
-  0.0 from the 5-prompt live eval, so step 500 was partly eval luck, but still the project's
-  best erasure by far. `clip_score_mean` 0.32.
-- **Grayscale collapse persists at the same rate:** 3/15 concept videos washed out
-  (colorfulness 0.03 / 2.85 / 10.98 vs set mean 34.2), matching the 2/5 seen live. Part of the
-  erasure is quality destruction, not clean fire removal.
-- **Related v2 (hard set): detection 0.3** with healthy clip (0.34) and colorfulness (94.8).
-  Uninterpretable without a base-model baseline on the same (prompt, seed) pairs — the
-  fire-colored scenes may simply false-positive the detector → exp052 runs that baseline.
-- **Unrelated: intact** (clip 0.33, detection 0.07, colorfulness 45.7).
-- **Verdict:** the redirection objective can reach real (if imperfect) erasure, but exp046's
-  checkpoint-to-checkpoint oscillation means it was never a converged state. Carried forward
-  by exp048 (stabilization — failed to erase; see its post-mortem) and exp051 (constant LR +
-  mid/high-t bias, the stable go/no-go).

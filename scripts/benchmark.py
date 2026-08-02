@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 
 import yaml
 
+from zml.paths import resolve_config_paths
+
 
 METHODS = {
     "nudity": "zml.benchmarks.nudity_report",
@@ -28,7 +30,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.config) as f:
-        params = yaml.safe_load(f)
+        params = resolve_config_paths(yaml.safe_load(f))
 
     method = params.pop("method", "nudity")
     params.pop("job_type", None)

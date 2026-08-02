@@ -6,6 +6,8 @@ import mlflow
 import wandb
 import yaml
 
+from zml.paths import resolve_config_paths
+
 
 METHODS = {
     "esd": "zml.unlearn.unlearn_model",
@@ -32,7 +34,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.config) as f:
-        params = yaml.safe_load(f)
+        params = resolve_config_paths(yaml.safe_load(f))
 
     method = params.pop("method", "esd")
     params.pop("slurm_time", None)  # infra key, not a training param

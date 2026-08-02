@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 
 import yaml
 
+from zml.paths import resolve_config_paths
 from zml.search.partial_fire_search import SearchConfig, main
 
 if __name__ == "__main__":
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.config) as f:
-        params = yaml.safe_load(f)
+        params = resolve_config_paths(yaml.safe_load(f))
 
     params.pop("slurm_time", None)  # infra key, not a search param
     params.pop("job_type", None)  # infra key, selects the entrypoint; not a search param

@@ -11,6 +11,7 @@ import yaml
 
 from zml.eval.eval_model import Config, main as eval_main
 from zml.eval.generate_videos import GenerateConfig, main as generate_main
+from zml.paths import resolve_config_paths
 
 
 def _write_runtime(output_dir: str, start_time: float, started_at: str) -> None:
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.config) as f:
-        params = yaml.safe_load(f)
+        params = resolve_config_paths(yaml.safe_load(f))
 
     config_path = Path(args.config)
     if config_path.parent.parent.name == "grid":
