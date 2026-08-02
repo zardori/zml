@@ -111,12 +111,16 @@ boundary), the interpolated donor can degenerate into a frozen frame, killing mo
 | Experiment | What it did | Outcome |
 |---|---|---|
 | exp059 / exp060 | Generate A/B/C + combined clips, inspect the splice | Splice works — coherent clip, clothed early / naked late |
-| exp061 | First full nudity frame_replace dataset, 30 triples (`prompts/split_nudity.csv`, seeds 3101–3130) | **20/29 kept**; skips split between `no_concept` and `insufficient_donor_frames`; balanced 9 `first` / 11 `second` |
-| exp062 | Pilot training on that dataset (exp057 eta=2 regime, `concept: nudity`) | Decides whether erasure transfers + whether the shortcut is gone |
+| exp061 (run 1) | First full nudity frame_replace dataset, 30 triples (`prompts/split_nudity.csv`, seeds 3101–3130) | 20/29 auto-kept (row 29/seed 3130 never processed — precompute likely cut short); manual review then dropped 8 more bad splices/edits → **12/29 confirmed-good** |
+| exp062 (run 1) | Pilot training on the 20-auto-kept dataset (exp057 eta=2 regime, `concept: nudity`) | `nudity_detection_rate` 0.1→0.6(step500)→0.4(step600); unrelated held at 0 detection / clip ~0.33 |
+| exp062 (run 2) | Retrain on the 12 human-confirmed-good triples | Pending |
+| exp061 (run 2) | Dataset felt too small at 12 — extended `split_nudity.csv` to 52 triples (kept the 12, added 40 new seeds 3131–3170, same template/knobs) | Pending |
 
 If exp062 erases on full-nudity prompts with collateral held, the next step is to scale
-`split_nudity.csv` and rebuild a larger dataset. If it erases only the partial training clips,
-revisit de-biasing (more `concept_region` mixing, concept-in-the-middle layouts).
+`split_nudity.csv` further. If it erases only the partial training clips, revisit de-biasing (more
+`concept_region` mixing, concept-in-the-middle layouts). Also worth investigating: the auto-kept
+yield has been low (~41-67% depending on the pass) — tuning `split_step_frac`/`split_latent_frame`
+could reduce wasted generation before scaling much further.
 
 ## 6. Generalizing to a new concept
 
