@@ -21,6 +21,27 @@ PEER_ROOTS_ENV = "ZML_PEER_ROOTS"
 # never be silently rewritten into a path.
 DATA_PREFIXES = ("experiments/", "prompts/", "outputs/", "datasets/")
 
+# Peer roots already reported as unreadable, so one locked-down repo warns once per process
+# instead of once per config key.
+_warned_roots: set[Path] = set()
+
+
+def _exists_under(root: Path, path: str) -> bool:
+    """Whether `path` exists under `root`, treating an unreadable root as a miss.
+
+    Peer repos live on shared scratch and are only *usually* group-readable; a member with a
+    tightened directory (or a mode change on scratch) would otherwise make `Path.exists` raise
+    PermissionError and kill an unrelated job. Searching the remaining roots is the right
+    behaviour, so the failure is downgraded to a warning.
+    """
+    try:
+        return (root / path).exists()
+    except OSError as exc:
+        if root not in _warned_roots:
+            _warned_roots.add(root)
+            print(f"WARNING: skipping peer root {root}, cannot read it: {exc}")
+        return False
+
 
 def peer_roots() -> list[Path]:
     """Repo roots of the other project members, in search order (empty off-cluster)."""
@@ -45,9 +66,8 @@ def resolve_input_path(path: str) -> str:
     if os.path.isabs(path) or os.path.exists(path):
         return path
     for root in peer_roots():
-        candidate = root / path
-        if candidate.exists():
-            return str(candidate)
+        if _exists_under(root, path):
+            return str(root / path)
     return path
 
 
