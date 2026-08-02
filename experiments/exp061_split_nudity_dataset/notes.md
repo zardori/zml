@@ -1,3 +1,12 @@
+---
+status: done
+concept: nudity
+method: frame_replace_split/precompute
+thread: nudity
+takeaway: >
+  First nudity frame_replace dataset, 30 triples (prompts/split_nudity.csv, seeds 3101-3130).
+  20/29 auto-kept; human review left 12 confirmed-good triples in metadata_human_filtered.json.
+---
 # exp061 — pilot frame_replace dataset for nudity (split-prompt construction)
 
 ## Goal

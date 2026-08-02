@@ -1,0 +1,27 @@
+job_type: eval
+model_id: THUDM/CogVideoX-5b
+
+# Motion audit + real baseline for the exp053 eta=2 result. frame_replace builds its target by
+# COPYING donor frames over concept frames, so a trained model can slow/freeze the video on erased
+# prompts — a failure mode fire/clip/colorfulness are blind to. The eval harness now computes
+# `motion_score_mean` (mean optical-flow magnitude; ~0 = frozen), so this re-eval measures it.
+#
+# Two-run grid over the checkpoint: base model (null) vs the eta=2 step-300 LoRA (exp053's sweet
+# spot). Same prompts, inference steps, and full sets for both → a fair base-vs-erased comparison
+# that also (a) fills the exp052 base-baseline gap and (b) captures the `related` set that the
+# training-time evals dropped.
+lora_checkpoint_dir:
+  - null
+  - experiments/archive/frame_replace_fire/exp053_frame_replace_esd_eta/grid_20260717_230150/run_002/outputs/frame_replace_lora_step300
+
+# Full prompt sets (no eval_num_prompts -> all rows), matching exp052: 15 fire + 10 related_v2 +
+# 15 unrelated = 40 videos per run, all generated and scored.
+control_concept_prompts: prompts/cogvideox_fire_control_fire.csv
+control_related_prompts: prompts/cogvideox_fire_control_related_v2.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp052 base full-set eval took ~6 h; motion scoring adds only CPU minutes. Headroom for the LoRA-loaded run.
+slurm_time: "0-08:00:00"

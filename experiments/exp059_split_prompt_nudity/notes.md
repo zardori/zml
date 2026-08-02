@@ -1,3 +1,12 @@
+---
+status: done
+concept: nudity
+method: split_prompt/precompute
+thread: nudity
+takeaway: >
+  Milestone 1 of split-prompt: generate A/B/C + combined clips and inspect the splice. The
+  splice works — a coherent clip, clothed early and naked late.
+---
 # exp059 — split-prompt generation for partial-nudity clips (milestone 1: generate & inspect)
 
 ## Why

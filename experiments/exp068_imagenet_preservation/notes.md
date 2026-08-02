@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: preservation/precompute
+thread: imagenet
+takeaway: >
+  Preservation anchors over the ten protocol classes (3 prompts each), so PSR measures the
+  classes actually being preserved. Each erase run drops its own class via retention_exclude.
+---
 # exp068 — preservation anchors for the ImageNet object protocol
 
 ## Goal

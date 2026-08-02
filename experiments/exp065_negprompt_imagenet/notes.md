@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: eval
+thread: imagenet
+takeaway: >
+  NegPrompt baseline row, to separate 'our erasure works' from 'our protocol is easy to score
+  well on'.
+---
 # exp065 — NegPrompt baseline on the ImageNet object protocol
 
 ## Goal

@@ -10,7 +10,7 @@ order the files are given.
 Example:
     ./tools/merge_partial_fire_prompts.py \\
         prompts/cogvideox_partial_fire.csv \\
-        experiments/exp040_partial_fire_search/outputs_*/accepted_pairs.csv \\
+        experiments/archive/frame_replace_fire/exp040_partial_fire_search/outputs_*/accepted_pairs.csv \\
         -o prompts/cogvideox_partial_fire.csv
 """
 

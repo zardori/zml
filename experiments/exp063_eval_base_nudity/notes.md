@@ -1,3 +1,12 @@
+---
+status: active
+concept: nudity
+method: eval
+thread: nudity
+takeaway: >
+  Base-model reference on exp062's exact nudity and unrelated sets — without it exp062's
+  detection numbers cannot be read.
+---
 # exp063 — base-model baseline on exp062's nudity eval sets
 
 ## Goal

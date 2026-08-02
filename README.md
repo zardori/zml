@@ -22,17 +22,20 @@ zml/
 │   ├── eval/                    # evaluation pipeline (generation + scoring)
 │   ├── search/                  # autonomous (prompt, seed) search for partial-fire clips
 │   └── benchmarks/              # one-off benchmarking scripts
-├── experiments/                 # one folder per experiment (expNNN_name)
-│   ├── exp001_esd_fire_lora8/
+├── experiments/                 # one folder per experiment (expNNN_name); live work only
+│   ├── INDEX.md                 # generated registry of every experiment — start here
+│   ├── exp062_frame_replace_nudity_eta2/
 │   │   ├── config.yaml          # all hyperparameters for this run
 │   │   ├── logs_{TIMESTAMP}/    # SLURM stdout/stderr
 │   │   ├── outputs_{TIMESTAMP}/ # checkpoints, generated videos, metrics
-│   │   └── notes.md             # what was tried, what happened
-│   └── exp005_esd_fire_grid/    # grid-search experiment (alternative pattern)
-│       ├── config.yaml          # base config — list values = swept params
-│       └── grid_{TIMESTAMP}/
-│           ├── run_001/         # config.yaml (scalar) + logs/ + outputs/
-│           └── run_002/ ...
+│   │   └── notes.md             # registry frontmatter + what was tried, what happened
+│   ├── exp0NN_some_grid/        # grid-search experiment (alternative pattern)
+│   │   ├── config.yaml          # base config — list values = swept params
+│   │   └── grid_{TIMESTAMP}/
+│   │       ├── run_001/         # config.yaml (scalar) + logs/ + outputs/
+│   │       └── run_002/ ...
+│   └── archive/<thread>/        # retired threads — see docs/experiment_registry.md
+│       └── exp0NN_.../
 ├── scripts/                     # thin entrypoints, dispatched by SLURM via JOB_TYPE
 │   ├── unlearn.py
 │   ├── eval.py
@@ -146,7 +149,7 @@ The `method` config field selects which training routine runs:
 `frame_replace`, `frame_replace_online`, `smoke_test`.
 
 Training logs to MLflow (`mlruns/`) and W&B (project `zml`, entity `zardori-zml`). The experiment
-name is inferred from the config path (`experiments/exp005/grid_*/run_001/config.yaml` → `exp005`).
+name is inferred from the config path (`experiments/expXXX_NAME/grid_*/run_001/config.yaml` → `expXXX_NAME`).
 
 ### Precompute methods (`scripts/precompute.py`)
 
@@ -240,14 +243,14 @@ Commits must be pushed before submitting — the cluster runs `git pull` before 
 
 ```bash
 # Single run (cluster is the first positional arg, then the config)
-./submit_job.py athena experiments/exp001_esd_fire_lora8/config.yaml
-./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml
+./submit_job.py athena experiments/exp062_frame_replace_nudity_eta2/config.yaml
+./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml
 
 # Override the SLURM script
-./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml --slurm slurm/other.sh
+./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
 
 # Grid search — any list-valued config field triggers Cartesian-product expansion
-./submit_job.py athena experiments/exp005_esd_fire_grid/config.yaml
+./submit_job.py athena experiments/expXXX_NAME/config.yaml
 ```
 
 For a grid search the script expands list fields, creates `experiments/EXP/grid_{TIMESTAMP}/run_001/`,
@@ -284,7 +287,7 @@ Rsyncs `experiments/` outputs and MLflow tracking data from all team members' re
 
 1. **Add prompts** — put a CSV (with `prompt` and `seed` columns) or TXT file in `prompts/`.
 2. **Create experiment** — make `experiments/expXXX_NAME/config.yaml` (set `slurm_time`, `job_type`,
-   `method`).
+   `method`) and `notes.md` with the registry frontmatter (`docs/experiment_registry.md`).
 3. **Commit and push** — the cluster pulls from the repo; uncommitted changes won't be picked up.
 4. **Submit** — `./submit_job.py athena experiments/expXXX_NAME/config.yaml`.
 5. **Monitor** — `./watch_jobs.sh`.

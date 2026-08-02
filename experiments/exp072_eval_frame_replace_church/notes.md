@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: eval
+thread: imagenet
+takeaway: >
+  Reported ESR/PSR row for the church LoRA. With exp071 it decides whether the object pilot
+  succeeded and whether the remaining eight classes are worth running.
+---
 # exp072 — reported ESR/PSR for the church LoRA
 
 ## Goal

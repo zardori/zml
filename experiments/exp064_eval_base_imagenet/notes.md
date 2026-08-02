@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: eval
+thread: imagenet
+takeaway: >
+  Base-model ESR/PSR on the ImageNet object protocol — the 'Original' row everything in
+  exp066-exp072 is read against, and the calibration of frame_concept_threshold.
+---
 # exp064 — base-model ESR/PSR on the ImageNet object protocol
 
 ## Goal

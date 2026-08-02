@@ -15,7 +15,7 @@ Detail goes to `docs/`, which is read on demand.
 |---|---|---|
 | `CLAUDE.md` | Project-wide facts and conventions that shape *how work is done* in almost any session: repo layout, workflow, how to submit jobs, seed policy, coding standards, current goals. | "Would a session about an unrelated part of the project still need this?" |
 | `docs/*.md` | Method write-ups, design rationale, algorithm mechanics, knob semantics, status of a research thread, comparisons with external work. | "Is this the *explanation* of something CLAUDE.md only names?" |
-| `experiments/<exp>/notes.md` | Anything true of one run: goal, setup, what to look at, outcome, next step. | "Does this stop being true when the next experiment runs?" |
+| `experiments/<exp>/notes.md` | Anything true of one run: goal, setup, what to look at, outcome, next step. Opens with the registry frontmatter block (`status`/`concept`/`method`/`thread`/`takeaway`) that feeds `experiments/INDEX.md` — see `docs/experiment_registry.md`. | "Does this stop being true when the next experiment runs?" |
 | Nowhere | Facts derivable from the code, config files, or git history. Restating them creates a second source of truth that goes stale. | "Could I get this by reading the file it describes?" |
 
 When something is genuinely both (a convention *and* a mechanism), split it: the convention in

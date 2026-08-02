@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: frame_replace_split/precompute
+thread: imagenet
+takeaway: >
+  Split-prompt frame_replace dataset for 'chain saw', 30 triples (seeds 3201-3230) — the easy,
+  spatially localized half of the object pilot.
+---
 # exp066 — split-prompt frame_replace dataset for "chain saw"
 
 ## Goal

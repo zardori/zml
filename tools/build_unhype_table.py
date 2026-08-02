@@ -52,9 +52,9 @@ class MetricCell:
 # The two real unhype runs (debug controls exp028/exp030 are excluded).
 ROWS: list[TableRow] = [
     TableRow("unhype (basic)",
-             REPO_ROOT / "experiments/exp029_unhype_promptvar_stepfix/outputs_20260608_010505"),
+             REPO_ROOT / "experiments/archive/unhype/exp029_unhype_promptvar_stepfix/outputs_20260608_010505"),
     TableRow("unhype (stabilized)",
-             REPO_ROOT / "experiments/exp031_unhype_cosine_stabilized/outputs_20260608_193200"),
+             REPO_ROOT / "experiments/archive/unhype/exp031_unhype_cosine_stabilized/outputs_20260608_193200"),
 ]
 
 

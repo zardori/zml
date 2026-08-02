@@ -24,16 +24,17 @@ zml/
 │   ├── benchmarks/              # concept detectors & reports (e.g. NudeNet wrapper)
 │   ├── search/                  # prompt/hyperparameter search helpers
 │   └── eval/                    # scripts and utils for evaluation
-├── experiments/                 # one folder per experiment run
-│   ├── exp001_esd_nudity/        # single-run experiment
+├── experiments/                 # one folder per experiment run; only LIVE work sits flat here
+│   ├── INDEX.md                 # generated registry — read this first, not `ls`
+│   ├── exp062_frame_replace_nudity_eta2/  # single-run experiment
 │   │   ├── config.yaml          # hyperparameters, dataset info, etc.
 │   │   ├── logs_{TIMESTAMP}/     # logs from the SLURM job (stdout, stderr)
 │   │   ├── outputs_{TIMESTAMP}/  # generated videos, evaluation results, etc.
 │   │   │   ├── metrics.jsonl    # metrics - one object per flushed train window and per eval
 │   │   │   ├── summary.json     # metrics - overwritten each update
 │   │   │   └── other outputs... # e.g. generated videos, eval results, etc.
-│   │   └── notes.md             # what was tried, what happened
-│   ├── exp005_esd_fire_grid/     # grid-search experiment (alternative pattern)
+│   │   └── notes.md             # registry frontmatter + what was tried, what happened
+│   ├── exp0NN_some_grid/         # grid-search experiment (alternative pattern)
 │   │   ├── config.yaml          # base config with list values for swept params
 │   │   └── grid_{TIMESTAMP}/    # has one subfolder per hyperparameter combination
 │   │       ├── run_001/
@@ -42,7 +43,8 @@ zml/
 │   │       │   └── outputs/     # checkpoints and per-step eval results
 │   │       ├── run_002/
 │   │       └── ...
-│   └── ...                      
+│   └── archive/<thread>/         # retired threads (esd_fire, unhype, frame_replace_fire, ...)
+│       └── exp0NN_.../           # same folder shape; nothing live may reference these
 ├── scripts/                     # thin generic entrypoints to the experiments (all should call zml/)
 │   ├── unlearn.py               
 │   ├── precompute.py            
@@ -59,7 +61,8 @@ zml/
     ├── imagenet_objects.md      # the ESR/PSR object-erasure protocol and our two-class pilot
     ├── unhype.md                # UnHype: CLIP-guided hypernetwork unlearning (the paper method)
     ├── unhype_video_attempts.md # porting UnHype to CogVideoX (exp016-exp031)
-    └── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
+    ├── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
+    └── experiment_registry.md   # notes.md frontmatter, INDEX.md, and the archive policy
 ```
 
 ### Compute Resources
@@ -72,12 +75,22 @@ Cluster access is rich, but not unlimited, so experiments should be designed to 
 3. **Prepare Precompute methods** (optional) (`zml/precompute`): If we can speed up unlearning, by precomputing some latents or other intermediate results, we add code here. This is also where frame_replace training targets are built (see "Partial-Concept Data Construction").
 4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
 5. **Prepare SLURM templates** (`slurm/`): There is one generic script per cluster (`slurm/athena.sh`, `slurm/helios.sh`). Each holds only that cluster's account/partition/repo-dir and dispatches on the `JOB_TYPE` env var to the right thin entrypoint. `submit_job.py` supplies the job name, time, and log paths as `sbatch` flags, so they are not baked into the scripts.
-6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed.
+6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed. Also create `notes.md` with the registry frontmatter block (`status`/`concept`/`method`/`thread`/`takeaway`) — see "Experiment Registry" below.
 7. **Run experiments** (`submit_job.py`): Submit jobs to a cluster. Pass the cluster name (`athena` or `helios`) as the first positional argument, then the config path. Optionally override the SLURM script with `--slurm`. The script SSHes into the cluster, runs `git pull`, and calls `sbatch`. If the config has any list-valued fields a grid search is performed automatically — one job per combination. Cluster connection details are read from `cluster.conf` (copy from `cluster.conf.example`). Ensure all necessary content is committed before submitting. (Claude should not submit any jobs by itself — project owners do it manually.)
-   Example: `./submit_job.py athena experiments/exp001/config.yaml`
+   Example: `./submit_job.py athena experiments/expXXX_NAME/config.yaml`
    Every config must set two infra fields: `slurm_time` (the sbatch `--time`, e.g. `slurm_time: "0-4:00:00"`; there is no default, so a missing value is rejected) and optionally `job_type` (`unlearn` (default) | `eval` | `precompute`), which selects the entrypoint via the `JOB_TYPE` env var.
 8. **Collect results** (`pull_results.sh`): Download experiment outputs and MLflow tracking data from clusters via rsync. Defaults to pulling from both clusters. Use `--cluster athena` or `--cluster helios` to target one. Pass `--logs-only` to skip outputs, or `--include-weights` to include `.safetensors`/`.pt` checkpoints (excluded by default). Reads connection details from `cluster.conf`.
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
+
+### Experiment Registry
+
+There are 70+ experiments and most are no longer relevant to a new one, so **start from
+`experiments/INDEX.md`, not from `ls`**. It is generated by `tools/experiments_index.py` from a YAML
+frontmatter block (`status`, `concept`, `method`, `thread`, `takeaway`) at the top of every
+experiment's `notes.md` — a new experiment must have one. Retired threads live under
+`experiments/archive/<thread>/`; `tools/archive_experiment.py` moves them there and enforces the one
+rule that keeps this honest: **no live config may reference a path under `experiments/archive/`.**
+Field reference, the archive procedure and its cluster half: **`docs/experiment_registry.md`**.
 
 ### Utility Scripts
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
