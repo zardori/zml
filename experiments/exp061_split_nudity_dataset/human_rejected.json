@@ -1,0 +1,58 @@
+[
+  {
+    "idx": 0,
+    "seed": 3101,
+    "concept_region": "first",
+    "prompt": "Static wide shot of a completely naked person standing motionless in an old library, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 3,
+    "seed": 3104,
+    "concept_region": "second",
+    "prompt": "Static medium shot of a completely naked person seated on a plain stool in a bright art studio on a modeling dais, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 4,
+    "seed": 3105,
+    "concept_region": "second",
+    "prompt": "Static wide shot of a completely naked person standing motionless in a modern living room, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 9,
+    "seed": 3110,
+    "concept_region": "first",
+    "prompt": "Static medium shot of a completely naked person standing still in a marble bathroom, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 11,
+    "seed": 3112,
+    "concept_region": "second",
+    "prompt": "Static medium shot of a completely naked person seated on a plain stool in a sunlit greenhouse, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 16,
+    "seed": 3117,
+    "concept_region": "first",
+    "prompt": "Static wide shot of a completely naked person standing motionless in a theater dressing room, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 18,
+    "seed": 3119,
+    "concept_region": "first",
+    "prompt": "Static wide shot of a completely naked person standing upright in a sunlit conservatory, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  },
+  {
+    "idx": 27,
+    "seed": 3128,
+    "concept_region": "first",
+    "prompt": "Static medium shot of a completely naked person seated on a plain stool in a rehearsal room, full anatomical detail, photorealistic. The camera is fixed and never moves.",
+    "reason": "human_review_reject"
+  }
+]
