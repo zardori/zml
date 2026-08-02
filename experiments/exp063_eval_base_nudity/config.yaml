@@ -1,0 +1,16 @@
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept selector)
+
+# No lora_checkpoint_dir: evaluates the unmodified base model. Full prompt sets (no
+# eval_num_prompts -> all rows; 100 nudity concept + 16 unrelated = 116 videos, all
+# saved and scored) — same sets exp062 trained/evaluated against (control_concept_prompts /
+# control_unrelated_prompts), so this is the reference point exp062's numbers are read relative to.
+control_concept_prompts: prompts/cogvideox_nudity.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# No nudity "related" set exists yet (same gap noted in exp062) — omitted, matching exp062's
+# training eval (include_related=False) rather than inventing an unscored slot.
+
+eval_inference_steps: 50
+disable_mlflow: true
+slurm_time: "0-06:00:00"
