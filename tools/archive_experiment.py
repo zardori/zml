@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Retire an experiment into ``experiments/archive/<thread>/``.
+
+Moving an experiment is not just a rename: 26 configs and the report-table tools reference
+experiment folders by repo-relative path, and every member has their own copy of the untracked
+``outputs_*`` artifacts on cluster scratch. This script does all four parts together --
+tracked files, local artifacts, references, and the remote-side move script -- because doing
+three of them is worse than doing none.
+
+    tools/archive_experiment.py expNNN [expNNN ...]           # dry run, prints what it would do
+    tools/archive_experiment.py expNNN [expNNN ...] --apply
+
+The thread comes from each experiment's ``notes.md`` frontmatter (``thread:``), so the folder
+it lands in and the group it renders under in ``INDEX.md`` can never disagree.
+
+Refuses to move an experiment whose ``status`` is ``active``, or one that any live config
+still references -- that reference would keep the archive alive as a hidden dependency.
+
+Policy and the cluster half of the migration: ``docs/experiment_registry.md``.
+"""
+from __future__ import annotations
+
+import argparse
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+from experiments_index import EXPERIMENTS_DIR, REPO_ROOT, discover, Experiment
+
+ARCHIVE_ROOT = "archive"
+REMOTE_SCRIPT = REPO_ROOT / "tools" / "migrate_experiments_remote.sh"
+
+# Untracked run artifacts that live inside an experiment folder and must travel with it.
+ARTIFACT_GLOBS = ("outputs_*", "logs_*", "grid", "grid_*", "eval_outputs*")
+
+# Files that may contain a reference to an experiment path.
+REFERENCE_GLOBS = ("**/*.yaml", "**/*.yml", "**/*.md", "**/*.py", "**/*.sh")
+REFERENCE_SKIP_DIRS = {".git", ".venv", "mlruns", "wandb", "legacy", "__pycache__", "hf_cache"}
+
+
+@dataclass(frozen=True)
+class Move:
+    name: str  # expNNN_name
+    thread: str
+    old_rel: str  # experiments/expNNN_name
+    new_rel: str  # experiments/archive/<thread>/expNNN_name
+
+
+def build_move(exp: Experiment) -> Move:
+    new_rel = f"experiments/{ARCHIVE_ROOT}/{exp.thread}/{exp.name}"
+    return Move(exp.name, exp.thread, f"experiments/{exp.rel_dir}", new_rel)
+
+
+def reference_files() -> list[Path]:
+    seen: set[Path] = set()
+    for pattern in REFERENCE_GLOBS:
+        for path in REPO_ROOT.glob(pattern):
+            if path.is_file() and not (REFERENCE_SKIP_DIRS & set(path.relative_to(REPO_ROOT).parts)):
+                seen.add(path)
+    return sorted(seen)
+
+
+def find_references(moves: list[Move], files: list[Path]) -> dict[Path, list[Move]]:
+    """Map each file to the moves whose old path it mentions."""
+    hits: dict[Path, list[Move]] = {}
+    for path in files:
+        try:
+            text = path.read_text()
+        except UnicodeDecodeError:
+            continue
+        matched = [m for m in moves if m.old_rel in text]
+        if matched:
+            hits[path] = matched
+    return hits
+
+
+def rewrite_references(hits: dict[Path, list[Move]]) -> None:
+    """Rewrite ``experiments/expNNN_name`` -> its archive path, everywhere it appears.
+
+    The bare substring is deliberate: it also catches the absolute cluster paths some eval
+    configs carry (``/net/.../zml/experiments/expNNN_.../``), which a repo-relative-only
+    match would silently leave behind.
+    """
+    for path, moves in hits.items():
+        text = path.read_text()
+        for move in moves:
+            text = text.replace(move.old_rel, move.new_rel)
+        path.write_text(text)
+
+
+def move_experiment(move: Move) -> None:
+    old_dir, new_dir = REPO_ROOT / move.old_rel, REPO_ROOT / move.new_rel
+    new_dir.mkdir(parents=True, exist_ok=True)
+
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", move.old_rel],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split("\0")
+    for rel in filter(None, tracked):
+        dest = new_dir / Path(rel).name
+        subprocess.run(["git", "mv", rel, str(dest.relative_to(REPO_ROOT))], cwd=REPO_ROOT, check=True)
+
+    for pattern in ARTIFACT_GLOBS:
+        for artifact in old_dir.glob(pattern):
+            shutil.move(str(artifact), str(new_dir / artifact.name))
+
+    leftovers = list(old_dir.iterdir())
+    if leftovers:
+        print(f"  ! {move.old_rel} still holds {[p.name for p in leftovers]} — moving them too")
+        for leftover in leftovers:
+            shutil.move(str(leftover), str(new_dir / leftover.name))
+    old_dir.rmdir()
+
+
+def write_remote_script(moves: list[Move]) -> None:
+    """Emit the cluster-side companion for the artifacts git does not track.
+
+    ``git pull`` relocates config.yaml/notes.md on its own; this moves the outputs_*/logs_*
+    left behind at the old path. Idempotent, because six repo roots across two clusters will
+    not be migrated in one sitting.
+    """
+    body = [
+        "#!/usr/bin/env bash",
+        "# Generated by tools/archive_experiment.py — run once per cluster repo root, after `git pull`.",
+        "#",
+        "# git pull moves the tracked config.yaml/notes.md into experiments/archive/<thread>/;",
+        "# this moves the untracked outputs_*/logs_* that stayed behind at the old path.",
+        "# Safe to re-run: already-migrated experiments are skipped.",
+        "set -euo pipefail",
+        "",
+        'cd "$(dirname "$0")/.."',
+        "moved=0",
+        "",
+        "migrate() {",
+        '    local old="$1" new="$2"',
+        '    [ -d "$old" ] || return 0',
+        '    mkdir -p "$new"',
+        '    find "$old" -mindepth 1 -maxdepth 1 -exec mv -t "$new" {} +',
+        '    rmdir "$old"',
+        '    echo "  moved $old -> $new"',
+        "    moved=$((moved + 1))",
+        "}",
+        "",
+    ]
+    body += [f'migrate "{m.old_rel}" "{m.new_rel}"' for m in moves]
+    body += ["", 'echo "migrate_experiments_remote: ${moved} experiment(s) moved"', ""]
+
+    REMOTE_SCRIPT.write_text("\n".join(body))
+    REMOTE_SCRIPT.chmod(0o755)
+
+
+def resolve(exp_ids: list[str], experiments: list[Experiment]) -> tuple[list[Experiment], list[str]]:
+    by_id = {e.exp_id: e for e in experiments}
+    selected, problems = [], []
+    for exp_id in exp_ids:
+        exp = by_id.get(exp_id)
+        if exp is None:
+            problems.append(f"{exp_id}: no such experiment")
+        elif exp.archived:
+            print(f"  = {exp.name} is already archived, skipping")
+        elif exp.status == "active":
+            problems.append(f"{exp_id}: status is 'active' — mark it superseded/abandoned/done first")
+        elif not exp.thread:
+            problems.append(f"{exp_id}: no 'thread' in its notes.md frontmatter")
+        else:
+            selected.append(exp)
+    return selected, problems
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("exp_ids", nargs="+", metavar="expNNN", help="Experiment ids to archive.")
+    parser.add_argument("--apply", action="store_true", help="Actually move; default is a dry run.")
+    args = parser.parse_args()
+
+    experiments, problems = discover()
+    if problems:
+        print("Fix the frontmatter first (tools/experiments_index.py --check):", file=sys.stderr)
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        return 1
+
+    selected, problems = resolve(args.exp_ids, experiments)
+    if problems:
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        return 1
+    if not selected:
+        print("Nothing to do.")
+        return 0
+
+    moves = [build_move(e) for e in selected]
+    moving = {m.name for m in moves}
+
+    # A reference from an experiment that is *not* moving keeps the archive alive.
+    staying = [e for e in experiments if not e.archived and e.name not in moving]
+    blocking = []
+    for exp in staying:
+        config = EXPERIMENTS_DIR / exp.rel_dir / "config.yaml"
+        text = config.read_text()
+        for move in moves:
+            if move.old_rel in text:
+                blocking.append(f"{exp.name}/config.yaml references {move.name}")
+    if blocking:
+        print("Refusing — a live config still reads data from these:", file=sys.stderr)
+        for line in blocking:
+            print(f"  {line}", file=sys.stderr)
+        return 1
+
+    hits = find_references(moves, reference_files())
+
+    print(f"{'Applying' if args.apply else 'Dry run —'} {len(moves)} move(s):")
+    for move in moves:
+        print(f"  {move.old_rel} -> {move.new_rel}")
+    print(f"Reference rewrites in {len(hits)} file(s):")
+    for path in sorted(hits):
+        print(f"  {path.relative_to(REPO_ROOT)} ({len(hits[path])} ref group(s))")
+
+    if not args.apply:
+        print("\nRe-run with --apply to perform the move.")
+        return 0
+
+    # Rewrite first: some referencing files live *inside* a moving experiment (grid run
+    # configs, sibling notes), so their paths in `hits` go stale the moment we move anything.
+    rewrite_references(hits)
+    for move in moves:
+        move_experiment(move)
+    write_remote_script(moves)
+
+    print(f"\nWrote {REMOTE_SCRIPT.relative_to(REPO_ROOT)} — each member runs it once per cluster")
+    print("repo root, after `git pull`, to move their untracked outputs_*/logs_*.")
+    print("Next: uv run tools/experiments_index.py && uv run tools/experiments_index.py --check")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

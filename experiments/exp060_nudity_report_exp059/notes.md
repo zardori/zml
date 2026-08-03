@@ -1,3 +1,13 @@
+---
+status: done
+concept: nudity
+method: benchmark
+thread: nudity
+takeaway: >
+  Per-frame NudeNet validation of exp059's clips. NudeNet fires on our decoded frames (A: mean
+  max 0.699, 47.25/49 nude frames) and is silent on B and C, confirming both the detector and
+  the temporal localization.
+---
 # exp060 — nudity report validating the exp059 split-prompt generation
 
 ## Goal

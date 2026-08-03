@@ -53,20 +53,20 @@ class MetricCell:
 # The frame-replace ablation chain, in narrative order.
 ROWS: list[TableRow] = [
     TableRow("frame-replace (offline)",
-             REPO_ROOT / "experiments/exp038_frame_replace_fire_longer_stronger/outputs_20260620_234835"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp038_frame_replace_fire_longer_stronger/outputs_20260620_234835"),
     TableRow("frame-replace (online)",
-             REPO_ROOT / "experiments/exp039_frame_replace_online/outputs_20260622_011035"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp039_frame_replace_online/outputs_20260622_011035"),
     TableRow("frame-replace + retention",
-             REPO_ROOT / "experiments/exp043_frame_replace_retention/outputs_20260624_161343"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp043_frame_replace_retention/outputs_20260624_161343"),
     TableRow("frame-replace + masked loss",
-             REPO_ROOT / "experiments/exp044_frame_replace_masked/outputs_20260625_010847"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp044_frame_replace_masked/outputs_20260625_010847"),
     TableRow("frame-replace + x0-space loss",
-             REPO_ROOT / "experiments/exp045_frame_replace_x0loss/outputs_20260625_164320"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp045_frame_replace_x0loss/outputs_20260625_164320"),
     TableRow("frame-replace (denoising-redirection, step 500)",
-             REPO_ROOT / "experiments/exp046_frame_replace_redirect/outputs_20260626_010355",
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp046_frame_replace_redirect/outputs_20260626_010355",
              step=500),
     TableRow("frame-replace (denoising-redirection, step 1000)",
-             REPO_ROOT / "experiments/exp046_frame_replace_redirect/outputs_20260626_010355"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp046_frame_replace_redirect/outputs_20260626_010355"),
 ]
 
 

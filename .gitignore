@@ -24,11 +24,12 @@ outputs/
 checkpoints/
 logs/
 logs_*
-experiments/*/outputs_*/
-experiments/*/logs_*/
-experiments/*/grid/
-experiments/*/grid_*/
-experiments/*/eval_outputs*/
+# ** (not *) so these keep matching once an experiment moves under experiments/archive/<thread>/
+experiments/**/outputs_*/
+experiments/**/logs_*/
+experiments/**/grid/
+experiments/**/grid_*/
+experiments/**/eval_outputs*/
 
 # MLflow tracking data
 mlruns/

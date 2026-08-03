@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: frame_replace
+thread: imagenet
+takeaway: >
+  frame_replace erasure of 'chain saw' — does the method erase an ImageNet object class,
+  semantically rather than positionally?
+---
 # exp069 — frame_replace erasure of "chain saw"
 
 ## Goal

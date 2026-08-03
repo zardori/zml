@@ -1,1 +1,0 @@
-Testing the possibility of transferring frame replace unlearning method from fire to nudity by trying to generate videos with partial nudity - nudity only in some frames.

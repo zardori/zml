@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: frame_replace_split/precompute
+thread: imagenet
+takeaway: >
+  Split-prompt frame_replace dataset for 'church', 30 triples (seeds 3301-3330) — the
+  scene-level class that tests the localization claim from the other side.
+---
 # exp067 — split-prompt frame_replace dataset for "church"
 
 ## Goal

@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: frame_replace
+thread: imagenet
+takeaway: >
+  frame_replace erasure of 'church', in exp069's exact regime, isolating how much the method
+  depends on the concept being localized.
+---
 # exp070 — frame_replace erasure of "church"
 
 ## Goal

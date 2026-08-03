@@ -58,13 +58,13 @@ class MetricCell:
 # One row per ESD variant; the representative run is chosen by select_run().
 VARIANTS: list[Variant] = [
     Variant("ESD (basic)",
-            REPO_ROOT / "experiments/exp009_esd_fire_grid/grid_20260425_115620"),
+            REPO_ROOT / "experiments/archive/esd_fire/exp009_esd_fire_grid/grid_20260425_115620"),
     Variant("ESD + preservation",
-            REPO_ROOT / "experiments/exp011_esd_preservation_grid/grid_20260504_121415"),
+            REPO_ROOT / "experiments/archive/esd_fire/exp011_esd_preservation_grid/grid_20260504_121415"),
     Variant("ESD + preservation + anchor",
-            REPO_ROOT / "experiments/exp013_esd_preservation_anchor_grid/grid_20260504_122442"),
+            REPO_ROOT / "experiments/archive/esd_fire/exp013_esd_preservation_anchor_grid/grid_20260504_122442"),
     Variant("ESD (normalized)",
-            REPO_ROOT / "experiments/exp015_esd_normalized_grid/grid_20260609_210937"),
+            REPO_ROOT / "experiments/archive/esd_fire/exp015_esd_normalized_grid/grid_20260609_210937"),
 ]
 
 

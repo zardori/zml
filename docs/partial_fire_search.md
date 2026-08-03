@@ -62,7 +62,7 @@ Intended for **helios** (its compute nodes have outbound internet for the API ca
 1. Put the API key on the cluster as `$HOME/.openrouter_env` (untracked), e.g.
    `OPENROUTER_API_KEY=sk-or-...`. `slurm/helios.sh` sources it before launching.
 2. Submit (owners submit jobs manually):
-   `./submit_job.py helios experiments/exp040_partial_fire_search/config.yaml`
+   `./submit_job.py helios experiments/archive/frame_replace_fire/exp040_partial_fire_search/config.yaml`
 3. Pull results: `./pull_results.sh --cluster helios`
 4. Review `summary.json` / `accepted_pairs.csv`, then merge the best rows into
    `prompts/cogvideox_partial_fire.csv`.

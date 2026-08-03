@@ -1,3 +1,12 @@
+---
+status: active
+concept: imagenet
+method: eval
+thread: imagenet
+takeaway: >
+  Reported ESR/PSR row for the chain-saw LoRA on the same 200 prompts and seeds as
+  exp064/exp065.
+---
 # exp071 — reported ESR/PSR for the chain-saw LoRA
 
 ## Goal

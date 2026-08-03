@@ -1,1 +1,0 @@
-Generalnie rozjebane, ale nie zdążyło się doliczyć dalej (tylko do 600 stepów)

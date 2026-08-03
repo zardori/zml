@@ -6,16 +6,16 @@ Usage:
 
 Arguments:
     cluster   Cluster name: athena or helios
-    config    Path to experiment config YAML (e.g. experiments/exp001_esd_fire_lora8/config.yaml)
+    config    Path to experiment config YAML (e.g. experiments/exp062_frame_replace_nudity_eta2/config.yaml)
 
 Options:
     --slurm   Path to SLURM script relative to remote dir; defaults to slurm/athena.sh
               for athena and slurm/helios.sh for helios
 
 Example:
-    ./submit_job.py athena experiments/exp001_esd_fire_lora8/config.yaml
-    ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml
-    ./submit_job.py helios experiments/exp001_esd_fire_lora8/config.yaml --slurm slurm/other.sh
+    ./submit_job.py athena experiments/exp062_frame_replace_nudity_eta2/config.yaml
+    ./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml
+    ./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
 
 Each config must set `slurm_time` (e.g. `slurm_time: 0-4:00:00`); it is passed as the sbatch
 --time and there is no default. The optional `job_type` field (unlearn|eval|precompute, default

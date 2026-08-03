@@ -50,17 +50,17 @@ class MetricCell:
 # Source experiments are intentionally not surfaced in the rendered table.
 ROWS: list[TableRow] = [
     TableRow("ESD", "basic",
-             REPO_ROOT / "experiments/exp009_esd_fire_grid/grid_20260425_115620/run_007/outputs"),
+             REPO_ROOT / "experiments/archive/esd_fire/exp009_esd_fire_grid/grid_20260425_115620/run_007/outputs"),
     TableRow("ESD", "with preservation",
-             REPO_ROOT / "experiments/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20260419_205935"),
+             REPO_ROOT / "experiments/archive/esd_fire/exp006_esd_100_prompts_gs_1_lr_00005/outputs_20260419_205935"),
     TableRow("unhype", "basic",
-             REPO_ROOT / "experiments/exp029_unhype_promptvar_stepfix/outputs_20260608_010505"),
+             REPO_ROOT / "experiments/archive/unhype/exp029_unhype_promptvar_stepfix/outputs_20260608_010505"),
     TableRow("unhype", "stabilized",
-             REPO_ROOT / "experiments/exp031_unhype_cosine_stabilized/outputs_20260608_193200"),
+             REPO_ROOT / "experiments/archive/unhype/exp031_unhype_cosine_stabilized/outputs_20260608_193200"),
     TableRow("frame-replace", "velocity reconstruction",
-             REPO_ROOT / "experiments/exp043_frame_replace_retention/outputs_20260624_161343"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp043_frame_replace_retention/outputs_20260624_161343"),
     TableRow("frame-replace", "denoising-redirection",
-             REPO_ROOT / "experiments/exp046_frame_replace_redirect/outputs_20260626_010355"),
+             REPO_ROOT / "experiments/archive/frame_replace_fire/exp046_frame_replace_redirect/outputs_20260626_010355"),
 ]
 
 

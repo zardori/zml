@@ -1,3 +1,13 @@
+---
+status: active
+concept: nudity
+method: frame_replace
+thread: nudity
+takeaway: >
+  The pilot deciding whether split-prompt -> frame_replace transfers to nudity, and whether the
+  positional shortcut is gone. Run 1: concept detection 0.1 -> 0.6 (step 500) -> 0.4 (step 600),
+  unrelated held. Needs exp063's base reference to be interpretable.
+---
 # exp062 — frame_replace nudity erasure (pilot, eta=2, split-prompt dataset)
 
 ## Goal
