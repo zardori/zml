@@ -1,13 +1,11 @@
 # Aggregate report over exp074's split_step_frac grid: per-run NudeNet localization scores plus a
 # sweep_summary.json sorted by split_step_frac. No model, no generation — CPU/detector only.
 #
-# FILL IN grid_dir once exp074 has been submitted (it's the grid_{TIMESTAMP} dir printed/created by
-# submit_job.py for exp074's config, e.g. experiments/exp074_split_step_frac_sweep/grid_20260803_120000).
 # Run: ./submit_job.py athena experiments/exp075_split_step_frac_sweep_report/config.yaml
 job_type: benchmark
 method: nudity
 
-grid_dir: experiments/exp074_split_step_frac_sweep/grid_TIMESTAMP  # placeholder, see above
+grid_dir: experiments/exp074_split_step_frac_sweep/grid_20260803_133224
 grid_key: split_step_frac
 # split_latent_frame=7 -> concept region starts at pixel frame 25 (1+4*(7-1)) under the 1+4k mapping.
 second_half_start: 25
