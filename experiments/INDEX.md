@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (18)
+## Active (15)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -27,9 +27,6 @@ dataset that a live config still reads.
 | [exp070](exp070_frame_replace_church/notes.md) | imagenet | frame_replace | active | frame_replace erasure of 'church', in exp069's exact regime, isolating how much the method depends on the concept being localized. |
 | [exp071](exp071_eval_frame_replace_chainsaw/notes.md) | imagenet | eval | active | Reported ESR/PSR row for the chain-saw LoRA on the same 200 prompts and seeds as exp064/exp065. |
 | [exp072](exp072_eval_frame_replace_church/notes.md) | imagenet | eval | active | Reported ESR/PSR row for the church LoRA. With exp071 it decides whether the object pilot succeeded and whether the remaining eight classes are worth running. |
-| [exp073](exp073_frame_replace_nudity_finegrained/notes.md) | nudity | frame_replace | active | Zooming into exp062's 0-100 step window (eval every 20 steps) to separate genuine erasure from the generation-collapse artifact found at exp062's step-100 checkpoint. |
-| [exp074](exp074_split_step_frac_sweep/notes.md) | nudity | split_prompt/precompute | active | Sweeping split_step_frac (0.2-0.8) to replace the arbitrary 0.5 default with an empirically chosen value, ahead of the next frame_replace_split dataset build. |
-| [exp075](exp075_split_step_frac_sweep_report/notes.md) | nudity | benchmark | ready | Aggregate NudeNet report over exp074's split_step_frac grid. exp074 submitted (helios, grid_20260803_133224); config.yaml's grid_dir filled in. Ready to submit once exp074's 7 runs finish generating. |
 
 ## Archive (57)
 

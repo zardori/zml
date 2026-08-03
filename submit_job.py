@@ -2,7 +2,7 @@
 """Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT]
+    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT] [--skip-path-check]
 
 Arguments:
     cluster   Cluster name: athena or helios
@@ -11,6 +11,9 @@ Arguments:
 Options:
     --slurm   Path to SLURM script relative to remote dir; defaults to slurm/athena.sh
               for athena and slurm/helios.sh for helios
+    --skip-path-check
+              Submit even if config input paths are missing on the cluster (escape hatch for
+              a job that produces its own inputs)
 
 Example:
     ./submit_job.py athena experiments/exp062_frame_replace_nudity_eta2/config.yaml
@@ -23,6 +26,10 @@ unlearn) selects the entrypoint and is exported to the SLURM script as JOB_TYPE.
 
 If the config contains any list-valued fields, a grid search is performed: one sbatch job
 is submitted per combination in the Cartesian product of all list fields.
+
+Before submitting, the cluster repo is pulled and every repo-relative data path the config names is
+checked to exist there — in your repo or in a peer's (slurm/check_config_paths.sh). A missing path
+aborts the submission instead of failing the job minutes after it starts.
 """
 
 import argparse
@@ -35,8 +42,12 @@ from pathlib import Path
 
 import yaml
 
+from zml.paths import DATA_PREFIXES
+
 
 SCRIPTS_DIR = Path(__file__).parent
+
+PATH_CHECK_SCRIPT = "slurm/check_config_paths.sh"
 
 CLUSTER_DEFAULT_SLURM: dict[str, str] = {
     "athena": "slurm/athena.sh",
@@ -88,6 +99,52 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def config_data_paths(config: dict) -> list[str]:
+    """Repo-relative data paths the config references, in config order and de-duplicated.
+
+    Uses the same `DATA_PREFIXES` rule as the runtime resolution in `zml/paths.py`, so what is
+    verified here is exactly what the entrypoints will later try to open (and nothing else — a
+    HF model id like `THUDM/CogVideoX-5b` contains a slash but is not a path). List values are
+    flattened so a grid that sweeps over a path field has all its variants checked.
+    """
+    paths: list[str] = []
+    for value in config.values():
+        for item in value if isinstance(value, list) else [value]:
+            if isinstance(item, str) and item.startswith(DATA_PREFIXES) and item not in paths:
+                paths.append(item)
+    return paths
+
+
+def remote_precheck(
+    host: str,
+    remote_dir: str,
+    cluster: str,
+    paths: list[str],
+    config_path: str | None,
+    skip_path_check: bool,
+) -> None:
+    """Pull the cluster repo and verify the config's input paths exist there; abort if not.
+
+    Runs before any sbatch so a mistyped or never-uploaded input costs a second, not a queue slot
+    and half an hour. The pull comes first because it may be what brings the inputs in.
+    """
+    print(f"Pulling latest on {cluster}...")
+    subprocess.run(["ssh", host, f"cd {remote_dir} && git pull"], check=True)
+
+    check_args = ["--config", config_path] if config_path else []
+    check_args += [cluster, *paths]
+    check_cmd = " ".join(shlex.quote(arg) for arg in [PATH_CHECK_SCRIPT, *check_args])
+    result = subprocess.run(["ssh", host, f"cd {remote_dir} && {check_cmd}"])
+    if result.returncode == 0:
+        return
+    if skip_path_check:
+        print("Continuing despite the failed path check (--skip-path-check).")
+        return
+    print("Aborted: config path check failed. Re-run with --skip-path-check to submit anyway.",
+          file=sys.stderr)
+    sys.exit(1)
+
+
 def expand_grid(config: dict) -> list[dict]:
     """Return all combinations from Cartesian product of list-valued fields."""
     grid_keys = [k for k, v in config.items() if isinstance(v, list)]
@@ -124,7 +181,7 @@ def submit_scalar(
         f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_path},OUTPUT_DIR={output_dir}"
         f" {slurm_script}"
     )
-    remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && git pull && {sbatch_cmd}"
+    remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && {sbatch_cmd}"
     print(f"Submitting on {cluster}...")
     print(f"  Command: {sbatch_cmd}")
     subprocess.run(["ssh", host, remote_cmd], check=True)
@@ -185,9 +242,6 @@ def submit_grid(
         print("Aborted.")
         sys.exit(1)
 
-    print(f"\nPulling latest on {cluster}...")
-    subprocess.run(["ssh", host, f"cd {remote_dir} && git pull"], check=True)
-
     for i, combo in enumerate(combos, start=1):
         run_dir = f"{grid_base}/run_{i:03d}"
         config_remote = f"{run_dir}/config.yaml"
@@ -216,6 +270,11 @@ def parse_args() -> argparse.Namespace:
         "--slurm",
         default=None,
         help="Path to SLURM script relative to remote dir (default: slurm/athena.sh for athena, slurm/helios.sh for helios)",
+    )
+    parser.add_argument(
+        "--skip-path-check",
+        action="store_true",
+        help="Submit even if config input paths are missing on the cluster",
     )
     return parser.parse_args()
 
@@ -250,7 +309,17 @@ def main() -> None:
         sys.exit(1)
     job_type = config.pop("job_type", DEFAULT_JOB_TYPE)
 
-    if any(isinstance(v, list) for v in config.values()):
+    is_grid = any(isinstance(v, list) for v in config.values())
+    # A grid's per-run configs are written on the cluster, so only a scalar run reads a config
+    # that has to be there already.
+    remote_precheck(
+        host, remote_dir, args.cluster,
+        paths=config_data_paths(config),
+        config_path=None if is_grid else args.config,
+        skip_path_check=args.skip_path_check,
+    )
+
+    if is_grid:
         submit_grid(host, remote_dir, slurm_script, args.config, config, args.cluster,
                     slurm_time=slurm_time, job_type=job_type)
     else:

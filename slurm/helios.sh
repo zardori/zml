@@ -25,7 +25,7 @@ export TRANSFORMERS_CACHE=$HF_HOME
 export DIFFUSERS_CACHE=$HF_HOME
 
 # Search path for config inputs produced by another member's run (see slurm/peer_roots.sh).
-ZML_PEER_ROOT_TEMPLATE="/net/scratch/hscra/plgrid/{user}/zml" source slurm/peer_roots.sh
+ZML_CLUSTER=helios source slurm/peer_roots.sh
 
 # Untracked secrets (e.g. OPENROUTER_API_KEY for the search job's prompt proposer). Never commit it.
 set -a; source "$HOME/.openrouter_env" 2>/dev/null; set +a
