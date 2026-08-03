@@ -9,6 +9,10 @@ single mean±std row — the same shape as the papers' ``Original``. A per-class
 numbers; several per-class runs of the same method are also aggregated into a mean±std row so ours is
 read the same way as theirs.
 
+Each report holds both ranking conventions (``docs/imagenet_objects.md`` §3.1), so one table is
+printed per convention: 1000-way is the ESD-faithful primary, 10-way is the one whose magnitudes are
+comparable with the published rows.
+
 Run:  uv run python tools/build_imagenet_table.py
 """
 
@@ -23,6 +27,9 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 METRICS = ("ESR-1", "ESR-5", "PSR-1", "PSR-5")
+# Mirrors imagenet_eval.RESTRICTED_KEY; duplicated so this stays a torch-free standalone script.
+RESTRICTED_KEY = "restricted"
+CONVENTIONS = ((False, "1000-way (ESD-faithful)"), (True, "10-way, restricted to the ten classes"))
 
 # T2VUnlearning (arXiv 2505.17550) Table 4, CogVideoX-2B, mean±std over the ten erased classes.
 # Reference only — a different base model and frame count, see docs/imagenet_objects.md.
@@ -44,15 +51,17 @@ class Row:
     scores: dict[str, tuple[float, float | None]]  # metric -> (value, std or None)
 
 
-def _row_from_report(path: Path, report: dict, experiments_dir: Path) -> Row:
+def _row_from_report(path: Path, report: dict, experiments_dir: Path, restricted: bool) -> Row | None:
+    """One table row, or None if the report predates the requested convention."""
     experiment = path.relative_to(experiments_dir).parts[0]  # experiments/<exp>/outputs_*/esr_psr.json
     erased = report.get("erased_class")
+    block = report.get(RESTRICTED_KEY) if restricted else report
+    if block is None:
+        return None
     if erased is None:
         # Base-model run: ESR/PSR for each class in turn, already summarized.
-        label = f"{experiment} (all classes)"
-        return Row(label, {m: (report["mean"][m], report["std"][m]) for m in METRICS})
-    label = f"{experiment} [{erased}]"
-    return Row(label, {m: (report[m], None) for m in METRICS})
+        return Row(f"{experiment} (all classes)", {m: (block["mean"][m], block["std"][m]) for m in METRICS})
+    return Row(f"{experiment} [{erased}]", {m: (block[m], None) for m in METRICS})
 
 
 def _aggregate(rows: list[Row], label: str) -> Row | None:
@@ -93,20 +102,27 @@ def main() -> None:
         print(f"No esr_psr.json found under {experiments_dir}. Pull results first.")
         return
 
-    ours = [_row_from_report(p, json.loads(p.read_text()), experiments_dir) for p in reports]
-    aggregate = _aggregate(ours, "OUR RUNS (mean over classes)")
+    parsed = [(p, json.loads(p.read_text())) for p in reports]
+    for restricted, title in CONVENTIONS:
+        ours = [r for p, rep in parsed if (r := _row_from_report(p, rep, experiments_dir, restricted))]
+        if not ours:
+            print(f"\n## {title}\n\n(no report carries this convention — re-score with "
+                  f"`python -m zml.eval.imagenet_eval --rescore ...`)")
+            continue
 
-    rows: list[Row] = []
-    if not args.skip_published:
-        rows += [Row(name, {m: scores[m] for m in METRICS}) for name, scores in PUBLISHED.items()]
-    rows += ours
-    if aggregate is not None:
-        rows.append(aggregate)
+        rows: list[Row] = []
+        if not args.skip_published:
+            rows += [Row(name, {m: scores[m] for m in METRICS}) for name, scores in PUBLISHED.items()]
+        rows += ours
+        if (aggregate := _aggregate(ours, "OUR RUNS (mean over classes)")) is not None:
+            rows.append(aggregate)
 
-    _print_table(rows)
+        print(f"\n## {title}\n")
+        _print_table(rows)
+
     print(
-        "\nPaper rows are CogVideoX-2B / 17-frame; ours are CogVideoX-5b / 49-frame. "
-        "See docs/imagenet_objects.md for the deviations before comparing directly."
+        "\nPaper rows are CogVideoX-2B / 17-frame; ours are CogVideoX-5b / 49-frame, and the paper "
+        "never states which convention it scored under. See docs/imagenet_objects.md §3.1."
     )
 
 

@@ -10,6 +10,7 @@ are put through the weights' own inference transforms, so a video frame is prepr
 an ImageNet validation image: resize to 232 on the short side, center crop 224, normalize.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -56,8 +57,12 @@ class ImageNetFrameClassifier:
         self.model = resnet50(weights=weights).eval().to(self.device)
         print(f"ImageNetFrameClassifier ready on {self.device} (ResNet-50 IMAGENET1K_V2)")
 
-    def _probs(self, frames: list[np.ndarray]) -> torch.Tensor:
-        """Softmax probabilities for every frame, shape (num_frames, 1000)."""
+    def probs(self, frames: list[np.ndarray]) -> torch.Tensor:
+        """Softmax probabilities for every frame, shape (num_frames, 1000).
+
+        Exposed alongside ``classify`` so a caller that needs several rankings of the same clip
+        (e.g. both ESR/PSR conventions) pays for the forward pass once.
+        """
         # BGR uint8 HWC -> RGB uint8 CHW, which is what the weights' transforms expect.
         batch = torch.from_numpy(np.stack([f[:, :, ::-1] for f in frames])).permute(0, 3, 1, 2)
         out = []
@@ -68,15 +73,36 @@ class ImageNetFrameClassifier:
         return torch.cat(out)
 
     def classify(
-        self, frames: list[np.ndarray], target_index: int, k: int = DEFAULT_TOP_K
+        self,
+        frames: list[np.ndarray],
+        target_index: int,
+        k: int = DEFAULT_TOP_K,
+        restrict_to: Sequence[int] | None = None,
     ) -> FrameClassification:
-        """Top-k predictions per frame plus the target class's probability per frame."""
+        """Top-k predictions per frame plus the target class's probability per frame.
+
+        With ``restrict_to``, the ranking happens within that subset of classes only — the
+        restricted ESR/PSR convention of ``docs/imagenet_objects.md`` §3.1. Returned indices stay
+        absolute ImageNet-1k indices either way, so a caller's ``topk_indices == target_index`` test
+        needs no knowledge of which convention produced them.
+        """
         if not frames:
             return FrameClassification(
                 topk_indices=np.empty((0, k), dtype=np.int64), target_probs=np.empty(0, dtype=np.float32)
             )
-        probs = self._probs(frames)
+        probs = self.probs(frames)
         return FrameClassification(
-            topk_indices=probs.topk(k, dim=1).indices.numpy(),
+            topk_indices=self.topk_indices(probs, k, restrict_to),
             target_probs=probs[:, target_index].numpy(),
         )
+
+    @staticmethod
+    def topk_indices(
+        probs: torch.Tensor, k: int = DEFAULT_TOP_K, restrict_to: Sequence[int] | None = None
+    ) -> np.ndarray:
+        """Absolute ImageNet indices of the k most probable classes, optionally within a subset."""
+        if restrict_to is None:
+            return probs.topk(k, dim=1).indices.numpy()
+        subset = torch.as_tensor(restrict_to, dtype=torch.long)
+        ranked = probs[:, subset].topk(min(k, len(subset)), dim=1).indices
+        return subset[ranked].numpy()

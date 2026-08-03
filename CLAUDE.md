@@ -152,7 +152,9 @@ A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame det
    positional shortcut gone?). Then scale the dataset and add a nudity `related`/preservation set.
 2. **Second concept: ImageNet objects** — protocol implemented (per-frame ResNet-50, ESR/PSR via
    `mode: imagenet`), two-class pilot in exp064–exp072, chain saw and church. exp064 (base-model
-   reference) is the gate on the rest. Write-up: **`docs/imagenet_objects.md`**.
+   reference) is **done and passed the gate**; datasets exp066–exp068 are next. ESR/PSR is reported
+   under two ranking conventions (1000-way and restricted to the ten classes) because the papers do
+   not state theirs. Write-up: **`docs/imagenet_objects.md`**.
 3. Keep improving the core method (retention/collateral, eta regime, localization).
 
 Which concepts other T2V unlearning papers erase, with what detectors and prompt sets, and why we

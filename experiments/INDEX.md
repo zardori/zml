@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (15)
+## Active (18)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -18,7 +18,7 @@ dataset that a live config still reads.
 | [exp061](exp061_split_nudity_dataset/notes.md) | nudity | frame_replace_split/precompute | done | First nudity frame_replace dataset, 30 triples (prompts/split_nudity.csv, seeds 3101-3130). 20/29 auto-kept; human review left 12 confirmed-good triples in metadata_human_filtered.json. |
 | [exp062](exp062_frame_replace_nudity_eta2/notes.md) | nudity | frame_replace | active | The pilot deciding whether split-prompt -> frame_replace transfers to nudity, and whether the positional shortcut is gone. Run 1: concept detection 0.1 -> 0.6 (step 500) -> 0.4 (step 600), unrelated held. Needs exp063's base reference to be interpretable. |
 | [exp063](exp063_eval_base_nudity/notes.md) | nudity | eval | active | Base-model reference on exp062's exact nudity and unrelated sets — without it exp062's detection numbers cannot be read. |
-| [exp064](exp064_eval_base_imagenet/notes.md) | imagenet | eval | active | Base-model ESR/PSR on the ImageNet object protocol — the 'Original' row everything in exp066-exp072 is read against, and the calibration of frame_concept_threshold. |
+| [exp064](exp064_eval_base_imagenet/notes.md) | imagenet | eval | done | Gate passed: chain saw (.506 top-1) and church (.739) both render, so the pilot is viable. Base mean top-1 is 55% vs the paper's 78% purely because of ImageNet sibling classes (cassette player/cassette/tape player, springer/setter, tench/barracouta) — restricting the ranking to the ten protocol classes gives 90% and reproduces their top-5 row, so we now report both conventions. frame_concept_threshold calibrated to 0.05 (chain saw) / 0.03 (church). |
 | [exp065](exp065_negprompt_imagenet/notes.md) | imagenet | eval | active | NegPrompt baseline row, to separate 'our erasure works' from 'our protocol is easy to score well on'. |
 | [exp066](exp066_split_chainsaw_dataset/notes.md) | imagenet | frame_replace_split/precompute | active | Split-prompt frame_replace dataset for 'chain saw', 30 triples (seeds 3201-3230) — the easy, spatially localized half of the object pilot. |
 | [exp067](exp067_split_church_dataset/notes.md) | imagenet | frame_replace_split/precompute | active | Split-prompt frame_replace dataset for 'church', 30 triples (seeds 3301-3330) — the scene-level class that tests the localization claim from the other side. |
@@ -27,6 +27,9 @@ dataset that a live config still reads.
 | [exp070](exp070_frame_replace_church/notes.md) | imagenet | frame_replace | active | frame_replace erasure of 'church', in exp069's exact regime, isolating how much the method depends on the concept being localized. |
 | [exp071](exp071_eval_frame_replace_chainsaw/notes.md) | imagenet | eval | active | Reported ESR/PSR row for the chain-saw LoRA on the same 200 prompts and seeds as exp064/exp065. |
 | [exp072](exp072_eval_frame_replace_church/notes.md) | imagenet | eval | active | Reported ESR/PSR row for the church LoRA. With exp071 it decides whether the object pilot succeeded and whether the remaining eight classes are worth running. |
+| [exp073](exp073_frame_replace_nudity_finegrained/notes.md) | nudity | frame_replace | active | Zooming into exp062's 0-100 step window (eval every 20 steps) to separate genuine erasure from the generation-collapse artifact found at exp062's step-100 checkpoint. |
+| [exp074](exp074_split_step_frac_sweep/notes.md) | nudity | split_prompt/precompute | active | Sweeping split_step_frac (0.2-0.8) to replace the arbitrary 0.5 default with an empirically chosen value, ahead of the next frame_replace_split dataset build. |
+| [exp075](exp075_split_step_frac_sweep_report/notes.md) | nudity | benchmark | ready | Aggregate NudeNet report over exp074's split_step_frac grid. exp074 submitted (helios, grid_20260803_133224); config.yaml's grid_dir filled in. Ready to submit once exp074's 7 runs finish generating. |
 
 ## Archive (57)
 

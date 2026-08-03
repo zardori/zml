@@ -15,9 +15,14 @@ class in turn as the hypothetical erased one, plus mean and std across the ten �
 the papers' ``Original`` row and its ± are produced, from a single generation pass.
 
 Generation is resumable: an existing non-empty video file is not regenerated, so a job that hits its
-SLURM wall clock can be resubmitted and pick up where it stopped.
+SLURM wall clock can be resubmitted and pick up where it stopped. A finished run can also be
+re-scored without a GPU pipeline at all::
+
+    uv run python -m zml.eval.imagenet_eval --rescore experiments/expNNN_.../outputs_TS \\
+        --prompts-csv prompts/imagenet_objects.csv
 """
 
+import argparse
 import json
 import os
 from dataclasses import dataclass
@@ -30,7 +35,7 @@ import wandb
 from diffusers.utils import export_to_video
 
 from zml.benchmarks.check_for_object import VideoObjectDetector
-from zml.benchmarks.imagenet_classes import IMAGENETTE_CLASSES, class_slug
+from zml.benchmarks.imagenet_classes import IMAGENETTE_CLASSES, IMAGENETTE_INDICES, class_slug
 from zml.benchmarks.imagenet_classifier import ImageNetFrameClassifier
 from zml.eval.clip_score import VideoClipScorer
 from zml.eval.colorfulness import VideoColorfulnessScorer
@@ -44,6 +49,10 @@ REQUIRED_COLUMNS = ("prompt", "seed", "class_name")
 # k values of the protocol's ESR-k / PSR-k. Fixed rather than configurable: they define the metric
 # every published table reports, and a list-valued config field would trip submit_job.py's grid search.
 TOP_K = 5
+HEADLINE_METRICS = ("ESR-1", "ESR-5", "PSR-1", "PSR-5")
+# Key under which the 10-way-restricted copy of the whole report is nested. The top level stays
+# 1000-way so existing readers of esr_psr.json keep working.
+RESTRICTED_KEY = "restricted"
 # `negative_prompt: auto` expands to the erased class name — the NegPrompt baseline.
 AUTO_NEGATIVE_PROMPT = "auto"
 
@@ -82,11 +91,21 @@ class Config:
 
 @dataclass
 class ClassScores:
-    """Frame-pooled classification of every clip generated for one class."""
+    """Frame-pooled classification of every clip generated for one class.
+
+    ``top1``/``top5`` are the 1000-way convention; the ``_restricted`` pair ranks within the ten
+    protocol classes only. Both are reported — see ``docs/imagenet_objects.md`` §3.1.
+    """
 
     top1: float
     top5: float
     num_videos: int
+    top1_restricted: float = 0.0
+    top5_restricted: float = 0.0
+
+    def restricted(self) -> "ClassScores":
+        """This class's restricted scores in the plain slots, so the ESR/PSR maths is shared."""
+        return ClassScores(top1=self.top1_restricted, top5=self.top5_restricted, num_videos=self.num_videos)
 
 
 def load_class_prompts(csv_path: str, limit: int | None = None) -> dict[str, list[tuple[str, int]]]:
@@ -111,9 +130,14 @@ def load_class_prompts(csv_path: str, limit: int | None = None) -> dict[str, lis
     return grouped
 
 
+def class_video_dir(eval_root: str, class_name: str) -> str:
+    """Where one class's clips live. Shared by generation and scoring so they cannot drift apart."""
+    return os.path.join(eval_root, class_slug(class_name))
+
+
 def _generate_class_videos(pipe, config: Config, class_name: str, prompts: list[tuple[str, int]],
                            eval_root: str) -> str:
-    video_dir = os.path.join(eval_root, class_slug(class_name))
+    video_dir = class_video_dir(eval_root, class_name)
     os.makedirs(video_dir, exist_ok=True)
     negative_prompt = config.resolved_negative_prompt()
 
@@ -137,6 +161,8 @@ def _generate_class_videos(pipe, config: Config, class_name: str, prompts: list[
 
 def compute_esr_psr(per_class: dict[str, ClassScores], erased_class: str) -> dict[str, float]:
     """ESR/PSR percentages for one choice of erased class."""
+    if erased_class not in per_class:
+        raise ValueError(f"No scores for erased class {erased_class!r}; have {sorted(per_class)}.")
     others = [s for name, s in per_class.items() if name != erased_class]
     if not others:
         raise ValueError("PSR needs at least one preserved class.")
@@ -155,12 +181,31 @@ def _leave_one_out_report(per_class: dict[str, ClassScores]) -> dict:
     counts as erased, not from repeated sampling.
     """
     rows = {name: compute_esr_psr(per_class, name) for name in per_class}
-    metrics = ["ESR-1", "ESR-5", "PSR-1", "PSR-5"]
     return {
         "per_erased_class": rows,
-        "mean": {m: float(np.mean([r[m] for r in rows.values()])) for m in metrics},
-        "std": {m: float(np.std([r[m] for r in rows.values()])) for m in metrics},
+        "mean": {m: float(np.mean([r[m] for r in rows.values()])) for m in HEADLINE_METRICS},
+        "std": {m: float(np.std([r[m] for r in rows.values()])) for m in HEADLINE_METRICS},
     }
+
+
+def _scores_block(per_class: dict[str, ClassScores], erased_class: str | None) -> dict:
+    """Per-class accuracies plus the ESR/PSR summary, under whichever convention ``per_class`` holds."""
+    block: dict = {
+        "per_class": {
+            name: {"top1": round(s.top1, 4), "top5": round(s.top5, 4), "num_videos": s.num_videos}
+            for name, s in per_class.items()
+        }
+    }
+    if erased_class is not None:
+        block.update(compute_esr_psr(per_class, erased_class))
+    else:
+        block.update(_leave_one_out_report(per_class))
+    return block
+
+
+def _headline(block: dict, erased_class: str | None) -> dict[str, float]:
+    """The four numbers a table row is made of, however the block was built."""
+    return {m: block[m] for m in HEADLINE_METRICS} if erased_class is not None else block["mean"]
 
 
 def _quality_scores(video_dir: str, prompts: list[str]) -> dict[str, float]:
@@ -175,6 +220,72 @@ def _quality_scores(video_dir: str, prompts: list[str]) -> dict[str, float]:
     }
 
 
+def score_existing(
+    output_dir: str,
+    class_prompts: dict[str, list[tuple[str, int]]],
+    erased_class: str | None = None,
+    lora_checkpoint_dir: str | None = None,
+    negative_prompt: str | None = None,
+) -> dict:
+    """Classify the videos already under ``output_dir`` and write ``esr_psr.json``.
+
+    Split out of ``main`` at the pipeline boundary so re-scoring a finished run — after a metric
+    change, say — costs minutes on a laptop instead of regenerating 200 clips on a cluster.
+    """
+    eval_root = os.path.join(output_dir, f"eval_step_{EVAL_STEP}")
+    # One classifier shared across all ten target classes; loading ResNet-50 per class is wasteful.
+    classifier = ImageNetFrameClassifier()
+    per_class: dict[str, ClassScores] = {}
+    quality: dict[str, dict[str, float]] = {}
+
+    for name, prompts in class_prompts.items():
+        video_dir = class_video_dir(eval_root, name)
+        scores = VideoObjectDetector(
+            video_dir=video_dir, target_class=name, top_k=TOP_K, classifier=classifier,
+            restrict_to=IMAGENETTE_INDICES,
+        ).process_videos()
+        per_class[name] = ClassScores(
+            top1=scores["object_top1_accuracy"],
+            top5=scores["object_top5_accuracy"],
+            num_videos=int(scores["total_videos"]),
+            top1_restricted=scores["object_top1_accuracy_restricted"],
+            top5_restricted=scores["object_top5_accuracy_restricted"],
+        )
+        quality[name] = _quality_scores(video_dir, [p for p, _ in prompts])
+        s = per_class[name]
+        print(f"{name}: top1={s.top1:.4f} top5={s.top5:.4f} "
+              f"(10-way {s.top1_restricted:.4f}/{s.top5_restricted:.4f})")
+
+    restricted = {name: s.restricted() for name, s in per_class.items()}
+    report: dict = {
+        "erased_class": erased_class,
+        "lora_checkpoint_dir": lora_checkpoint_dir,
+        "negative_prompt": negative_prompt,
+        **_scores_block(per_class, erased_class),
+        RESTRICTED_KEY: _scores_block(restricted, erased_class),
+        "quality": quality,
+    }
+    with open(os.path.join(output_dir, "esr_psr.json"), "w") as f:
+        json.dump(report, f, indent=2)
+
+    headline = _headline(report, erased_class)
+    print(f"ESR/PSR (1000-way): {json.dumps(headline, indent=2)}")
+    print(f"ESR/PSR (10-way):   {json.dumps(_headline(report[RESTRICTED_KEY], erased_class), indent=2)}")
+    return report
+
+
+def _log_headlines(report: dict, erased_class: str | None, disable_mlflow: bool) -> None:
+    metrics = {f"eval/{k}": round(v, 2) for k, v in _headline(report, erased_class).items()}
+    metrics |= {
+        f"eval/{RESTRICTED_KEY}/{k}": round(v, 2)
+        for k, v in _headline(report[RESTRICTED_KEY], erased_class).items()
+    }
+    if not disable_mlflow:
+        for key, value in metrics.items():
+            mlflow.log_metric(key, value, step=EVAL_STEP)
+    wandb.log(metrics, step=EVAL_STEP)
+
+
 def main(config: Config) -> dict:
     class_prompts = load_class_prompts(config.prompts_csv, config.eval_num_prompts_per_class)
     eval_root = os.path.join(config.output_dir, f"eval_step_{EVAL_STEP}")
@@ -182,52 +293,31 @@ def main(config: Config) -> dict:
 
     pipe = build_eval_pipeline(config.model_id, config.lora_checkpoint_dir)
     pipe.transformer.eval()
+    for name, prompts in class_prompts.items():
+        _generate_class_videos(pipe, config, name, prompts, eval_root)
 
-    video_dirs = {
-        name: _generate_class_videos(pipe, config, name, prompts, eval_root)
-        for name, prompts in class_prompts.items()
-    }
-
-    # One classifier shared across all ten target classes; loading ResNet-50 per class is wasteful.
-    classifier = ImageNetFrameClassifier()
-    per_class: dict[str, ClassScores] = {}
-    quality: dict[str, dict[str, float]] = {}
-    for name, video_dir in video_dirs.items():
-        scores = VideoObjectDetector(
-            video_dir=video_dir, target_class=name, top_k=TOP_K, classifier=classifier
-        ).process_videos()
-        per_class[name] = ClassScores(
-            top1=scores["object_top1_accuracy"],
-            top5=scores["object_top5_accuracy"],
-            num_videos=int(scores["total_videos"]),
-        )
-        quality[name] = _quality_scores(video_dir, [p for p, _ in class_prompts[name]])
-        print(f"{name}: top1={per_class[name].top1:.4f} top5={per_class[name].top5:.4f}")
-
-    report: dict = {
-        "erased_class": config.erased_class,
-        "lora_checkpoint_dir": config.lora_checkpoint_dir,
-        "negative_prompt": config.resolved_negative_prompt(),
-        "per_class": {
-            name: {"top1": round(s.top1, 4), "top5": round(s.top5, 4), "num_videos": s.num_videos}
-            for name, s in per_class.items()
-        },
-    }
-    if config.erased_class is not None:
-        report.update(compute_esr_psr(per_class, config.erased_class))
-        headline = {k: report[k] for k in ("ESR-1", "ESR-5", "PSR-1", "PSR-5")}
-    else:
-        report.update(_leave_one_out_report(per_class))
-        headline = report["mean"]
-
-    report = {**report, "quality": quality}
-    with open(os.path.join(config.output_dir, "esr_psr.json"), "w") as f:
-        json.dump(report, f, indent=2)
-    print(f"ESR/PSR: {json.dumps(headline, indent=2)}")
-
-    if not config.disable_mlflow:
-        for key, value in headline.items():
-            mlflow.log_metric(f"eval/{key}", round(value, 2), step=EVAL_STEP)
-    wandb.log({f"eval/{k}": round(v, 2) for k, v in headline.items()}, step=EVAL_STEP)
-
+    report = score_existing(
+        output_dir=config.output_dir,
+        class_prompts=class_prompts,
+        erased_class=config.erased_class,
+        lora_checkpoint_dir=config.lora_checkpoint_dir,
+        negative_prompt=config.resolved_negative_prompt(),
+    )
+    _log_headlines(report, config.erased_class, config.disable_mlflow)
     return report
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Re-score a finished imagenet eval run in place.")
+    parser.add_argument("--rescore", required=True, metavar="OUTPUT_DIR",
+                        help="An outputs_TIMESTAMP dir holding eval_step_0/<class_slug>/*.mp4")
+    parser.add_argument("--prompts-csv", required=True, help="The prompt CSV the run was generated from")
+    parser.add_argument("--erased-class", default=None,
+                        help="Omit for a base-model run (reports ESR/PSR for every class in turn)")
+    args = parser.parse_args()
+
+    score_existing(
+        output_dir=args.rescore,
+        class_prompts=load_class_prompts(args.prompts_csv),
+        erased_class=args.erased_class,
+    )

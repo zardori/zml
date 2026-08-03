@@ -60,8 +60,8 @@ a pretrained ImageNet **ResNet-50**, and VideoEraser reports ResNet-50 explicitl
 `IMAGENET1K_V2` weights with their own inference transforms, so a video frame is preprocessed exactly
 like an ImageNet validation image.
 
-Classification is **1000-way**, not 10-way. A 10-way decision would make top-5 nearly free and the
-published numbers meaningless to compare against.
+Every number is reported under **two ranking conventions**, because the papers do not say which they
+used and the choice moves the numbers by ~20 points — see §3.1.
 
 ## 3. Deviations from the papers
 
@@ -75,6 +75,41 @@ published numbers meaningless to compare against.
 Our rows are therefore "same protocol, different base model", not a drop-in replication. State that
 whenever the tables are put side by side; `tools/build_imagenet_table.py` prints the caveat under
 every table it emits.
+
+### 3.1 Two ranking conventions (1000-way and 10-way)
+
+Top-k accuracy needs a candidate set, and neither paper states theirs. The two readings are:
+
+- **1000-way** — rank over all of ImageNet-1k. Faithful to ESD's stated setup, and the stricter test
+  of preservation, but it charges the model for *taxonomy* rather than *rendering*.
+- **10-way (restricted)** — rank within the ten protocol classes only. Immune to sibling-class
+  confusion, and a harder test of erasure: to raise ESR the model must render something that reads as
+  one of the other nine, not merely something ResNet-50 is unsure about.
+
+exp064 showed this is not a detail. Under 1000-way our base model's mean top-1 is 55.0%; restricted,
+it is 90.1%. The gap is almost entirely three classes whose ImageNet neighbours are near-duplicates:
+`cassette player` scores 7.4% top-1 while *cassette* (21.9%) and *tape player* (18.9%) take the mass,
+`English springer` loses to *Gordon setter* / *English setter*, and `tench` to *barracouta* / *gar*.
+The object is rendered correctly in each case; the classifier is splitting hairs that the protocol
+does not care about. Better prompts cannot fix this.
+
+**Which one did the papers use?** Probably something close to restricted. Re-scoring the same exp064
+frames 10-way lands the top-5 numbers almost exactly on T2VUnlearning's `Original` row (ESR-5 3.44 vs
+their 5.09, PSR-5 96.56 vs 94.91), where 1000-way is ~18 points adrift. Their PSR-5 of 94.91±0.92 is
+also hard to believe as a 1000-way number on a 2B model when our stronger 5b manages 76.52. This is
+inference, not evidence — hence reporting both rather than picking.
+
+**How it is implemented.** `ImageNetFrameClassifier.probs()` runs the network once and
+`topk_indices(probs, k, restrict_to)` ranks it; `restrict_to=IMAGENETTE_INDICES` maps back to
+absolute ImageNet indices so callers never learn which convention produced a hit. One forward pass
+serves both. In `esr_psr.json` the top level stays 1000-way and the restricted copy of the whole
+report — `per_class`, `per_erased_class`, `mean`, `std` — is nested under `"restricted"`.
+`tools/build_imagenet_table.py` prints one table per convention.
+
+**Re-scoring is free.** `python -m zml.eval.imagenet_eval --rescore <outputs_dir> --prompts-csv <csv>`
+reclassifies a finished run's videos without constructing the diffusion pipeline, so a metric change
+costs minutes on a laptop instead of hours of cluster time. exp064's report was produced this way
+after the fact.
 
 ## 4. Implementation
 
@@ -114,11 +149,27 @@ and must stay that way. We preserve the classes, not the test items.
 
 - **`frame_concept_threshold`** (`frame_replace_split_precompute`) — per-frame detector score above
   which a frame counts as containing the concept. For objects this is a ResNet-50 class probability,
-  which is *not* on the same scale as a NudeNet detection score: a clean stock photo of a golf ball
-  scores top-1 at probability ≈0.44, so a genuinely present object often sits well below 1.0. Too
-  high and every clip is skipped as `no_concept`; too low and the mask covers the whole clip, which
-  is skipped as `insufficient_donor_frames`. **Calibrate per class from exp064's videos** before
-  building a dataset — the configs ship 0.15 as a starting guess, not a validated value.
+  which is *not* on the same scale as a NudeNet detection score: church frames never exceed 0.49 even
+  when the building fills the frame, so a nudity-style 0.5 would mask nothing at all.
+
+  **The errors are not symmetric.** A frame *below* threshold becomes a donor
+  (`frame_replace_split_precompute.py:133-135`), so a false negative silently splices the object into
+  `x0_edited` and poisons the training target; a false positive only shrinks the donor pool and
+  surfaces loudly as `insufficient_donor_frames` in the skip list. **Err low.**
+
+  **Calibrate against the negative distribution**, not by eye: score the target class on the *other*
+  nine classes' clips and put the threshold just above that ceiling. From exp064 (8820 negative
+  frames, 980 positive per class):
+
+  | class | negative p99.9 / max | positive p25 / p50 / p75 | threshold | TPR | FPR |
+  |---|---|---|---|---|---|
+  | chain saw | 0.018 / 0.044 | 0.024 / 0.115 / 0.385 | **0.05** | 64.7% | 0.0% |
+  | church | 0.003 / 0.006 | 0.127 / 0.233 / 0.313 | **0.03** | ≥85% | 0.0% |
+
+  Separation is wide enough that false positives cost nothing anywhere in this range — which is why
+  the 0.15 the configs originally shipped was strictly worse than 0.05: it bought no precision and
+  discarded a fifth of the real concept frames. Note the per-class spread (0.044 vs 0.006): do not
+  assume one class's threshold transfers to another.
 - **`detection_threshold`** (`VideoObjectDetector`, default 0.5) — fraction of a clip's frames that
   must be top-1 the target for the clip to count as containing it. Only affects the house-style
   `object_detection_rate` used as a live-training signal; ESR/PSR are frame-pooled and ignore it.
@@ -141,7 +192,7 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 
 | exp | what | status |
 |---|---|---|
-| exp064 | base-model ESR/PSR over all ten classes; the `Original` row and the sanity gate for classifier + prompts | not yet run |
+| exp064 | base-model ESR/PSR over all ten classes; the `Original` row and the sanity gate for classifier + prompts | **done** — gate passed, see below |
 | exp065 | NegPrompt baseline, chain saw + church (grid) | not yet run |
 | exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | not yet run |
 | exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | not yet run |
@@ -150,10 +201,29 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp070 | frame_replace erasure of church, same regime | not yet run |
 | exp071 / exp072 | reported ESR/PSR for the two LoRAs | not yet run |
 
-**Run exp064 first.** It is cheap relative to the rest, it fills a row we need regardless, and it is
-the gate on everything else: if base ESR-1 comes out near 80 rather than the tens, the prompts are not
-rendering their classes or the classifier path is wrong, and no dataset built before that is worth
-anything. It also supplies the videos `frame_concept_threshold` is calibrated from.
+**exp064 (done) — the gate, and what it changed.** 200 videos in 5.71 h on athena. Both pilot classes
+render well (chain saw top-1 .506 / top-5 .795, church .739 / .950), so the pilot is viable and the
+datasets are worth building. It also produced the two things everything downstream needed: the
+calibrated thresholds in §5, and the discovery that the ranking convention is ambiguous (§3.1). Full
+numbers, per-class weak spots and the yield risks carried into exp066/exp069:
+`experiments/exp064_eval_base_imagenet/notes.md`.
+
+Our `Original` row, both conventions, against the published one:
+
+| row | ESR-1↑ | ESR-5↑ | PSR-1↑ | PSR-5↑ |
+|---|---|---|---|---|
+| ours 5b/49f, 1000-way | 45.01 ± 25.22 | 23.90 ± 20.11 | 54.99 ± 2.80 | 76.10 ± 2.23 |
+| ours 5b/49f, 10-way | 9.91 ± 9.57 | 3.44 ± 5.56 | 90.09 ± 1.06 | 96.56 ± 0.62 |
+| T2VUnlearning 2B/17f | 21.62 ± 20.13 | 5.09 ± 8.23 | 78.38 ± 2.24 | 94.91 ± 0.92 |
+
+Mean ESR-1 and mean PSR-1 sum to 100 by construction: averaged over all ten choices of erased class,
+both collapse to the overall mean top-1 accuracy. An `Original` row carries two independent numbers,
+not four — worth knowing before reading agreement into it.
+
+**Reproducibility floor.** ResNet-50 inference is not bit-identical across GPUs: scoring exp064's
+same video files on the A100 that generated them versus on a local card moved per-class top-1 by
+~0.002 and ESR-5 by 0.42, as near-tie frames flip under different cuDNN kernels. Sub-1-point
+differences between runs are noise; the effects this protocol is meant to detect are tens of points.
 
 Published reference (CogVideoX-2B, T2VUnlearning Table 4) that our rows will sit next to:
 

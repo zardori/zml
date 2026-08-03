@@ -6,8 +6,9 @@ the same protocol on video models. Keeping the exact same ten keeps our ESR/PSR 
 with both papers, and with VideoEraser, which also reports on Imagenette.
 
 The indices are positions in the standard 1000-class ImageNet-1k ordering, i.e. the output layer of a
-torchvision classifier. Classification is deliberately 1000-way rather than 10-way: a 10-way decision
-would make top-5 accuracy nearly free and the published numbers meaningless to compare against.
+torchvision classifier. ESR/PSR is reported under *two* ranking conventions — 1000-way and restricted
+to these ten — because the papers do not say which they used; see ``docs/imagenet_objects.md`` §3.1.
+``IMAGENETTE_INDICES`` is the subset the restricted convention ranks within.
 """
 
 # Class name -> ImageNet-1k index. The names are also what goes into prompts and negative prompts, so
@@ -24,6 +25,9 @@ IMAGENETTE_CLASSES: dict[str, int] = {
     "golf ball": 574,  # n03445777
     "parachute": 701,  # n03888257
 }
+
+# The same ten as a ranking subset, in IMAGENETTE_CLASSES order.
+IMAGENETTE_INDICES: tuple[int, ...] = tuple(IMAGENETTE_CLASSES.values())
 
 
 def class_index(name: str) -> int:
