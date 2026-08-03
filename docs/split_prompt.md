@@ -113,14 +113,17 @@ boundary), the interpolated donor can degenerate into a frozen frame, killing mo
 | exp059 / exp060 | Generate A/B/C + combined clips, inspect the splice | Splice works — coherent clip, clothed early / naked late |
 | exp061 (run 1) | First full nudity frame_replace dataset, 30 triples (`prompts/split_nudity.csv`, seeds 3101–3130) | 20/29 auto-kept (row 29/seed 3130 never processed — precompute likely cut short); manual review then dropped 8 more bad splices/edits → **12/29 confirmed-good** |
 | exp062 (run 1) | Pilot training on the 20-auto-kept dataset (exp057 eta=2 regime, `concept: nudity`) | `nudity_detection_rate` 0.1→0.6(step500)→0.4(step600); unrelated held at 0 detection / clip ~0.33 |
-| exp062 (run 2) | Retrain on the 12 human-confirmed-good triples | Pending |
-| exp061 (run 2) | Dataset felt too small at 12 — extended `split_nudity.csv` to 52 triples (kept the 12, added 40 new seeds 3131–3170, same template/knobs) | Pending |
+| exp062 (run 2) | Retrain on the 12 human-confirmed-good triples | Running |
+| exp061 (run 2) | Dataset felt too small at 12 — extended `split_nudity.csv` to 52 triples (kept the 12, added 40 new seeds 3131–3170, same template/knobs) | 31/52 auto-kept (12 originals reproduced deterministically + 19/40 new); row 51/seed 3170 missing entirely again (2nd time — likely a real "last row" bug); human review of the 19 new approved 9 → **21/52 confirmed-good total** |
+| exp062 (run 3) | Retrain on the 21 confirmed-good triples (`outputs_20260802_223148`) | Pending |
 
 If exp062 erases on full-nudity prompts with collateral held, the next step is to scale
 `split_nudity.csv` further. If it erases only the partial training clips, revisit de-biasing (more
 `concept_region` mixing, concept-in-the-middle layouts). Also worth investigating: the auto-kept
-yield has been low (~41-67% depending on the pass) — tuning `split_step_frac`/`split_latent_frame`
-could reduce wasted generation before scaling much further.
+yield has been low and human review knocks it down further (run 2's new triples: 47.5% auto-kept,
+then only 47% of those passed review, ~22.5% overall) — tuning `split_step_frac`/`split_latent_frame`
+could reduce wasted generation before scaling much further. The disappearing-last-row bug (rows
+29 and 51, both times the final CSV row) is now a repeated pattern worth investigating directly.
 
 ## 6. Generalizing to a new concept
 

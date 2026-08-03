@@ -2,15 +2,16 @@ method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept selector)
 
-# Run 2: human-reviewed subset of exp061's dataset. metadata.json (20 auto-kept triples) was
-# manually reviewed; 8 more dropped as bad splices/edits on top of the 9 auto-skipped
-# (no_concept / insufficient_donor_frames), leaving 12 confirmed-good triples in
-# metadata_human_filtered.json (committed at the exp061 folder root, unlike metadata.json which
-# lives under the gitignored outputs_ dir) — see exp061/notes.md and prompts/split_nudity.csv,
-# pruned to match. latents_dir is unchanged: the kept triples' latent files already exist there
-# from the original exp061 precompute run (large binaries, intentionally not committed).
+# Run 3: human-reviewed subset of exp061's extended (52-triple) dataset. 31/52 auto-kept (the
+# original 12 all reproduced as good; 19/40 new triples auto-kept). Human review of the 19 new
+# auto-kept approved 9 (seeds 3133/3134/3147/3152/3154/3155/3157/3163/3169) — 10 more dropped as
+# bad splices/edits. Combined with the 12 originals: 21 confirmed-good triples in
+# metadata_human_filtered.json (committed at the exp061 folder root; see exp061/notes.md,
+# human_rejected.json, and prompts/split_nudity.csv). latents_dir points at the new precompute
+# run (outputs_20260802_223148) since all 21 approved entries' latent files were regenerated
+# there (large binaries, intentionally not committed).
 metadata_file: experiments/exp061_split_nudity_dataset/metadata_human_filtered.json
-latents_dir: experiments/exp061_split_nudity_dataset/outputs_20260726_172848/latents
+latents_dir: experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents
 # Retention: reuse exp041 general-quality preservation anchors (fire-era, but concept-agnostic
 # general prompts — good enough to keep the pilot from collapsing overall quality).
 retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json

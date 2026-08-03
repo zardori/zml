@@ -6,9 +6,7 @@
 job_type: precompute
 method: frame_replace_split
 
-csv_path: prompts/split_nudity.csv   # 52 A/B/C triples (extended from the 12 human-confirmed-good
-                                      # rows kept after exp061's first pass; seeds 3103-3129 are the
-                                      # originals, 3131-3170 are new)
+csv_path: prompts/split_nudity.csv   # 30 A/B/C triples
 model_id: THUDM/CogVideoX-5b
 num_inference_steps: 50
 guidance_scale: 6.0
@@ -25,5 +23,5 @@ min_donor_frames: 2
 concept: nudity
 save_videos: true        # keep original+edited MP4s to eyeball the edit
 
-# 52 targets x (~1.5 gen + decode + 2 detection passes); scaled up from the 8h/30-target estimate.
-slurm_time: "0-16:00:00"
+# 30 targets x (~1.5 gen + decode + 2 detection passes); comfortable on helios.
+slurm_time: "0-08:00:00"
