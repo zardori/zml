@@ -1,0 +1,33 @@
+# split_step_frac hyperparameter sweep. exp059 picked 0.5 (half the schedule stays split A/B, the
+# other half heals on the shared neutral prompt C) somewhat arbitrarily and it happened to work; we
+# never checked whether it's actually a good point. Per docs/split_prompt.md #2: too-short a split
+# phase washes the concept out, too-long leaves a visible seam. This sweeps split_step_frac to find
+# where the concept region is cleanly nude (per NudeNet) while the donor region stays clean, ahead of
+# picking a final value for the next full frame_replace_split dataset build.
+#
+# split_latent_frame is held fixed at 7 (exp059/exp061's base value, before per-row jitter). Only
+# split_step_frac is swept; submit_job.py grid-searches automatically over list-valued fields, one
+# job per value below.
+#
+# `skip_plain_abc: true` skips regenerating the A/B/C reference clips (they don't depend on
+# split_step_frac at all, and were already validated in exp059/060) so each grid job only pays for the
+# 5 "combined" generations that actually vary.
+# Run: ./submit_job.py helios experiments/exp074_split_step_frac_sweep/config.yaml
+job_type: precompute
+method: split_prompt
+
+csv_path: prompts/split_nudity_sweep.csv
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: second
+split_jitter: 0
+skip_plain_abc: true
+save_latents: false
+
+split_step_frac: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+# 5 rows x 1 generation/job; comfortable headroom.
+slurm_time: "0-02:00:00"

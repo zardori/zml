@@ -73,6 +73,10 @@ class Config:
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
     save_latents: bool = True
+    # Skip the plain A/B/C generations and only produce the "combined" split clip. A/B/C don't depend
+    # on split_latent_frame/split_step_frac, so a hyperparameter sweep over those (many grid jobs, same
+    # rows) would otherwise regenerate three identical clips per row in every job for no reason.
+    skip_plain_abc: bool = False
 
 
 def resolve_split(config: Config, rng: random.Random) -> tuple[int, str]:
@@ -224,12 +228,13 @@ def main(config: Config) -> None:
             stem = f"p{idx}_s{seed}"
             sf, region = resolve_split(config, random.Random(seed))
             clips = {
-                "A": _generate_plain(pipe, row["prompt_a"], seed, config),
-                "B": _generate_plain(pipe, row["prompt_b"], seed, config),
-                "C": _generate_plain(pipe, row["prompt_c"], seed, config),
                 "combined": generate_split_clip(
                     pipe, row["prompt_a"], row["prompt_b"], row["prompt_c"], seed, config, sf, region),
             }
+            if not config.skip_plain_abc:
+                clips["A"] = _generate_plain(pipe, row["prompt_a"], seed, config)
+                clips["B"] = _generate_plain(pipe, row["prompt_b"], seed, config)
+                clips["C"] = _generate_plain(pipe, row["prompt_c"], seed, config)
             paths = {tag: _save(pipe, z, stem, tag, videos_dir, latents_dir, config.save_latents)
                      for tag, z in clips.items()}
             metadata.append({
