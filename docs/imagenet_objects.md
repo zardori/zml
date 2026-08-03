@@ -32,7 +32,8 @@ ESR-k = 1 - top-k accuracy of the erased class     (erasure success rate)
 PSR-k = mean top-k accuracy of the other nine      (preservation success rate)
 ```
 
-as percentages, at k = 1 and k = 5. The ± reported in the published tables is the spread **across the
+as percentages, at k = 1 and k = 5. Top-k means that we check if the correct class is in the k classes with
+the highest scores returned from the classifier. The ± reported in the published tables is the spread **across the
 ten choices of erased class**, not across repeated sampling — which is why a single base-model run
 (no class erased) fills the whole `Original` row: ESR/PSR are computed with each class in turn as the
 hypothetical erased one. `zml/eval/imagenet_eval.py::_leave_one_out_report` does exactly this.
