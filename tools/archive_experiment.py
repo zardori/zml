@@ -154,8 +154,23 @@ migrate() {
         return 0
     fi
     mkdir -p "$new"
-    find "$old" -mindepth 1 -maxdepth 1 -exec mv -t "$new" {} +
-    rmdir "$old"
+    local entry base
+    while IFS= read -r -d '' entry; do
+        base="$(basename "$entry")"
+        if [ -d "$entry" ] && [ -d "$new/$base" ]; then
+            # Both paths hold a run of the same name. Happens in a local checkout that
+            # rsynced a peer's pre-archive copy on top of its own archived one: merge
+            # rather than fail, the two are copies of the same run.
+            rsync -a --remove-source-files "$entry/" "$new/$base/"
+            find "$entry" -depth -type d -empty -delete
+        else
+            mv "$entry" "$new/"
+        fi
+    done < <(find "$old" -mindepth 1 -maxdepth 1 -print0)
+    if ! rmdir "$old" 2>/dev/null; then
+        echo "  ! $old not empty after merging into $new — left in place"
+        return 0
+    fi
     echo "  moved $old -> $new"
     moved=$((moved + 1))
 }

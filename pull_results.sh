@@ -40,6 +40,40 @@ else
     CLUSTERS=(athena helios)
 fi
 
+cd "$(dirname "$0")"
+
+# Archived experiments, by folder name -> the repo-relative path they now live at. A member
+# who has not run tools/migrate_experiments.sh still holds their artifacts at the *pre-archive*
+# path, and rsync cannot know the copy already sitting in experiments/archive/ is the same
+# data — so a plain pull re-downloads all of it and re-creates the flat layout locally. We
+# redirect those transfers into the archive path instead. Derived from the local archive tree,
+# so it covers every experiment ever archived, not just the recent ones.
+declare -A ARCHIVE_DEST=()
+while IFS= read -r dir; do
+    ARCHIVE_DEST["$(basename "$dir")"]="$dir"
+done < <(find experiments/archive -mindepth 2 -maxdepth 2 -type d -name 'exp*' 2>/dev/null)
+
+# Pull a peer's leftover pre-archive folders straight into their archive destination. One ssh
+# lists which of them that repo root actually still has, so migrated roots cost one round trip.
+pull_pre_archive() {
+    local host="$1" rdir="$2"; shift 2
+    local rsync_opts=("$@")
+    [[ ${#ARCHIVE_DEST[@]} -gt 0 ]] || return 0
+
+    local probe=() name stale
+    for name in "${!ARCHIVE_DEST[@]}"; do
+        probe+=("experiments/${name}")
+    done
+    stale=$(ssh "$host" "cd '${rdir}' 2>/dev/null && ls -d ${probe[*]} 2>/dev/null" || true)
+    [[ -n "$stale" ]] || return 0
+
+    while IFS= read -r remote_rel; do
+        name="$(basename "$remote_rel")"
+        echo "  <- ${rdir}/${remote_rel}/ (not migrated there) -> ${ARCHIVE_DEST[$name]}/"
+        rsync "${rsync_opts[@]}" "${host}:${rdir}/${remote_rel}/" "./${ARCHIVE_DEST[$name]}/"
+    done <<< "$stale"
+}
+
 pull_cluster() {
     local cluster="$1" host remote_dirs
     case "$cluster" in
@@ -57,10 +91,18 @@ pull_cluster() {
             rsync_opts+=(--exclude='*.mp4')
         fi
 
+        # The bulk transfer never re-creates a flat folder for an archived experiment;
+        # pull_pre_archive fetches those into experiments/archive/ instead.
+        local bulk_opts=("${rsync_opts[@]}") name
+        for name in "${!ARCHIVE_DEST[@]}"; do
+            bulk_opts+=(--exclude="/${name}/")
+        done
+
         echo "Pulling experiment outputs from all members (${cluster})..."
         for rdir in "${remote_dirs[@]}"; do
             echo "  <- ${host}:${rdir}/experiments/"
-            rsync "${rsync_opts[@]}" "${host}:${rdir}/experiments/" ./experiments/
+            rsync "${bulk_opts[@]}" "${host}:${rdir}/experiments/" ./experiments/
+            pull_pre_archive "$host" "$rdir" "${rsync_opts[@]}"
         done
     fi
 

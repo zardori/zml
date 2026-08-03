@@ -139,18 +139,20 @@ on each run. That is what makes it both idempotent and sufficient: nine trees ar
 one sitting, so a member who missed three archiving rounds still catches up with a single run of the
 current script.
 
-**Two things depend on all six remote trees being migrated.**
+**What still depends on the remote trees being migrated.** `zml/paths.py` resolves a missing
+repo-relative input by rebasing *the same relative string* onto each peer root. If the string is an
+archive path and a peer has not migrated, the lookup misses. It degrades to `WARNING: config path …
+not found` rather than crashing, but the job then fails on the missing file. Not destructive, but it
+means: **do not submit a job that reads archived data until the migration has been run everywhere.**
+Nothing in the live set does — only `exp041`, which does not move.
 
-- `pull_results.sh` rsyncs every member's `experiments/` into one local tree. A member still on the
-  old layout re-creates the old flat folders locally on the next pull.
-- `zml/paths.py` resolves a missing repo-relative input by rebasing *the same relative string* onto
-  each peer root. If the string is an archive path and a peer has not migrated, the lookup misses.
-  It degrades to `WARNING: config path … not found` rather than crashing, but the job then fails on
-  the missing file.
-
-Neither is destructive; both mean the same thing: **do not submit a job that reads archived data
-until the migration has been run everywhere.** Nothing in the live set does — only `exp041`, which
-does not move.
+`pull_results.sh` no longer depends on it. It used to rsync an un-migrated peer's `experiments/`
+verbatim, which re-created the flat folders locally and re-downloaded every archived artifact on
+*every* pull — rsync compares paths, and the copy already sitting in `experiments/archive/` is
+invisible to it (mtimes were never the problem; they survive the move intact). It now skips archived
+folder names in the bulk transfer and pulls a peer's pre-archive copies straight into their archive
+destination, where the size/mtime check makes them a no-op. The mapping is derived from the local
+`experiments/archive/` tree, so it needs no bookkeeping of its own.
 
 Per `CLAUDE.md`, cluster commands and job submission are done by the project owners.
 
