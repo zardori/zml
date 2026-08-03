@@ -17,10 +17,12 @@ split_step_frac: 0.5
 
 concept: object
 concept_target: "church"
-# See exp066: calibrate against exp064's church/ videos before submitting. Church is a whole-frame
-# scene, so its per-frame probability may sit higher than a compact object's — do not assume 0.15
-# transfers.
-frame_concept_threshold: 0.15
+# Calibrated on exp064, and lower than exp066's on purpose: p(church) on the other nine classes'
+# 8820 frames never exceeds 0.006, an order of magnitude tighter than chain saw's 0.044, while church
+# clips sit at median 0.233. 0.03 therefore still clears the negative ceiling by 5x and catches ~85%
+# of true concept frames. Church never scores above 0.49 anywhere, so a nudity-style 0.5 would mask
+# nothing at all. Same err-low rationale as exp066.
+frame_concept_threshold: 0.03
 min_donor_frames: 2
 save_videos: true
 

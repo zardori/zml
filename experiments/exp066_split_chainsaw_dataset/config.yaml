@@ -20,12 +20,13 @@ split_step_frac: 0.5
 # Detection -> concept mask.
 concept: object
 concept_target: "chain saw"
-# Per-frame ResNet-50 probability of the target class. Unlike NudeNet detection scores, classifier
-# probabilities are spread over sibling classes even for a clearly visible object (a clean stock
-# photo of a golf ball scores ~0.44), so this is set low. CALIBRATE against exp064's chain_saw/
-# videos before submitting — too high skips every clip as `no_concept`, too low masks the whole clip
-# and skips it as `insufficient_donor_frames`.
-frame_concept_threshold: 0.15
+# Per-frame ResNet-50 probability of the target class. Calibrated on exp064: over 8820 frames of the
+# other nine classes, p(chain saw) never exceeds 0.044, while chain-saw clips sit at median 0.115
+# (p75 0.385). So 0.05 clears the negative ceiling at 0% false positives and still keeps 65% of true
+# concept frames. Erring low is deliberate — a frame *below* threshold becomes a donor, so a false
+# negative silently leaks the object into x0_edited, while a false positive only shrinks the donor
+# pool and shows up loudly as `insufficient_donor_frames`.
+frame_concept_threshold: 0.05
 min_donor_frames: 2
 save_videos: true        # keep original+edited MP4s; the human review of exp061 dropped 8 of 20
 
