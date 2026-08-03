@@ -5,7 +5,7 @@ The experiment folders are the source of truth; this only renders them. Every ex
 carries a small YAML frontmatter block at the top of its ``notes.md``::
 
     ---
-    status: superseded        # active | done | superseded | abandoned
+    status: superseded        # ready | active | done | superseded | abandoned
     concept: fire             # fire | nudity | imagenet | none
     method: frame_replace     # mirrors config.yaml `method`
     thread: frame_replace_fire  # required once archived
@@ -37,8 +37,9 @@ OUTPUT_MD = EXPERIMENTS_DIR / "INDEX.md"
 EXP_DIR_RE = re.compile(r"^exp\d{3}_")
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\s*\n", re.DOTALL)
 
-VALID_STATUSES = ("active", "done", "superseded", "abandoned")
+VALID_STATUSES = ("ready", "active", "done", "superseded", "abandoned")
 VALID_CONCEPTS = ("fire", "nudity", "imagenet", "none")
+LIVE_STATUSES = ("ready", "active")  # work not yet finished — never archive one
 RETIRED_STATUSES = ("superseded", "abandoned")
 
 REQUIRED_FIELDS = ("status", "concept", "method", "takeaway")
@@ -113,9 +114,9 @@ def validate(rel_dir: Path, data: dict) -> list[str]:
     if archived:
         if thread != rel_dir.parts[1]:
             problems.append(f"{where}: thread '{thread}' does not match its archive folder '{rel_dir.parts[1]}'")
-        # A finished-and-retired run is legitimately `done`; only `active` is contradictory.
-        if status == "active":
-            problems.append(f"{where}: archived but status is 'active'")
+        # A finished-and-retired run is legitimately `done`; only a live status is contradictory.
+        if status in LIVE_STATUSES:
+            problems.append(f"{where}: archived but status is '{status}'")
     return problems
 
 

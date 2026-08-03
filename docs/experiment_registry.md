@@ -31,7 +31,7 @@ Every experiment's `notes.md` starts with:
 
 ```yaml
 ---
-status: superseded        # active | done | superseded | abandoned
+status: superseded        # ready | active | done | superseded | abandoned
 concept: fire             # fire | nudity | imagenet | none
 method: frame_replace     # the pipeline; `foo/precompute` for a dataset build
 thread: frame_replace_fire
@@ -42,7 +42,7 @@ takeaway: >
 
 | field | meaning |
 |---|---|
-| `status` | `active` — in flight or about to be. `done` — finished, still a live reference or dataset. `superseded` — a later run replaced it. `abandoned` — configured but never run, or a dead end. Only `active` blocks archiving. |
+| `status` | `ready` — configured and committed, not submitted yet (often waiting on another run). `active` — in flight. `done` — finished, still a live reference or dataset. `superseded` — a later run replaced it. `abandoned` — configured but never run, or a dead end. The two live statuses (`ready`, `active`) block archiving; the two retired ones (`superseded`, `abandoned`) are what `INDEX.md` lists as ready to archive. |
 | `concept` | Which concept the run is about, or `none` for infrastructure. Validated against a fixed list. |
 | `method` | Mirrors `config.yaml`'s `method`, or the `job_type` when there is none (`eval`, `search`, `benchmark`). Dataset builds are written `frame_replace/precompute` so they are distinguishable from a training run of the same method in the index. |
 | `thread` | Which research thread it belongs to; also the archive subfolder. Must be a key of `THREAD_DOCS` in `tools/experiments_index.py`. |
@@ -95,7 +95,7 @@ frontmatter so the folder and the `INDEX.md` group can never disagree. Per exper
    moving anything, because some referencing files (grid `run_NNN/config.yaml`, sibling notes) live
    inside a folder that is about to move;
 3. `git mv`s the tracked files and `mv`s the untracked `outputs_*` / `logs_*` / `grid*` alongside;
-4. writes `tools/migrate_experiments_remote.sh`, the cluster-side companion.
+4. stacks the move onto `tools/migrate_experiments.sh`, the companion every *other* member replays.
 
 The reference rewrite matches the bare substring `experiments/expNNN_name`, not an anchored
 repo-relative path. That is deliberate: some eval configs carry an *absolute* cluster path
@@ -107,21 +107,39 @@ matches exactly one path component, so nesting an experiment one level deeper wo
 checkpoint and video git-tracked. They are now `experiments/**/…`. If you ever add a new artifact
 pattern, use `**`.
 
-## The cluster half
+## The other half: everyone else's trees
 
-Each member runs jobs from their own repo root on cluster scratch (`cluster.conf`:
-3 roots × 2 clusters = **6 trees**), and only their own is writable. `git pull` relocates the tracked
-`config.yaml`/`notes.md`; the untracked `outputs_*`/`logs_*` stay behind at the old path and must be
-moved separately:
+Archiving only fixes the tree it ran in. Each member also has a local checkout and their own repo
+root on cluster scratch (`cluster.conf`: 3 members × 2 clusters = **6 remote trees**, only your own
+writable). In every one of them `git pull` relocates the tracked `config.yaml`/`notes.md` while the
+untracked `outputs_*`/`logs_*` stay behind at the old path. One command per member fixes all three
+of their trees:
 
 ```bash
-cd $ROOT && git pull && bash tools/migrate_experiments_remote.sh
+git pull && tools/migrate_experiments.sh          # local checkout + athena + helios
+tools/migrate_experiments.sh --local              # or one target at a time
+tools/migrate_experiments.sh --cluster helios
 ```
 
-The script is idempotent — already-migrated experiments are skipped — because six roots will not be
-done in one sitting.
+It always runs **locally** — nothing has to be typed on a cluster, per `CLAUDE.md` §Working With the
+Clusters. Each cluster leg is one `ssh` that does `git pull` and then the migration, with the script
+itself piped to `bash -s`, so the cluster checkout needs no copy of it and always executes the
+version you have locally. Like `submit_job.py`, it warns (and asks) if you have uncommitted or
+unpushed work first: the clusters pull from the remote, so an archive move that exists only in your
+working tree would silently not happen there.
 
-**Two things depend on all six being migrated.**
+Per move it checks that the *tracked* half is already present (`git ls-files` on the destination)
+before touching artifacts. After the remote `git pull` that is normally true; on a tree that is
+behind — your local checkout, which is deliberately not auto-pulled — the artifacts are left alone
+and the run exits non-zero, rather than moving them into a path that a later `git pull` will also
+want to write.
+
+The script carries **every** move ever emitted, not just the last round's, and re-checks all of them
+on each run. That is what makes it both idempotent and sufficient: nine trees are never migrated in
+one sitting, so a member who missed three archiving rounds still catches up with a single run of the
+current script.
+
+**Two things depend on all six remote trees being migrated.**
 
 - `pull_results.sh` rsyncs every member's `experiments/` into one local tree. A member still on the
   old layout re-creates the old flat folders locally on the next pull.
