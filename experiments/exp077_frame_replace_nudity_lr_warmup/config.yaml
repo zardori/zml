@@ -1,0 +1,53 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept selector)
+
+# Follow-up to exp073. Human video review of exp073's clips (2026-08-04) found genuine erasure
+# (people really are clothed) but visible softness/lack of sharpness that none of our metrics catch
+# (clip_score/colorfulness/motion are semantic/color/movement proxies; DOVER, the metric that would
+# actually measure this, reads 0.0 because it's unavailable in this run's environment, not because
+# quality is truly zero). Circumstantial evidence for a cause: colorfulness was lowest exactly at
+# the earliest checkpoints (30.9 @ step 20 -> 47.4 @ step 100) under `lr_scheduler: constant` with no
+# warmup — i.e. this rank-8 LoRA, trained on only 21 triples, takes a full 5e-4 step from iteration 1.
+#
+# This grids `lr_warmup_steps` (new config field, added this session in unlearn_frame_replace.py:
+# linear ramp from ~0 to `learning_rate` over N steps before `lr_scheduler` takes over; 0 reproduces
+# the exact exp073 behavior) to test whether warmup fixes the softness without losing the erasure
+# signal. 0 is included as an in-run control so the comparison to the warmup values is apples-to-apples
+# (same GPU/queue-time noise profile), even though exp073 already covers that point.
+#
+# Identical dataset/regime/steps/save_interval to exp073 — only lr_warmup_steps varies.
+metadata_file: experiments/exp061_split_nudity_dataset/metadata_human_filtered.json
+latents_dir: experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+control_related_prompts: prompts/cogvideox_fire_control_unrelated.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+lr_warmup_steps: [0, 30, 60]
+steps: 100
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-08:00:00"

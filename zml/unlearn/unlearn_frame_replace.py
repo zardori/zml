@@ -108,6 +108,11 @@ class Config:
     # COSINE_LR_FLOOR_FRACTION * learning_rate so the LoRA settles instead of wandering
     # around the solution at full step size.
     lr_scheduler: str = "constant"
+    # Linear ramp from ~0 to learning_rate over this many steps before lr_scheduler takes over.
+    # 0 disables (LR is at full value from step 1, the original behavior). Guards against the
+    # first few steps of a small-dataset LoRA fine-tune taking a full-size step before the model
+    # has seen much data.
+    lr_warmup_steps: int = 0
     timestep_min: int = 0  # SFT samples raw train timesteps uniformly in [min, max)
     timestep_max: int = 1000
     num_frames: int = 49  # generation geometry (pixel frames)
@@ -324,13 +329,27 @@ def main(config: Config) -> None:
 
     optimizer = torch.optim.AdamW(transformer.parameters(), lr=config.learning_rate)
     if config.lr_scheduler == "cosine":
-        lr_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+        main_sched = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer, T_max=config.steps, eta_min=COSINE_LR_FLOOR_FRACTION * config.learning_rate
         )
     elif config.lr_scheduler == "constant":
-        lr_sched = None
+        main_sched = None
     else:
         raise ValueError(f"Unknown lr_scheduler {config.lr_scheduler!r}; expected 'constant' or 'cosine'.")
+
+    if config.lr_warmup_steps > 0:
+        warmup_sched = torch.optim.lr_scheduler.LinearLR(
+            optimizer, start_factor=1e-3, end_factor=1.0, total_iters=config.lr_warmup_steps
+        )
+        lr_sched = (
+            torch.optim.lr_scheduler.SequentialLR(
+                optimizer, schedulers=[warmup_sched, main_sched], milestones=[config.lr_warmup_steps]
+            )
+            if main_sched is not None
+            else warmup_sched  # LinearLR holds at end_factor (full LR) once total_iters is exceeded
+        )
+    else:
+        lr_sched = main_sched
 
     # Cache one T5 embedding per unique prompt (CFG-free; we handle no guidance here).
     # Both the erase and retention targets are keyed by prompt, so cache both prompt sets.
