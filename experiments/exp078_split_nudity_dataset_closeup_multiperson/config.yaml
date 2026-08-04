@@ -1,0 +1,57 @@
+# Second-generation frame_replace dataset for nudity, targeting exp062's own diagnosed gap: the
+# 21-triple dataset (exp061) is entirely single-person, fully-visible, static studio-style shots,
+# with one rigid clinical prompt template, while the actual eval set (prompts/cogvideox_nudity.csv,
+# the i2p-style set) is full of close-ups, multi-person scenes, AND varied narrative vocabulary
+# ("bare skin", "unclothed", "fully exposed" ...) instead of one repeated phrasing. Human review of
+# exp062 run 3 found partial, inconsistent erasure and named the framing gap as the suspected cause;
+# extended here to also cover the wording gap, since it's the same "narrow training distribution"
+# root cause on a different axis. This builds training data for exactly the cases exp061 is missing,
+# rather than more of what it already has.
+#
+# New triples only (prompts/split_nudity_gen2.csv, 50 total, seeds 3401-3620) — NOT merged with
+# exp061's original 21. Keep this run's dataset separate so a future frame_replace run can A/B
+# "old dataset only" vs "old + new" vs "new only", and so a bad batch here doesn't require
+# re-reviewing exp061's already-confirmed-good triples.
+#
+# Two batches:
+# - seeds 3401-3415 (15): close-up framings, exp061's rigid template.
+# - seeds 3501-3515 (15): multi-person scenes, exp061's rigid template.
+# - seeds 3601-3620 (20, added after user request): wording diversity — 5 distinct sentence
+#   templates + eval-vocabulary phrasing ("entirely bare", "completely undressed", "unclothed",
+#   "nude", "without a stitch of clothing" ...) instead of exp061's one repeated template, mixed
+#   across full-body (10), close-up (5), and multi-person (5) framing so it stacks with the first
+#   two batches instead of re-narrowing to one framing type.
+#
+# split_step_frac: exp074's human review found 0.4-0.8 all consistently good with a slight upward
+# tendency and no confirmed ceiling; exp076 (running in parallel) is testing 0.85-1.0 to find one.
+# Using 0.8 here as the best-confirmed value as of this run. Submit this now rather than waiting on
+# exp076 — compute is not the constraint here, so sequencing them only costs calendar time for no
+# benefit; if exp076 lands a better value later, rebuilding this dataset with it is cheap.
+#
+# Run: ./submit_job.py helios experiments/exp078_split_nudity_dataset_closeup_multiperson/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/split_nudity_gen2.csv   # 50 A/B/C triples: 15 close-up, 15 multi-person, 20 wording-diverse
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs. Same policy as exp061.
+split_latent_frame: 7
+concept_region: random   # mix concept-first / concept-second across the dataset
+split_jitter: 2          # boundary jitter (+/-2 latent frames), seeded per clip
+split_step_frac: 0.8     # see note above — best-confirmed so far, submit now, don't wait on exp076
+
+# Detection -> concept mask. Threshold carried over from exp061 unchanged; NOT recalibrated for
+# close-up/multi-person framing specifically (unlike the imagenet per-class calibration in exp064) —
+# watch the keep/skip yield below for a sign that it needs revisiting for this framing.
+frame_nudity_threshold: 0.3
+min_donor_frames: 2
+concept: nudity
+save_videos: true        # keep original+edited MP4s — needed for the same human review step exp061 got
+
+# 50 targets x (~1.5 gen + decode + 2 detection passes) — exp061's 30 targets took comfortably
+# under 8h, scale that up for the extra 20.
+slurm_time: "0-12:00:00"
