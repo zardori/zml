@@ -58,11 +58,12 @@ structure minus the clothing state, so C isn't a giveaway of which state A/B dif
 
 Split sampler knobs (`split_latent_frame: 7`, `concept_region: random`, `split_jitter: 2`) and
 `frame_nudity_threshold: 0.3` carried over unchanged from exp061 — same construction, new prompts
-only. `split_step_frac: 0.8` is the best-confirmed value as of this run: exp074's human review found
-0.4-0.8 all consistently good with an upward tendency and no confirmed ceiling, and exp076 (running
-in parallel) is testing 0.85-1.0 to find where it turns over. Submitting on 0.8 now rather than
-waiting for exp076 — compute isn't the constraint, so sequencing them only burns calendar time; if
-exp076 finds something better, rebuilding this dataset with the new value is cheap.
+only. `split_step_frac`: this experiment was submitted at `0.8` (best-confirmed value at the time,
+not blocking on exp076 since compute wasn't the constraint). exp076 has since landed
+(0.85-1.0 sweep) — see its notes.md — and the config here has been updated to `0.85` for the
+record / any future rebuild. **The already-queued run still executes at 0.8** — `submit_job.py`
+freezes the config at submission time, so this file's current value postdates that job. If a
+rebuild happens later, use 0.85.
 
 Kept deliberately **separate** from exp061's 21-triple dataset (not merged into
 `prompts/split_nudity.csv`) so a future frame_replace run can compare "old only" vs "old + new" vs
@@ -94,8 +95,9 @@ Feeds a new frame_replace run (exp062-successor, not yet created) — either com
 21 triples or as an "old vs new coverage" A/B, per the "Kept deliberately separate" note above.
 
 ## Status
-- [x] `split_step_frac` set to 0.8 (best-confirmed so far) — not blocking on exp076, see Setup.
-- [ ] Submitted.
+- [x] `split_step_frac`: submitted at 0.8; config updated to 0.85 post-hoc for any future rebuild
+      (see Setup) — the queued run itself is unaffected.
+- [x] Submitted (queued on helios, at split_step_frac 0.8).
 - [ ] Kept/skipped counts recorded; yield compared against exp061's ~70% auto-keep rate.
 - [ ] Human review of kept triples (close-up crop quality, multi-person donor edit sanity).
 - [ ] Next frame_replace run's dataset composition decided (old+new vs new-only vs A/B).

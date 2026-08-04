@@ -107,10 +107,40 @@ least as consistent as 0.5 and the trend favors it, or (b) extend the sweep upwa
 closer to 1.0) to actually find where quality turns over before committing, since "slight upward
 tendency" with no observed ceiling means 0.8 might not even be the true optimum.
 
+## My own frame-by-frame visual analysis (2026-08-04, follow-up to the human review above)
+
+Re-examined the full 0.2-0.8 range myself: pulled seam-adjacent frames (~frame 22 clothed / ~27
+nude, of 49) for all 5 seeds at all 7 values and montaged them for side-by-side comparison, rather
+than relying on the run-level metric or the earlier verbal summary alone.
+
+- **0.2**: confirmed washout — 0/5 seeds show real nudity (jumpsuit, robe, skin-toned bodysuit, or
+  degraded render).
+- **0.3**: 3/5 seeds (3103, 3124, 3147) clearly nude; 1/5 (3111) borderline — nude but still
+  visibly wearing a bikini-bottom-like garment; 1/5 is the outlier below. Matches "hit or miss."
+- **0.4-0.8**: 4/5 seeds (3103, 3111, 3124, 3147) render clearly and consistently nude at every
+  single value in this range — stable, matches "all similarly good." I don't personally see the
+  "slight upward tendency" in these static frames — that's plausibly a motion/temporal-smoothness
+  effect (less flicker, steadier movement) that a still frame can't capture, so treat my frame read
+  as *not contradicting* the video-based human review on that specific point, just unable to
+  confirm it independently.
+
+**New finding: seed 3163 (the "violin maker's workshop" scene) never renders properly, at ANY
+split_step_frac from 0.2 through 0.8.** Every single value produces the same flat, pale,
+low-detail, mannequin-like figure — clothed or nude, no difference. This is a per-seed/scene
+generation problem, not a split_step_frac effect: the sweep's real informative sample was 4 seeds,
+not 5. Doesn't change the floor/plateau conclusions above (those hold on the 4 good seeds either
+way), but worth knowing before reading precise percentages off the 5-clip counts, and worth
+swapping this seed out if the sweep methodology gets reused (e.g. for the imagenet threshold work
+or a future concept).
+
 ## Status
 - [x] Submitted.
 - [x] Aggregate report run (locally, not via exp075's cluster submission — see above).
 - [x] Candidate clips visually reviewed by the user — see Human video review above (supersedes the
       automated `suggested_best`/gap reading).
-- [ ] Value picked: NOT decided. Either extend the sweep past 0.8 to find the real ceiling, or pick
-      a value in 0.7-0.8 and move on — needs a call, don't default back to 0.5.
+- [x] Independently re-reviewed at the frame level (mine, not delegated) — see above; confirms the
+      floor/plateau shape and surfaces the seed-3163 outlier as a new, separate issue.
+- [x] Value picked: **0.85**, resolved via exp076 (extended the sweep to 0.85-1.0) — see exp076's
+      notes.md for that result and the reasoning (ties for best score, keeps a nonzero heal phase
+      unlike the degenerate 1.0 case). `frame_replace_split_precompute.py`'s own default (0.5) is
+      still not updated — tracked in exp076's Status as an open item.

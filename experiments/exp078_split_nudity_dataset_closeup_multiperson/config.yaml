@@ -22,11 +22,19 @@
 #   across full-body (10), close-up (5), and multi-person (5) framing so it stacks with the first
 #   two batches instead of re-narrowing to one framing type.
 #
-# split_step_frac: exp074's human review found 0.4-0.8 all consistently good with a slight upward
-# tendency and no confirmed ceiling; exp076 (running in parallel) is testing 0.85-1.0 to find one.
-# Using 0.8 here as the best-confirmed value as of this run. Submit this now rather than waiting on
-# exp076 — compute is not the constraint here, so sequencing them only costs calendar time for no
-# benefit; if exp076 lands a better value later, rebuilding this dataset with it is cheap.
+# split_step_frac: exp076 (0.85-1.0 sweep) landed. Quantitatively near-flat with a slight decline
+# past 0.85 (gap 0.560 at 0.85 -> 0.540 at 1.0); visual frame-by-frame check (seam frames across
+# 0.2/0.3/0.5/0.85/1.0, same seeds) found the clothed->nude transition is a hard cut at every
+# value, including the fully degenerate 1.0 case (zero shared/heal-phase steps) — coherence comes
+# from the shared initial noise + joint scheduler trajectory (and the VAE decode), not from
+# prompt-C conditioning. So 1.0 isn't visually worse, but it's also not better, and it's the most
+# out-of-distribution point in the sweep (zero jointly-conditioned steps) for no measured gain —
+# 0.85 ties for the best score while keeping a nonzero heal phase, so that's the pick.
+#
+# NOTE: exp078 was already submitted (queued on helios) when this was updated. submit_job.py
+# freezes the config at submission time, so that already-queued run executes at whatever
+# split_step_frac it was submitted with, NOT this file's current value — this edit is for the
+# record / any future rebuild, not a live change to the pending job.
 #
 # Run: ./submit_job.py helios experiments/exp078_split_nudity_dataset_closeup_multiperson/config.yaml
 job_type: precompute
@@ -42,7 +50,7 @@ guidance_scale: 6.0
 split_latent_frame: 7
 concept_region: random   # mix concept-first / concept-second across the dataset
 split_jitter: 2          # boundary jitter (+/-2 latent frames), seeded per clip
-split_step_frac: 0.8     # see note above — best-confirmed so far, submit now, don't wait on exp076
+split_step_frac: 0.85    # see note above — exp076's pick; NOT what the already-queued run used
 
 # Detection -> concept mask. Threshold carried over from exp061 unchanged; NOT recalibrated for
 # close-up/multi-person framing specifically (unlike the imagenet per-class calibration in exp064) —

@@ -63,7 +63,7 @@ class Config:
     split_latent_frame: int = 7
     concept_region: str = "random"  # mix sides across the dataset to break the positional shortcut
     split_jitter: int = 2
-    split_step_frac: float = 0.5
+    split_step_frac: float = 0.85
     # Detection -> mask.
     # Per-frame detector score above which a frame counts as containing the concept. The scale is
     # detector-specific (NudeNet detection score, ResNet-50 class probability), so it must be

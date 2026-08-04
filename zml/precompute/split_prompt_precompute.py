@@ -68,7 +68,7 @@ class Config:
     split_jitter: int = 0
     # Fraction of the denoising schedule to keep the A/B split before switching to the shared prompt C.
     # Early steps set global content (is the concept there?); the C tail heals the temporal seam.
-    split_step_frac: float = 0.5
+    split_step_frac: float = 0.85
     output_dir: str = "."
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
