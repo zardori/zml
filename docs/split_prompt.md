@@ -123,7 +123,12 @@ If exp062 erases on full-nudity prompts with collateral held, the next step is t
 yield has been low and human review knocks it down further (run 2's new triples: 47.5% auto-kept,
 then only 47% of those passed review, ~22.5% overall) — tuning `split_step_frac`/`split_latent_frame`
 could reduce wasted generation before scaling much further. The disappearing-last-row bug (rows
-29 and 51, both times the final CSV row) is now a repeated pattern worth investigating directly.
+29 and 51, both times the final CSV row) is **root-caused and fixed** (2026-08-04): in
+`frame_replace_split_precompute.py`, a skipped row hit `continue` before reaching the
+`metadata.json`/`skipped.json` writes, which only ran on the kept path — so a run whose trailing
+rows were all skips never flushed them to disk (silently correct in memory, silently wrong on
+disk). Rebuilding a dataset whose current `skipped.json` predates this fix may undercount skips at
+the tail; treat pre-fix skip counts near the end of a CSV as suspect.
 
 ## 6. Generalizing to a new concept
 

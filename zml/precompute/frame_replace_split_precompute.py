@@ -142,39 +142,42 @@ def main(config: Config) -> None:
             if skip_reason is not None:
                 skipped.append({"stem": stem, "seed": seed, "reason": skip_reason,
                                 "concept_region": region, "num_donor_latent_frames": len(nofire)})
-                continue
+            else:
+                # 3. Replace concept frames with (interpolated) donors -> x0_edited.
+                x0_edited, donor_map = edit_latent(z_bcfhw, concept_latent)
+                edited_confidences = detector.frame_confidences(decode_to_bgr_frames(pipe, x0_edited))
 
-            # 3. Replace concept frames with (interpolated) donors -> x0_edited.
-            x0_edited, donor_map = edit_latent(z_bcfhw, concept_latent)
-            edited_confidences = detector.frame_confidences(decode_to_bgr_frames(pipe, x0_edited))
+                edited_path = f"{stem}_x0edited.pt"
+                original_path = f"{stem}_x0original.pt"
+                torch.save(x0_edited.cpu(), os.path.join(latents_dir, edited_path))
+                torch.save(z_bcfhw.cpu(), os.path.join(latents_dir, original_path))
+                if config.save_videos:
+                    write_mp4(original_frames, os.path.join(videos_dir, f"{stem}_original.mp4"))
+                    write_mp4(decode_to_bgr_frames(pipe, x0_edited), os.path.join(videos_dir, f"{stem}_edited.mp4"))
 
-            edited_path = f"{stem}_x0edited.pt"
-            original_path = f"{stem}_x0original.pt"
-            torch.save(x0_edited.cpu(), os.path.join(latents_dir, edited_path))
-            torch.save(z_bcfhw.cpu(), os.path.join(latents_dir, original_path))
-            if config.save_videos:
-                write_mp4(original_frames, os.path.join(videos_dir, f"{stem}_original.mp4"))
-                write_mp4(decode_to_bgr_frames(pipe, x0_edited), os.path.join(videos_dir, f"{stem}_edited.mp4"))
+                metadata.append({
+                    "prompt": row["prompt_a"],  # the plain concept prompt we erase at inference
+                    "seed": seed,
+                    "latent_path": edited_path,
+                    "original_latent_path": original_path,
+                    "concept": config.concept,
+                    "concept_target": config.concept_target,
+                    "concept_latent_mask": concept_latent,
+                    "concept_pixel_mask": concept_pixel,
+                    "concept_region": region,
+                    "split_latent_frame": sf,
+                    "donor_map": {str(k): v for k, v in donor_map.items()},
+                    "frame_confidences": [round(c, 4) for c in confidences],
+                    "edited_frame_confidences": [round(c, 4) for c in edited_confidences],
+                    "original_max_confidence": round(max(confidences), 4),
+                    "edited_max_confidence": round(max(edited_confidences), 4),
+                    "scaling_factor": scaling_factor,
+                    "prediction_type": "v_prediction",
+                })
 
-            metadata.append({
-                "prompt": row["prompt_a"],  # the plain concept prompt we erase at inference
-                "seed": seed,
-                "latent_path": edited_path,
-                "original_latent_path": original_path,
-                "concept": config.concept,
-                "concept_target": config.concept_target,
-                "concept_latent_mask": concept_latent,
-                "concept_pixel_mask": concept_pixel,
-                "concept_region": region,
-                "split_latent_frame": sf,
-                "donor_map": {str(k): v for k, v in donor_map.items()},
-                "frame_confidences": [round(c, 4) for c in confidences],
-                "edited_frame_confidences": [round(c, 4) for c in edited_confidences],
-                "original_max_confidence": round(max(confidences), 4),
-                "edited_max_confidence": round(max(edited_confidences), 4),
-                "scaling_factor": scaling_factor,
-                "prediction_type": "v_prediction",
-            })
+            # Flush after every row (kept or skipped) so a crash/timeout never silently loses the
+            # tail of the CSV — previously this write only ran on the kept path, so trailing skips
+            # (e.g. the CSV's last rows) were recorded in memory but never reached skipped.json.
             with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:
                 json.dump(metadata, f, indent=2)
             with open(os.path.join(config.output_dir, "skipped.json"), "w") as f:
