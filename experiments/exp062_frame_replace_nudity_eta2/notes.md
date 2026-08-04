@@ -4,9 +4,12 @@ concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  The pilot deciding whether split-prompt -> frame_replace transfers to nudity, and whether the
-  positional shortcut is gone. Run 1: concept detection 0.1 -> 0.6 (step 500) -> 0.4 (step 600),
-  unrelated held. Needs exp063's base reference to be interpretable.
+  Run 3 (21 human-confirmed-good triples): NudeNet concept_detection_rate 0.2->0.2->0.1->0.0(step
+  400)->0.0(step 500)->0.1(step 600), no collapse signature. Human video review (2026-08-04):
+  partial unlearning happened but NudeNet's 0.0 overstates it — the detector isn't reliable on
+  clips with partial body visibility or multiple people, and the 21-triple dataset (all
+  single-person, fully-visible, static studio-style shots) doesn't cover those cases, so it likely
+  doesn't generalize to them. Not "erasure solved"; dataset breadth is the suspected next fix.
 ---
 # exp062 — frame_replace nudity erasure (pilot, eta=2, split-prompt dataset)
 
@@ -64,6 +67,51 @@ Config now points `metadata_file` at `metadata_human_filtered.json`; everything 
 retention, eval sets) unchanged from run 1, so this is a clean dataset-quality A/B. Small dataset
 (12 triples) — watch for overfitting/instability vs. run 1's 20.
 
-- [ ] Submitted (run 2, filtered 12-triple dataset).
-- [ ] Analysis (compare vs. run 1: does dropping the bad splices change erasure/collateral, or was
-  20→12 just fewer gradient-step-worth of variety for the same result).
+- [x] Submitted (run 2, filtered 12-triple dataset). Step-100 checkpoint showed
+  `nudity_detection_rate` down but with `motion_score_mean` ~0.03 and near-blank videos —
+  generation collapse, not genuine erasure (see exp073, which zoomed into this window).
+
+## Run 3 — 21-triple human-reviewed dataset (`outputs_20260803_123340`)
+`prompts/split_nudity.csv` extended back out to 52 rows (12 original + 40 new seeds), re-reviewed:
+21/52 confirmed-good total (`metadata_human_filtered.json`, updated). Same hyperparams as runs 1-2,
+just the larger, re-vetted dataset.
+
+Ran 11.49h to step 600 on athena. Per-checkpoint (concept / unrelated `concept_detection_rate`,
+concept `motion_score_mean` as the collapse tell — a blank video reads near 0 motion regardless of
+`nudity_detection_rate`):
+
+| step | concept det | concept motion | concept clip_score | unrelated det | unrelated motion |
+|--:|--:|--:|--:|--:|--:|
+| 100 | 0.2 | 0.176 | 0.286 | 0.0 | 1.884 |
+| 200 | 0.2 | 0.292 | 0.301 | 0.0 | 1.913 |
+| 300 | 0.1 | 0.391 | 0.307 | 0.0 | 2.519 |
+| 400 | **0.0** | 0.228 | 0.293 | 0.0 | 1.837 |
+| 500 | **0.0** | 0.221 | 0.305 | 0.0 | 1.658 |
+| 600 | 0.1 | 0.240 | 0.304 | 0.0 | 1.822 |
+
+`clip_score_mean`/`colorfulness_mean` for the concept set hold ~0.29-0.31 / 42-48 at every
+checkpoint — no drop-to-near-zero the way run 2's collapsed step-100 checkpoint showed. Not
+collapse, and not nothing: detection goes to 0.0 at steps 400-500 while the videos still generate
+normal-looking content, and unrelated stays at 0.0 detection throughout.
+
+**Human video review (2026-08-04) — softens the verdict above.** NudeNet's 0.0 does not mean "no
+longer shows nudity": watching the actual step-400/500 concept clips, some unlearning clearly
+happened, but not to the point of calling it erased. Read `nudity_detection_rate` here as a lower
+bound on residual nudity, not a ground-truth measurement — the detector is known to be imperfect,
+particularly on frames where the body isn't fully/cleanly visible. The suspected root cause is
+**dataset coverage, not detector calibration**: all 21 training triples are the same shot type
+(single person, full body visible, static studio-style framing — see `prompts/split_nudity.csv`).
+The failure mode the human review surfaced — residual nudity with partial body visibility and/or
+multiple people — is exactly the kind of scene this dataset never trained on, so it's an
+unsurprising generalization gap, not a sign the method itself is broken. Next step: extend
+`split_nudity.csv` with prompts covering partial visibility (cropped framing, objects/clothing
+partially occluding) and multi-person scenes before concluding anything about erasure strength.
+
+## Status
+- [ ] `nudity_related`/preservation-specific analysis (still using exp041's fire-era retention
+  anchors, per the Notes section above — untouched this round).
+- [ ] Extend `split_nudity.csv` with partial-visibility and multi-person triples (see human review
+  note above) — current dataset diversity, not the erase regime, is the likely blocker on
+  generalization.
+- [ ] Decide: once the dataset covers those cases, is this regime good enough to call "done" for
+  the pilot, or does it need further scaling?

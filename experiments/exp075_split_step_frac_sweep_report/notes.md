@@ -1,12 +1,12 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: benchmark
 thread: nudity
 takeaway: >
-  Aggregate NudeNet report over exp074's split_step_frac grid. exp074 submitted (helios,
-  grid_20260803_133224); config.yaml's grid_dir filled in. Ready to submit once exp074's 7 runs
-  finish generating.
+  Ran locally instead of submitting to a cluster (CPU-only, seconds not hours) once exp074's grid
+  finished. Results and the resulting split_step_frac verdict are recorded in exp074's notes.md —
+  this experiment folder holds the report code path, not a separate write-up.
 ---
 # exp075 — split_step_frac sweep report
 
@@ -17,8 +17,8 @@ plus a starting-point `suggested_best`. Uses `zml/benchmarks/nudity_report.py`'s
 mode (added alongside exp074 this session) instead of one report job per grid combination.
 
 ## Status
-- [x] `config.yaml`'s `grid_dir` filled in with exp074's actual `grid_{TIMESTAMP}` path
-      (`grid_20260803_133224`, helios).
-- [ ] Submitted (wait for exp074's 7 runs to finish generating first).
-- [ ] `sweep_summary.json` read; candidates near `suggested_best` visually checked (see exp074's
-      notes) before picking a final `split_step_frac`.
+- [x] `config.yaml`'s `grid_dir` filled in (`grid_20260803_133224`).
+- [x] Run — locally (`uv run python scripts/benchmark.py --config
+      experiments/exp075_split_step_frac_sweep_report/config.yaml --output_dir <dir>`), not
+      submitted as a cluster job; see exp074's notes.md for the numbers and verdict.
+- [x] Visual seam-quality check still outstanding — tracked in exp074's Status list, not here.

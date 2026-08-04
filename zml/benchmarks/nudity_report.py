@@ -169,10 +169,17 @@ def _main_grid(config: Config) -> None:
     sweep.sort(key=lambda r: r[config.grid_key])
 
     # A candidate optimum: the smallest split value that both localizes (second half clearly nude,
-    # first half clean) and clears the detection threshold with margin. Ties/near-ties and seam
-    # quality (visible-splice artifacts) are NOT captured by this per-frame nudity score and still
-    # need a human look at the actual clips before picking a final value.
-    candidates = [r for r in sweep if r["localized_to_second_half"] and r["first_half_max"] < config.frame_nudity_threshold]
+    # first half clean) AND actually renders the concept (second half clears the threshold with
+    # margin — a value where both halves score ~0 is a washout, not "localized", even though the
+    # gap-based localized_to_second_half check alone can't tell the two apart). Ties/near-ties and
+    # seam quality (visible-splice artifacts) are NOT captured by this per-frame nudity score and
+    # still need a human look at the actual clips before picking a final value.
+    candidates = [
+        r for r in sweep
+        if r["localized_to_second_half"]
+        and r["first_half_max"] < config.frame_nudity_threshold
+        and r["second_half_max"] > 2 * config.frame_nudity_threshold
+    ]
     best = min(candidates, key=lambda r: r[config.grid_key]) if candidates else None
 
     out = {

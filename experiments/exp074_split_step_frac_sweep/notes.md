@@ -1,11 +1,21 @@
 ---
-status: active
+status: done
 concept: nudity
 method: split_prompt/precompute
 thread: nudity
 takeaway: >
-  Sweeping split_step_frac (0.2-0.8) to replace the arbitrary 0.5 default with an empirically
-  chosen value, ahead of the next frame_replace_split dataset build.
+  Human video review (2026-08-04) OVERRIDES the NudeNet-gap verdict below. run_001 (0.2) and
+  run_002 (0.3) don't produce true nudity in ALL 5 cases — inconsistent/unreliable, not a total
+  washout (0.2's near-zero metric score suggested total failure; the human read is "hit or miss").
+  NudeNet's confident "localized" call on 0.3 (second-half max 0.637) doesn't match that
+  inconsistency either — another instance of the detector-unreliability pattern (see
+  [[feedback-detector-metrics-not-ground-truth]]). run_003-run_007 (0.4-0.8) all look similarly
+  good and consistent, with a slight upward tendency toward 0.8 — the opposite direction from what
+  the gap metric suggested (peak at 0.5, flat/declining after). No seam-failure ceiling was
+  observed up to 0.8, the highest value tested. **Do not keep 0.5 as "confirmed best" — the real
+  reliability floor is between 0.3 and 0.4, and the upper end (0.7-0.8) looks at least as good if
+  not slightly better; the sweep range may need extending upward to find where quality actually
+  turns over.**
 ---
 # exp074 — split_step_frac sweep
 
@@ -49,9 +59,58 @@ it only sees per-frame nudity scores, not seam quality. **Before locking in a va
 actual `run_*/outputs/videos/*_combined.mp4` clips** for the candidates near the suggested best (and
 one step above/below) to rule out the hard-seam failure mode the detector can't see.
 
+## Results (grid_20260803_133224, all 7 runs, 5 clips each)
+
+| split_step_frac | first_half_max | second_half_max | gap |
+|---:|---:|---:|---:|
+| 0.2 | 0.000 | 0.292 | 0.292 — washout, second half doesn't even clear the 0.3 detection threshold |
+| 0.3 | 0.184 | 0.637 | 0.453 |
+| 0.4 | 0.178 | 0.700 | 0.522 |
+| **0.5** | 0.172 | **0.738** | **0.566** — best gap |
+| 0.6 | 0.176 | 0.730 | 0.554 |
+| 0.7 | 0.175 | 0.720 | 0.545 |
+| 0.8 | 0.170 | 0.722 | 0.551 |
+
+(Run locally via `scripts/benchmark.py` against exp075's config once exp074's grid finished — no
+need to wait for a separate cluster submission for a CPU-only report. Also fixed a bug in
+`nudity_report.py`'s `suggested_best` heuristic while doing this: it originally only checked
+`first_half_max < threshold`, which let 0.2's total washout — both halves near zero — masquerade as
+"localized". Now also requires `second_half_max` to clear `2x` the threshold.)
+
+**Reading (superseded — kept for the record, see Human video review below):** at the time this
+looked like 0.4-0.8 plateauing within noise and 0.5 as a (non-decisive) peak. That reading trusted
+NudeNet's per-frame score as ground truth for "does this half show nudity," which the human review
+below shows was wrong specifically at 0.3.
+
+## Human video review (2026-08-04) — the actual verdict
+
+- **run_001 (0.2) and run_002 (0.3): don't produce true nudity in all 5 cases** — i.e. inconsistent
+  / unreliable across the 5 seeds, not a uniform failure. This is a different shape of problem than
+  0.2's near-zero metric score implied (which read as a clean total washout): the human read is
+  "hit or miss," not "never." NudeNet's confident "localized" call on 0.3 (second-half max 0.637,
+  comfortably above the automated threshold) doesn't reflect that inconsistency at all — another
+  concrete instance of [[feedback-detector-metrics-not-ground-truth]]: a single mean/max score
+  across 5 clips hides exactly this kind of per-seed unreliability. Worth checking per-clip (not
+  just per-run-mean) `frame_confidences` in `nudity_report_run_002.json` next time, to see if the
+  metric agrees at the individual-clip level even if the run-level mean doesn't.
+- **run_003 through run_007 (0.4-0.8): all look similarly good and consistent, with a slight
+  upward tendency** toward the high end. No seam artifact reported even at 0.8, the highest value
+  swept — so `docs/split_prompt.md`'s predicted "split phase too long -> visible hard seam" failure
+  mode wasn't reached within this range.
+
+**Consequence:** the real reliability floor sits between 0.3 and 0.4 (higher than the metric
+suggested), and there's no evidence of a ceiling yet — quality trends *up* toward 0.8, not down.
+Picking 0.5 because it "won" the gap metric would have picked the wrong direction; the metric's
+peak and the human verdict's trend point opposite ways above 0.4. Two reasonable next steps, not
+yet decided between: (a) adopt a value on the higher end (0.7-0.8) as the new default since it's at
+least as consistent as 0.5 and the trend favors it, or (b) extend the sweep upward (0.9, maybe
+closer to 1.0) to actually find where quality turns over before committing, since "slight upward
+tendency" with no observed ceiling means 0.8 might not even be the true optimum.
+
 ## Status
-- [ ] Submitted.
-- [ ] exp075 grid_dir filled in and run.
-- [ ] Candidate split_step_frac visually reviewed for seam quality.
-- [ ] Value picked, `frame_replace_split_precompute.py`'s default and exp061-successor config
-      updated.
+- [x] Submitted.
+- [x] Aggregate report run (locally, not via exp075's cluster submission — see above).
+- [x] Candidate clips visually reviewed by the user — see Human video review above (supersedes the
+      automated `suggested_best`/gap reading).
+- [ ] Value picked: NOT decided. Either extend the sweep past 0.8 to find the real ceiling, or pick
+      a value in 0.7-0.8 and move on — needs a call, don't default back to 0.5.
