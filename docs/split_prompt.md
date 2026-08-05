@@ -70,7 +70,7 @@ A/B/C triple + seed
   → generate_split_clip()            # combined partial-concept clip
   → concept latent mask              # known by construction: [sf:] or [:sf], see below
   → edit_mask = concept mask + boundary_margin  # push the donor further from the boundary
-  → edit_latent(..., edit_mask)      # concept block ← copy of the single nearest safe frame
+  → edit_latent_reflected(..., edit_mask)  # concept block ← reflected/bouncing fill, not a freeze
   → save x0_original + x0_edited (+ optional MP4s)
   → per-frame detection (logging only, does not gate keep/skip)
 ```
@@ -94,9 +94,24 @@ one frame disproportionately important: the heal phase (after `split_step_frac`)
 over the whole latent conditioned on prompt C, so a frame right next to the boundary can carry some
 bleed from the other side even though the split phase's conditioning was cleanly separated.
 `boundary_margin` (default 2) excludes that many latent frames closest to the boundary from being
-used as the donor, so the copied frame comes from further inside the safe region instead. The true
+used as the donor, so the copy comes from further inside the safe region instead. The true
 construction mask is still logged as `concept_latent_mask`; what was actually replaced (mask +
 margin) is `edited_latent_mask`.
+
+**`edit_latent_reflected` (added 2026-08-04, replaces `frame_replace_ops.edit_latent` for this
+script):** `boundary_margin` alone only changes *which* frame gets frozen — the frame-replace
+`edit_latent`'s docstring itself warns that a hard single-frame copy taught the model to hold still
+and globally suppressed motion (exp055: concept -84%, unrelated -29%), and split-prompt's
+construction hits that exact fallback on *every* clip, not as an edge case. Instead of freezing one
+donor across the whole block, `edit_latent_reflected` mirrors the safe segment's motion into the
+concept region — position 0 (nearest the boundary) maps to the safe frame immediately adjacent to
+it, then the source index walks deeper into the safe region as fill position moves away from the
+boundary, bouncing back and forth (reflect/boomerang, like `scipy`'s `reflect` padding mode) if the
+block is longer than the safe segment. The seam itself is unchanged (still a near-identical-content
+cut at the boundary); only what fills in *away* from the seam changes, from frozen to mirrored
+motion. `frame_replace_ops.edit_latent` itself is untouched — fire's naturally-flanked-on-both-sides
+concept blocks (`frame_replace_precompute.py`, `unlearn_frame_replace_online.py`) still use its
+two-sided interpolation, which is the right tool there.
 
 The **training prompt stored with each target is the plain concept prompt A**, never the split
 construction — at inference time that is the prompt we want to be safe.

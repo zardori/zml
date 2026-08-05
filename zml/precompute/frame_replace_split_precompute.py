@@ -14,6 +14,14 @@ over-triggering on multi-person scenes where one person's clothed frames still s
 present." See exp078's notes.md, 2026-08-04.) The detector still runs, but purely to log
 ``frame_confidences`` for human review — it no longer gates what gets kept.
 
+The concept block also always touches a clip edge (one side of the split), which means
+``frame_replace_ops.edit_latent``'s two-sided interpolation never actually engages here — it
+always falls back to copying the single safe frame nearest the boundary across the whole block, a
+known motion-suppression risk (see that function's docstring, exp055). ``edit_latent_reflected``
+below replaces that with a reflected/bouncing fill of the safe segment's motion instead, so the
+edited region has real (if mirrored) motion rather than a frozen frame, still sourced only from
+frames outside ``boundary_margin`` of the boundary.
+
 Which detector runs is chosen by ``concept`` (+ ``concept_target``) through
 ``zml/benchmarks/registry.py``, so a new concept costs a prompt CSV and a detector, not a fork of
 this file.
@@ -46,7 +54,6 @@ from zml.unlearn.frame_replace_ops import (
     NUM_LATENT_FRAMES,
     NUM_PIXEL_FRAMES,
     decode_to_bgr_frames,
-    edit_latent,
     write_mp4,
 )
 
@@ -104,6 +111,48 @@ class Config:
             width=self.width, split_latent_frame=self.split_latent_frame, concept_region=self.concept_region,
             split_jitter=self.split_jitter, split_step_frac=self.split_step_frac, output_dir=self.output_dir,
         )
+
+
+def edit_latent_reflected(
+    latent: torch.Tensor, edit_mask: list[bool], region: str
+) -> tuple[torch.Tensor, dict[int, list[int]]]:
+    """Fill the frames marked True in ``edit_mask`` by mirroring the safe segment's motion inward
+    from the boundary, bouncing back and forth across the safe frames once the far end is reached,
+    instead of freezing a single donor frame across the whole block.
+
+    ``frame_replace_ops.edit_latent``'s two-sided interpolation never actually engages for this
+    construction — the concept block always touches a clip edge (one side of the split), so it
+    always hits that function's one-sided fallback: every replaced frame becomes an exact copy of
+    the single safe frame nearest the boundary. Per that function's own docstring, a hard
+    single-frame copy taught the model to hold still and suppressed motion (exp055: concept -84%,
+    unrelated -29%) — a real risk this construction hits on every clip, not an edge case. Playing
+    the safe segment backward (frame N-1, N-2, ..., 0, 1, 2, ..., bouncing) instead gives the model
+    a target with real, if mirrored, motion, sourced entirely from confirmed-safe frames.
+
+    Position 0 in the fill order (nearest the boundary) maps to the safe frame immediately adjacent
+    to it, so the seam itself stays a near-identical-content cut, same as the plain single-copy
+    version — this only changes what happens *away* from the seam.
+    """
+    safe = [i for i, e in enumerate(edit_mask) if not e]
+    fill = [i for i, e in enumerate(edit_mask) if e]
+    if region == "second":
+        safe_ordered = sorted(safe, reverse=True)  # nearest-to-boundary first
+        fill_ordered = sorted(fill)  # nearest-to-boundary first
+    else:
+        safe_ordered = sorted(safe)
+        fill_ordered = sorted(fill, reverse=True)
+
+    n = len(safe_ordered)
+    period = 2 * (n - 1) if n > 1 else 1
+    edited = latent.clone()
+    donor_map: dict[int, list[int]] = {}
+    for k, pos in enumerate(fill_ordered):
+        m = k % period
+        idx = m if m < n else period - m
+        donor = safe_ordered[idx]
+        edited[:, :, pos] = latent[:, :, donor]
+        donor_map[pos] = [donor]
+    return edited, donor_map
 
 
 def main(config: Config) -> None:
@@ -174,8 +223,10 @@ def main(config: Config) -> None:
                 confidences = detector.frame_confidences(original_frames)
                 concept_pixel = [c >= config.frame_concept_threshold for c in confidences]
 
-                # 3. Replace concept frames (+ boundary margin) with the far-side donor -> x0_edited.
-                x0_edited, donor_map = edit_latent(z_bcfhw, edit_mask)
+                # 3. Replace concept frames (+ boundary margin) with a reflected fill of the safe
+                # segment's motion -> x0_edited (see edit_latent_reflected's docstring for why this
+                # is used instead of frame_replace_ops.edit_latent's single-frame-copy fallback).
+                x0_edited, donor_map = edit_latent_reflected(z_bcfhw, edit_mask, region)
                 edited_confidences = detector.frame_confidences(decode_to_bgr_frames(pipe, x0_edited))
 
                 edited_path = f"{stem}_x0edited.pt"
