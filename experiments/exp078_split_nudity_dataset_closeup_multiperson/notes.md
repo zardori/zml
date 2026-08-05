@@ -16,8 +16,14 @@ takeaway: >
   (default 2): since the concept block always touches a clip edge here, `edit_latent` always copies
   the single nearest safe frame across the whole block rather than interpolating — that one frame's
   cleanliness matters a lot, and margin pulls it further from the boundary (which the heal phase's
-  joint cross-attention could otherwise have touched). **This dataset needs a rebuild with the
-  fixed script before use** — the current kept/skipped split undercounts real yield.
+  joint cross-attention could otherwise have touched). Then corrected further: margin alone only
+  changes *which* frame gets frozen, not the freeze itself — `edit_latent`'s own docstring warns a
+  hard single-frame copy suppresses motion (exp055: concept -84%, unrelated -29%), and this
+  construction hits that fallback on every clip. Replaced with `edit_latent_reflected` — mirrors
+  the safe segment's motion into the concept region (bouncing back and forth if needed) instead of
+  freezing one frame. **This dataset needs a rebuild with the fixed script before use** — the
+  current kept/skipped split undercounts real yield, and the kept clips' edited halves are frozen
+  single-frame copies rather than motion-preserving fills.
 ---
 # exp078 — split-prompt nudity dataset, close-up + multi-person coverage
 
