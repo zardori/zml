@@ -12,8 +12,12 @@ takeaway: >
   NudeNet-based mask/skip logic failing, not the dataset construction — visually-inspected kept
   clips were all clean. Fixed by deriving the concept mask directly from
   (split_latent_frame, concept_region) instead of detection (see `frame_replace_split_precompute.py`
-  and `docs/split_prompt.md`); the detector is now logging-only. **This dataset needs a rebuild
-  with the fixed script before use** — the current kept/skipped split undercounts real yield.
+  and `docs/split_prompt.md`); the detector is now logging-only. Also added `boundary_margin`
+  (default 2): since the concept block always touches a clip edge here, `edit_latent` always copies
+  the single nearest safe frame across the whole block rather than interpolating — that one frame's
+  cleanliness matters a lot, and margin pulls it further from the boundary (which the heal phase's
+  joint cross-attention could otherwise have touched). **This dataset needs a rebuild with the
+  fixed script before use** — the current kept/skipped split undercounts real yield.
 ---
 # exp078 — split-prompt nudity dataset, close-up + multi-person coverage
 
