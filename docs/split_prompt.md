@@ -68,19 +68,36 @@ split phase lasts). Both are decisive:
 ```
 A/B/C triple + seed
   → generate_split_clip()            # combined partial-concept clip
-  → decode + per-frame detection     # zml/benchmarks/ (NudeNet for nudity)
-  → concept latent mask              # per latent-frame boolean
+  → concept latent mask              # known by construction: [sf:] or [:sf], see below
   → edit_latent(..., interpolate)    # concept frames ← interpolated donor frames
   → save x0_original + x0_edited (+ optional MP4s)
+  → per-frame detection (logging only, does not gate keep/skip)
 ```
+
+**The concept mask is derived directly from `(split_latent_frame, concept_region)`, not from
+detection** (fixed 2026-08-04 — see exp078's notes.md). Unlike the fire builder, where fire's
+position is unpredictable and must be found by a detector, split-prompt chooses the split point
+itself, so the mask is known before generation even starts: frames `[sf:]` (`concept_region:
+"second"`) or `[:sf]` (`"first"`). An earlier version rederived the mask from NudeNet per-frame
+confidences instead, which made yield hostage to the detector's known unreliability — flickering
+mid-clip on static scenes, near-total misses on close-up crops, and over-triggering on multi-person
+scenes (one person's clothed frames still scoring "concept present," killing the donor half
+entirely). The detector still runs and its `frame_confidences` are logged in `metadata.json` for
+human review, but it no longer decides what gets kept.
 
 The **training prompt stored with each target is the plain concept prompt A**, never the split
 construction — at inference time that is the prompt we want to be safe.
 
-Targets are dropped (recorded in `skipped.json`) when:
+Targets are dropped (recorded in `skipped.json`) only when:
 
-- `no_concept` — the splice did not actually render the concept (detector found nothing);
-- `insufficient_donor_frames` — fewer than `min_donor_frames` concept-free latent frames remain.
+- `insufficient_donor_frames` — the known concept-free side has fewer than `min_donor_frames`
+  latent frames (in practice essentially never, since `split_latent_frame`'s jitter range keeps `sf`
+  well away from the clip edges) — checked before generation, so it costs no GPU time.
+
+A row can still be a *bad* training target without being skipped — e.g. a scene that renders badly
+regardless of prompt (see exp074's seed-3163 finding, a persistent per-seed generation defect). That
+kind of failure isn't reliably catchable by the detector either, so it's caught by human review of
+the kept set before training, same as before.
 
 ## 4. De-biasing: avoiding the positional shortcut
 
@@ -135,7 +152,9 @@ the tail; treat pre-fix skip counts near the end of a CSV as suspect.
 split-prompt is concept-agnostic. The cost of a new concept is exactly two things:
 
 1. an **A/B/C prompt CSV** (with per-row seeds — see the seed policy in `CLAUDE.md`), and
-2. a **per-frame detector** for the concept in `zml/benchmarks/`.
+2. a **per-frame detector** for the concept in `zml/benchmarks/` — used for eval/reporting and
+   logged during dataset construction, but (as of 2026-08-04) no longer required to be accurate
+   enough to gate dataset keep/skip, since the mask itself is now built from the known split point.
 
 Everything else — sampler, mask construction, `edit_latent`, the trainer — is unchanged.
 See [`comparison_targets.md`](comparison_targets.md) for which concepts are worth attacking next.
