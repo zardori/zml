@@ -78,6 +78,14 @@ class Config:
     frame_concept_threshold: float = 0.3
     frame_nudity_threshold: float | None = None  # deprecated alias, kept so exp061's config still loads
     min_donor_frames: int = 2  # skip clips whose known concept-free side has fewer latent frames
+    # The heal phase (after split_step_frac) jointly attends over the whole latent conditioned on
+    # prompt C, so frames right next to the boundary can carry some bleed from the other side even
+    # though the split phase's conditioning was cleanly separated. Because split-prompt's concept
+    # block always touches a clip edge, edit_latent's donor is always the single nearest safe frame
+    # copied across the whole block (never a two-sided interpolation) — so that one frame's
+    # cleanliness matters a lot. boundary_margin excludes this many latent frames closest to the
+    # boundary from being used as that donor, pulling it from further inside the safe region.
+    boundary_margin: int = 2
     concept: str = "nudity"  # selects the detector, see zml/benchmarks/registry.py
     concept_target: str | None = None  # target within a concept family, e.g. "chain saw" for "object"
     output_dir: str = "."
@@ -131,11 +139,25 @@ def main(config: Config) -> None:
 
             # The concept mask is known by construction (see module docstring): generate_split_clip
             # conditions frames [sf:] (region="second") or [:sf] (region="first") on prompt_a during
-            # the split phase. No detection needed to find it, and the check below is a cheap
-            # pre-generation guard (not a GPU-time detector call) against a degenerate sf.
+            # the split phase. No detection needed to find it.
             concept_latent = [i >= sf for i in range(NUM_LATENT_FRAMES)] if region == "second" \
                 else [i < sf for i in range(NUM_LATENT_FRAMES)]
-            nofire = [i for i, is_c in enumerate(concept_latent) if not is_c]
+
+            # edit_latent's donor for this construction is always the single safe frame nearest the
+            # boundary, copied across the whole concept block (never a two-sided interpolation,
+            # since the concept block always touches a clip edge here — see edit_latent's docstring
+            # on the one-sided fallback). boundary_margin pushes that donor further from the
+            # boundary to reduce the chance it was touched by the heal phase's joint attention
+            # across the whole clip. This edit_mask (concept block + margin) is what's actually
+            # passed to edit_latent; concept_latent above stays the true construction mask, kept in
+            # metadata for accurate labeling.
+            if region == "second":
+                donor_boundary = max(0, sf - config.boundary_margin)
+                edit_mask = [i >= donor_boundary for i in range(NUM_LATENT_FRAMES)]
+            else:
+                donor_boundary = min(NUM_LATENT_FRAMES, sf + config.boundary_margin)
+                edit_mask = [i < donor_boundary for i in range(NUM_LATENT_FRAMES)]
+            nofire = [i for i, is_c in enumerate(edit_mask) if not is_c]
 
             if len(nofire) < config.min_donor_frames:
                 skipped.append({"stem": stem, "seed": seed, "reason": "insufficient_donor_frames",
@@ -152,8 +174,8 @@ def main(config: Config) -> None:
                 confidences = detector.frame_confidences(original_frames)
                 concept_pixel = [c >= config.frame_concept_threshold for c in confidences]
 
-                # 3. Replace concept frames with (interpolated) donors -> x0_edited.
-                x0_edited, donor_map = edit_latent(z_bcfhw, concept_latent)
+                # 3. Replace concept frames (+ boundary margin) with the far-side donor -> x0_edited.
+                x0_edited, donor_map = edit_latent(z_bcfhw, edit_mask)
                 edited_confidences = detector.frame_confidences(decode_to_bgr_frames(pipe, x0_edited))
 
                 edited_path = f"{stem}_x0edited.pt"
@@ -171,10 +193,12 @@ def main(config: Config) -> None:
                     "original_latent_path": original_path,
                     "concept": config.concept,
                     "concept_target": config.concept_target,
-                    "concept_latent_mask": concept_latent,
+                    "concept_latent_mask": concept_latent,  # true construction mask (no margin)
+                    "edited_latent_mask": edit_mask,  # what was actually replaced (concept + boundary_margin)
                     "concept_pixel_mask": concept_pixel,  # informational only, not used to build the mask
                     "concept_region": region,
                     "split_latent_frame": sf,
+                    "boundary_margin": config.boundary_margin,
                     "donor_map": {str(k): v for k, v in donor_map.items()},
                     "frame_confidences": [round(c, 4) for c in confidences],
                     "edited_frame_confidences": [round(c, 4) for c in edited_confidences],

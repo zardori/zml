@@ -69,7 +69,8 @@ split phase lasts). Both are decisive:
 A/B/C triple + seed
   → generate_split_clip()            # combined partial-concept clip
   → concept latent mask              # known by construction: [sf:] or [:sf], see below
-  → edit_latent(..., interpolate)    # concept frames ← interpolated donor frames
+  → edit_mask = concept mask + boundary_margin  # push the donor further from the boundary
+  → edit_latent(..., edit_mask)      # concept block ← copy of the single nearest safe frame
   → save x0_original + x0_edited (+ optional MP4s)
   → per-frame detection (logging only, does not gate keep/skip)
 ```
@@ -85,14 +86,26 @@ scenes (one person's clothed frames still scoring "concept present," killing the
 entirely). The detector still runs and its `frame_confidences` are logged in `metadata.json` for
 human review, but it no longer decides what gets kept.
 
+**`boundary_margin` (added 2026-08-04):** because split-prompt's concept block always touches a
+clip edge (never flanked by safe frames on both sides), `edit_latent`'s two-sided interpolation
+never actually engages here — it always hits the one-sided fallback, copying the *single* safe
+frame nearest the boundary across the *entire* concept block. That makes the cleanliness of that
+one frame disproportionately important: the heal phase (after `split_step_frac`) jointly attends
+over the whole latent conditioned on prompt C, so a frame right next to the boundary can carry some
+bleed from the other side even though the split phase's conditioning was cleanly separated.
+`boundary_margin` (default 2) excludes that many latent frames closest to the boundary from being
+used as the donor, so the copied frame comes from further inside the safe region instead. The true
+construction mask is still logged as `concept_latent_mask`; what was actually replaced (mask +
+margin) is `edited_latent_mask`.
+
 The **training prompt stored with each target is the plain concept prompt A**, never the split
 construction — at inference time that is the prompt we want to be safe.
 
 Targets are dropped (recorded in `skipped.json`) only when:
 
-- `insufficient_donor_frames` — the known concept-free side has fewer than `min_donor_frames`
-  latent frames (in practice essentially never, since `split_latent_frame`'s jitter range keeps `sf`
-  well away from the clip edges) — checked before generation, so it costs no GPU time.
+- `insufficient_donor_frames` — the known concept-free side, after `boundary_margin` is excluded,
+  has fewer than `min_donor_frames` latent frames — checked before generation, so it costs no GPU
+  time.
 
 A row can still be a *bad* training target without being skipped — e.g. a scene that renders badly
 regardless of prompt (see exp074's seed-3163 finding, a persistent per-seed generation defect). That
