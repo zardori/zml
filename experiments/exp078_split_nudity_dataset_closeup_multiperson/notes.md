@@ -1,5 +1,5 @@
 ---
-status: active
+status: ready
 concept: nudity
 method: frame_replace_split/precompute
 thread: nudity
@@ -23,7 +23,13 @@ takeaway: >
   the safe segment's motion into the concept region (bouncing back and forth if needed) instead of
   freezing one frame. **This dataset needs a rebuild with the fixed script before use** — the
   current kept/skipped split undercounts real yield, and the kept clips' edited halves are frozen
-  single-frame copies rather than motion-preserving fills.
+  single-frame copies rather than motion-preserving fills. **Rebuild is now a `split_step_frac`
+  grid `[0.8, 0.85, 0.9, 0.95, 1.0]` on this dataset's actual 50 triples**, not a single value —
+  exp074/076's sweep that picked 0.85 never specifically checked for boundary concept-mixing on
+  close-up/multi-person framing, which is exactly what turned out to be faulty here. A higher
+  split_step_frac leaves less schedule for the heal phase's joint cross-attention, so directly
+  reduces the opportunity for that mixing — worth re-checking on the framings that actually need it
+  rather than trusting the generic sweep's answer. Not yet submitted.
 ---
 # exp078 — split-prompt nudity dataset, close-up + multi-person coverage
 
@@ -73,11 +79,23 @@ structure minus the clothing state, so C isn't a giveaway of which state A/B dif
 
 Split sampler knobs (`split_latent_frame: 7`, `concept_region: random`, `split_jitter: 2`) and
 `frame_nudity_threshold: 0.3` carried over unchanged from exp061 — same construction, new prompts
-only. `split_step_frac: 0.8` is the best-confirmed value as of this run: exp074's human review found
-0.4-0.8 all consistently good with an upward tendency and no confirmed ceiling, and exp076 (running
-in parallel) is testing 0.85-1.0 to find where it turns over. Submitting on 0.8 now rather than
-waiting for exp076 — compute isn't the constraint, so sequencing them only burns calendar time; if
-exp076 finds something better, rebuilding this dataset with the new value is cheap.
+only.
+
+**`split_step_frac` (rebuild, 2026-08-04): now a grid `[0.8, 0.85, 0.9, 0.95, 1.0]`, not a fixed
+value.** The first build used the single best-confirmed value from exp074/076's sweep (0.85), but
+that sweep only tested 5 simple, single-person, full-body seeds (`prompts/split_nudity_sweep.csv`)
+and never specifically checked for concept mixing across the split boundary — which turned out to
+be a real problem in this dataset's construction (see `boundary_margin`/`edit_latent_reflected`
+above). `split_step_frac` is a direct lever on that same mechanism: it's the fraction of the
+schedule spent in the temporally-split A/B phase before the shared heal phase (conditioned jointly
+on prompt C, with full cross-attention over the whole clip) takes over — a higher value leaves less
+of the schedule for that joint phase, so less opportunity for it to blend information across the
+boundary. Sweeping on this dataset's actual 50 triples (close-up/multi-person, the framings that
+actually surfaced the mixing problem) checks the real thing this dataset needs, rather than
+assuming the generic sweep's answer (0.85) transfers. `1.0` (zero heal-phase steps, zero
+opportunity for cross-boundary mixing) is included even though exp076 didn't pick it for the
+generic sweep — its reasoning ("no measured benefit") doesn't hold if mixing is a real cost that
+generic sweep never measured.
 
 Kept deliberately **separate** from exp061's 21-triple dataset (not merged into
 `prompts/split_nudity.csv`) so a future frame_replace run can compare "old only" vs "old + new" vs
@@ -143,6 +161,13 @@ Blocked on rebuilding this dataset with the fixed script first.
       sanity) — both looked clean; see Results.
 - [x] Root cause of the low yield identified and fixed (detector-driven masking, not the prompts or
       the splice) — see Results and `docs/split_prompt.md`.
-- [ ] **Rebuild with the fixed script** (and `split_step_frac: 0.85`, the current default) to get
-      the real yield — not yet done.
+- [x] Config updated to a `split_step_frac: [0.8, 0.85, 0.9, 0.95, 1.0]` grid rebuild with the
+      fixed script (mask from construction, `boundary_margin`, `edit_latent_reflected`) — see
+      Setup. **Not yet submitted** — per project convention, submission is manual.
+- [ ] Submit and run the grid (5 jobs, ~9h budget each).
+- [ ] Compare kept/skipped yield (should be ~100% across all 5 values now) and, more importantly,
+      check for boundary concept-mixing per value — frame-level review at the seam, not just the
+      aggregate detector score, per [[feedback-detector-metrics-not-ground-truth]].
+- [ ] Pick a final `split_step_frac` for this dataset's real build (may differ from exp076's 0.85).
+- [ ] Human review of kept triples on the winning value.
 - [ ] Next frame_replace run's dataset composition decided (old+new vs new-only vs A/B).

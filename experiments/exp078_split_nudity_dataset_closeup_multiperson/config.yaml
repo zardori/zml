@@ -22,19 +22,23 @@
 #   across full-body (10), close-up (5), and multi-person (5) framing so it stacks with the first
 #   two batches instead of re-narrowing to one framing type.
 #
-# split_step_frac: exp076 (0.85-1.0 sweep) landed. Quantitatively near-flat with a slight decline
-# past 0.85 (gap 0.560 at 0.85 -> 0.540 at 1.0); visual frame-by-frame check (seam frames across
-# 0.2/0.3/0.5/0.85/1.0, same seeds) found the clothed->nude transition is a hard cut at every
-# value, including the fully degenerate 1.0 case (zero shared/heal-phase steps) — coherence comes
-# from the shared initial noise + joint scheduler trajectory (and the VAE decode), not from
-# prompt-C conditioning. So 1.0 isn't visually worse, but it's also not better, and it's the most
-# out-of-distribution point in the sweep (zero jointly-conditioned steps) for no measured gain —
-# 0.85 ties for the best score while keeping a nonzero heal phase, so that's the pick.
-#
-# NOTE: exp078 was already submitted (queued on helios) when this was updated. submit_job.py
-# freezes the config at submission time, so that already-queued run executes at whatever
-# split_step_frac it was submitted with, NOT this file's current value — this edit is for the
-# record / any future rebuild, not a live change to the pending job.
+# split_step_frac: REBUILD (2026-08-04) as a grid, not a single value. The first build (0.8) hit
+# two problems since fixed in frame_replace_split_precompute.py: (1) the concept mask was
+# detector-derived, causing most of the yield loss (see notes.md); (2) more fundamentally, the
+# concept block always sits at a clip edge, so the "safe" side's boundary-adjacent frames can carry
+# some bleed from the heal phase's joint cross-attention over the whole clip ("concepts mixed" near
+# the boundary) — boundary_margin + edit_latent_reflected mitigate this at the construction level,
+# but split_step_frac itself is a direct lever on the same mechanism: a higher value leaves less of
+# the schedule for the joint heal phase, so less opportunity for that mixing in the first place.
+# exp074/exp076 picked 0.85 as the sweep's best value, but that sweep only used 5 simple,
+# single-person, full-body seeds (prompts/split_nudity_sweep.csv) and was never checked
+# specifically for boundary mixing on close-up/multi-person framing — exactly what this dataset
+# needs and what turned out to be faulty. Sweeping split_step_frac: [0.8, 0.85, 0.9, 0.95, 1.0] on
+# THIS dataset's actual 50 triples (grid search: submit_job.py grid-searches any list-valued
+# field, one job per value) checks the real thing this dataset needs rather than reusing a generic
+# sweep's answer. 1.0 is the fully degenerate case (zero heal-phase steps, so zero opportunity for
+# cross-boundary mixing at all) — worth including now that "no measured benefit" (exp076's original
+# reasoning for not picking it) is exactly wrong if mixing is a real cost of the heal phase.
 #
 # Run: ./submit_job.py helios experiments/exp078_split_nudity_dataset_closeup_multiperson/config.yaml
 job_type: precompute
@@ -50,16 +54,21 @@ guidance_scale: 6.0
 split_latent_frame: 7
 concept_region: random   # mix concept-first / concept-second across the dataset
 split_jitter: 2          # boundary jitter (+/-2 latent frames), seeded per clip
-split_step_frac: 0.85    # see note above — exp076's pick; NOT what the already-queued run used
+split_step_frac: [0.8, 0.85, 0.9, 0.95, 1.0]   # grid — see note above
 
 # Detection -> concept mask. Threshold carried over from exp061 unchanged; NOT recalibrated for
 # close-up/multi-person framing specifically (unlike the imagenet per-class calibration in exp064) —
-# watch the keep/skip yield below for a sign that it needs revisiting for this framing.
+# watch the keep/skip yield below for a sign that it needs revisiting for this framing. As of the
+# 2026-08-04 fix the detector no longer gates keep/skip (see frame_replace_split_precompute.py), so
+# yield should be close to 100% across the grid regardless of split_step_frac; what actually
+# differs per value is boundary mixing, checked by human/frame review of edited clips, not yield.
 frame_nudity_threshold: 0.3
 min_donor_frames: 2
+boundary_margin: 2
 concept: nudity
 save_videos: true        # keep original+edited MP4s — needed for the same human review step exp061 got
 
-# 50 targets x (~1.5 gen + decode + 2 detection passes) — exp061's 30 targets took comfortably
-# under 8h, scale that up for the extra 20.
-slurm_time: "0-12:00:00"
+# 50 targets x (~1.5 gen + decode + 2 detection passes) took ~6.25h for the first (0.8) build.
+# Yield near 100% now (detector no longer skips after generation), so keep the same per-job budget
+# with margin; this value applies to each of the 5 grid jobs independently.
+slurm_time: "0-9:00:00"
