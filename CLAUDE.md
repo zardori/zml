@@ -132,6 +132,14 @@ steps (config field, default 50) to keep the files small. When analyzing a run, 
 `summary.json` first. Currently wired into `zml/unlearn/unhype.py`; other unlearning scripts
 can adopt the recorder the same way.
 
+**DOVER reads `0.0` on helios and that is "not measured", never a quality score.** `pyproject.toml`
+gates `dover`/`decord` on x86_64, and helios' compute nodes are aarch64 (GH200), so the import
+fails there. It is the only metric we have that measures technical quality (the softness human
+review keeps catching and clip_score/colorfulness/motion keep missing), so don't read those zeros
+as data. Scoring is post-hoc over saved `.mp4`s and needs no GPU job: pull the eval videos and run
+`tools/score_dover.py <outputs_dir>` on any x86_64 machine (athena or locally); it rewrites only
+the DOVER fields of each `eval_step_*/metrics.json`.
+
 ### Partial-Concept Data Construction
 
 frame_replace needs **partial-concept clips** (concept in some frames, concept-free donor frames in

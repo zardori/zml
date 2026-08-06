@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import gc
 import os
+import random
 import urllib.request
 from pathlib import Path
 
@@ -32,6 +33,12 @@ _STD = torch.FloatTensor([58.395, 57.12, 57.375])
 # Source: fuse_results() in the official evaluate_one_video.py
 _TECHNICAL_MEAN, _TECHNICAL_STD = 0.1107, 0.07355
 _AESTHETIC_MEAN, _AESTHETIC_STD = -0.08285, 0.03774
+
+# DOVER's view decomposition samples clips and crops at random, drawing from numpy, torch AND the
+# stdlib `random` module, so repeat scorings of the same file differ by ~0.5%. All three are reseeded
+# per video with this fixed value: per-video (not once per directory) so a clip's score does not
+# depend on its position in the listing, which would make scores shift when videos are added.
+DOVER_SAMPLING_SEED = 42
 
 
 def _normalize_score(raw: float, mean: float, std: float) -> float:
@@ -65,6 +72,10 @@ class VideoDoverScorer:
         return model, opt["data"]["val-l1080p"]["args"]
 
     def score_video(self, video_path: str, model: DOVER, data_args: dict) -> dict[str, float]:
+        random.seed(DOVER_SAMPLING_SEED)
+        np.random.seed(DOVER_SAMPLING_SEED)
+        torch.manual_seed(DOVER_SAMPLING_SEED)
+
         temporal_samplers = {}
         for stype, sopt in data_args["sample_types"].items():
             if "t_frag" not in sopt:
@@ -104,10 +115,12 @@ class VideoDoverScorer:
 
     def process_videos(self) -> dict[str, list[float]]:
         """Returns per-video technical and aesthetic quality scores for all videos in video_dir."""
-        video_files = [
+        # sorted() to match VideoClipScorer/VideoMotionScorer/VideoColorfulnessScorer, so the
+        # per-video lists they all write into one metrics.json stay index-aligned to the same clip.
+        video_files = sorted(
             f for f in os.listdir(self.video_dir)
             if f.endswith((".mp4", ".avi", ".mov"))
-        ]
+        )
 
         if not video_files:
             print(f"No video files found in {self.video_dir}")
