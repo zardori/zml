@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+import imageio.v2 as imageio
 import numpy as np
 import os
 import argparse
@@ -78,14 +79,21 @@ class VideoFireDetector:
         if not cap.isOpened():
             raise RuntimeError(f"Could not open video: {video_path}")
 
-        writer: cv2.VideoWriter | None = None
+        writer = None
         if self.debug:
             Path(self.debug_dir).mkdir(parents=True, exist_ok=True)
             debug_output_path = str(Path(self.debug_dir) / Path(video_path).name)
             fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            writer = cv2.VideoWriter(debug_output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+            # H.264 rather than cv2's mp4v fourcc, so the annotated clips play in
+            # browser-based viewers (VS Code's built-in one) as well as VLC/mpv.
+            writer = imageio.get_writer(
+                debug_output_path,
+                fps=fps,
+                codec="libx264",
+                pixelformat="yuv420p",
+                macro_block_size=1,
+                ffmpeg_params=["-movflags", "+faststart"],
+            )
             print(f"Debug output: {debug_output_path}")
 
         conf_scores: list[float] = []  # nonzero per-frame max confidences (for the binary decision)
@@ -116,13 +124,13 @@ class VideoFireDetector:
                 if frame_max > 0:
                     print(f"  frame {num_frames}: fire conf={frame_max:.3f} area*conf={frame_area:.4f}")
                 annotated = results[0].plot()
-                writer.write(annotated)
+                writer.append_data(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB))
 
             num_frames += 1
 
         cap.release()
         if writer is not None:
-            writer.release()
+            writer.close()
 
         detected = (
             len(conf_scores) >= self.top_k
