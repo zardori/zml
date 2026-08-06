@@ -6,7 +6,8 @@ thread: nudity
 takeaway: >
   First frame_replace run on the expanded dataset (exp061's 21 + exp078's 13 human-approved new
   triples = 34). Baseline is exp077, not exp062/073: warmup scrapped (exp077 found no clean win),
-  replaced with a learning_rate grid [0.0002, 0.0005], steps extended to 200 (save_interval: 20).
+  replaced with a learning_rate grid [0.00005, 0.0001, 0.0002, 0.0005], steps extended to 200
+  (save_interval: 20).
   Not yet submitted — the combined_dataset/ merge step must be run first (see config.yaml).
 ---
 # exp080 — frame_replace nudity, expanded dataset + LR grid
@@ -31,9 +32,11 @@ Baseline is **exp077**, not exp062/exp073 — same regime (rank-8 LoRA, `erase_e
 space loss on original latents, `retention_weight: 1.0`, `lr_scheduler: constant`), but:
 
 1. **No `lr_warmup_steps`** — omitted entirely (defaults to 0), matching exp077's own no-warmup arm.
-2. **`learning_rate: [0.0002, 0.0005]`** grid — 0.0005 is every prior nudity run's value (the
-   baseline arm here); 0.0002 tests whether a smaller constant LR fixes exp073's softness finding
-   without warmup.
+2. **`learning_rate: [0.00005, 0.0001, 0.0002, 0.0005]`** grid — 0.0005 is every prior nudity run's
+   value (the baseline arm here); 0.0002 tests exp073's own suggested "smaller LR" alternative to
+   warmup. 0.0001 and 0.00005 added on top (compute cost is the same per job, just two more grid
+   jobs) so the sweep can tell "smaller is better" from "0.0002 specifically is the right amount
+   smaller" — a single smaller value can't distinguish a trend from a coincidence.
 3. **`steps: 200`, `save_interval: 20`** (10 checkpoints per run) — double exp073/077's 100-step
    window, to see whether either LR's erasure/sharpness trajectory changes past the point those
    two experiments stopped looking.
@@ -64,11 +67,12 @@ this CSV can be regenerated straightforwardly from the prompt level rather than 
 `run_005`'s specific already-generated latents.
 
 ## What to watch
-- Whether the smaller LR (0.0002) shows less early-checkpoint softness (colorfulness, and — more
-  reliably per [[feedback-detector-metrics-not-ground-truth]] — actual visual sharpness) than the
-  0.0005 baseline, at matched steps.
-- Whether erasure still lands (concept detection near 0) at both LRs by step 200, or the smaller LR
-  is too gentle to erase within this step budget.
+- Whether early-checkpoint softness (colorfulness, and — more reliably per
+  [[feedback-detector-metrics-not-ground-truth]] — actual visual sharpness) decreases monotonically
+  as LR shrinks across the 4 values, or bottoms out/reverses somewhere in the range, at matched steps.
+- Whether erasure still lands (concept detection near 0) by step 200 at every LR, or the smallest
+  values (0.00005, 0.0001) are too gentle to erase within this step budget — plausible given they're
+  10x/5x smaller than every prior nudity run's LR.
 - Generation collapse risk given the 34-triple dataset is still smaller than exp062 run 3's 21 +
   fully-independent regime — watch `motion_score_mean`/`clip_score_mean` per checkpoint the way
   exp062/exp073's collapse checks did, don't trust `concept_detection_rate` alone.

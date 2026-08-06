@@ -5,10 +5,14 @@
 # Three changes from exp077, per direct instruction:
 # 1. Warmup is scrapped entirely (exp077 found no clean sharpness win from it — see its notes.md;
 #    this doesn't even set lr_warmup_steps, so it defaults to 0, exp077's own no-warmup arm).
-# 2. Grid over learning_rate instead: [0.0002, 0.0005]. 0.0005 is the existing baseline (every
-#    nudity run so far, constant, no warmup); 0.0002 is the "smaller LR" arm, testing exp073's own
-#    suggested alternative to warmup for fixing the visible softness in its clips (colorfulness
-#    lowest at the earliest checkpoints under the full 5e-4 step from iteration 1).
+# 2. Grid over learning_rate instead: [0.00005, 0.0001, 0.0002, 0.0005]. 0.0005 is the existing
+#    baseline (every nudity run so far, constant, no warmup); 0.0002 is exp073's own suggested
+#    "smaller LR" alternative to warmup for fixing the visible softness in its clips (colorfulness
+#    lowest at the earliest checkpoints under the full 5e-4 step from iteration 1). 0.0001 and
+#    0.00005 added on top (compute cost is the same per job either way, just two more grid jobs) to
+#    see whether the erasure/sharpness tradeoff keeps improving further down or bottoms out — 0.0002
+#    alone wouldn't distinguish "smaller is better" from "this specific value is the right amount
+#    smaller."
 # 3. steps: 200 (up from exp073/077's 100), save_interval: 20 (unchanged) -> 10 checkpoints per run,
 #    to see whether either LR's trajectory (erasure vs. sharpness) changes once training runs longer
 #    than the fine-grained-checkpoint window exp073/077 both used.
@@ -56,7 +60,7 @@ lora_dropout: 0.0
 
 gradient_accumulation_steps: 4
 lr_scheduler: constant
-learning_rate: [0.0002, 0.0005]   # grid: smaller LR vs. the existing baseline
+learning_rate: [0.00005, 0.0001, 0.0002, 0.0005]   # grid: baseline + 3 smaller values
 steps: 200
 save_interval: 20
 
