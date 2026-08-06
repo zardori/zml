@@ -148,10 +148,40 @@ the full writeup. This should recover close to 100% yield (modulo genuine per-se
 like exp074's seed 3163), since the two dominant failure modes above were both detector artifacts,
 not construction failures.
 
+## Grid results (`grid_20260805_233142`, all 5 values, mask-fix + boundary_margin + reflected fill)
+All 5 runs kept 50/50 (0 skipped) — confirms the mask-fix's yield prediction: with the concept mask
+built from construction instead of detection, nothing is left to fail on close-up/multi-person
+framing the way the pre-fix detector-driven skip logic did.
+
+**Human review, run_005 (`split_step_frac: 1.0`, the fully degenerate/zero-heal-phase case) —
+2026-08-05.** User manually reviewed all 50 clips; 13/50 (26%) usable, rest rejected. Filtered list
+saved to `grid_20260805_233142/run_005/outputs/metadata_human_filtered.json`. By batch:
+
+| batch | approved/total | rate |
+|---|---:|---:|
+| close-up (idx 0-14) | 2/15 | 13.3% |
+| multi-person (idx 15-29) | 6/15 | 40.0% |
+| wording-diverse (idx 30-49) | 5/20 | 25.0% |
+
+Approved rows (CSV index → seed): 6→3407, 14→3415, 16→3502, 17→3503, 23→3509, 25→3511, 28→3514,
+29→3515, 40→3611, 42→3613, 43→3614, 45→3616, 47→3618.
+
+**Only run_005 (1.0) has been reviewed so far — the other 4 grid values (0.8, 0.85, 0.9, 0.95) are
+NOT yet reviewed.** A 26% approval rate at the most extreme, out-of-distribution point in the
+sweep is not yet interpretable in isolation: it could mean the "less heal-phase time -> less
+mixing" theory doesn't pay off in practice as much as hoped at this extreme (echoing exp076's
+finding that 1.0 showed no visual benefit over 0.85 on the simpler generic-seed sweep, now
+possibly compounded by other quality issues on the harder close-up/multi-person framings), or it
+could still beat the lower split_step_frac values if THEY turn out worse on human review too — no
+comparison exists yet. Close-up's especially low rate (13.3%) is worth watching once the other
+values are reviewed: is that split_step_frac=1.0 specifically hurting close-ups, or is close-up
+just hard at every value (echoing the pre-fix detector-driven yield problem's own close-up
+weakness, for an unrelated reason this time)?
+
 ## Downstream
 Feeds a new frame_replace run (exp062-successor, not yet created) — either combined with exp061's
 21 triples or as an "old vs new coverage" A/B, per the "Kept deliberately separate" note above.
-Blocked on rebuilding this dataset with the fixed script first.
+Blocked on reviewing the remaining 4 grid values and picking a final `split_step_frac` first.
 
 ## Status
 - [x] `split_step_frac` set to 0.8 for the first build — not blocking on exp076, see Setup.
@@ -163,11 +193,9 @@ Blocked on rebuilding this dataset with the fixed script first.
       the splice) — see Results and `docs/split_prompt.md`.
 - [x] Config updated to a `split_step_frac: [0.8, 0.85, 0.9, 0.95, 1.0]` grid rebuild with the
       fixed script (mask from construction, `boundary_margin`, `edit_latent_reflected`) — see
-      Setup. **Not yet submitted** — per project convention, submission is manual.
-- [ ] Submit and run the grid (5 jobs, ~9h budget each).
-- [ ] Compare kept/skipped yield (should be ~100% across all 5 values now) and, more importantly,
-      check for boundary concept-mixing per value — frame-level review at the seam, not just the
-      aggregate detector score, per [[feedback-detector-metrics-not-ground-truth]].
-- [ ] Pick a final `split_step_frac` for this dataset's real build (may differ from exp076's 0.85).
-- [ ] Human review of kept triples on the winning value.
+      Setup.
+- [x] Grid submitted and run (`grid_20260805_233142`) — all 5 values, 50/50 kept each.
+- [x] Human review of run_005 (`split_step_frac: 1.0`) — 13/50 (26%) approved, see Grid results.
+- [ ] Human review of run_001-run_004 (0.8, 0.85, 0.9, 0.95) — not yet done.
+- [ ] Pick a final `split_step_frac` for this dataset's real build once all 5 values are compared.
 - [ ] Next frame_replace run's dataset composition decided (old+new vs new-only vs A/B).
