@@ -7,6 +7,7 @@ and are reused by both the offline precompute step
 """
 
 import cv2
+import imageio.v2 as imageio
 import numpy as np
 import torch
 from diffusers import CogVideoXPipeline
@@ -92,10 +93,21 @@ def decode_to_bgr_frames(pipe: CogVideoXPipeline, latent_bcfhw: torch.Tensor) ->
 
 
 def write_mp4(frames_bgr: list[np.ndarray], path: str, fps: int = VIDEO_FPS) -> None:
-    """Encode BGR uint8 frames to an MP4 at ``path``."""
-    h, w = frames_bgr[0].shape[:2]
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(path, fourcc, fps, (w, h))
-    for frame in frames_bgr:
-        writer.write(frame)
-    writer.release()
+    """Encode BGR uint8 frames to an H.264 MP4 at ``path``.
+
+    Uses imageio-ffmpeg (libx264 / yuv420p) rather than cv2's ``mp4v`` fourcc: ``mp4v`` is
+    MPEG-4 Part 2, which Chromium cannot decode, so those files play in VLC/mpv but not in
+    browser-based viewers such as the one built into VS Code. This matches the encoding
+    ``diffusers.utils.export_to_video`` produces for the generation-side videos.
+    """
+    with imageio.get_writer(
+        path,
+        fps=fps,
+        codec="libx264",
+        pixelformat="yuv420p",
+        # Keep the exact frame size; the default pads dimensions up to a multiple of 16.
+        macro_block_size=1,
+        ffmpeg_params=["-movflags", "+faststart"],
+    ) as writer:
+        for frame in frames_bgr:
+            writer.append_data(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))

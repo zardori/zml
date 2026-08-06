@@ -74,6 +74,17 @@ pull_pre_archive() {
     done <<< "$stale"
 }
 
+# notes.md and config.yaml are source files we edit locally and push; the cluster only ever has
+# whatever it last pulled, so letting rsync bring them back overwrites local edits with a stale
+# copy. The exception is a grid's per-run config.yaml, which is generated on the cluster by
+# submit_job.py and exists nowhere else. rsync applies filter rules first-match-wins, so the
+# include must stay ahead of the excludes.
+SOURCE_FILE_FILTERS=(
+    --include='run_*/config.yaml'
+    --exclude='config.yaml'
+    --exclude='notes.md'
+)
+
 pull_cluster() {
     local cluster="$1" host remote_dirs
     case "$cluster" in
@@ -83,7 +94,13 @@ pull_cluster() {
     esac
 
     if [[ "$LOGS_ONLY" == false ]]; then
-        local rsync_opts=(-avz --progress)
+        # -u (--update) matters because several roots hold copies of the same artifact with
+        # different mtimes: a member who copied an experiment around without preserving times,
+        # or an unmigrated root whose pre-archive folder maps onto the archive path another root
+        # already provides. Without it those sources overwrite each other's mtime on every pull
+        # and rsync re-transfers byte-identical files forever. Keeping the newest copy is a fixed
+        # point, so the churn converges after one run.
+        local rsync_opts=(-avzu --progress "${SOURCE_FILE_FILTERS[@]}")
         if [[ "$SKIP_ADAPTERS" == true ]]; then
             rsync_opts+=(--exclude='*.safetensors' --exclude='*.pt' --exclude='adapter_config.json')
         fi
@@ -111,7 +128,7 @@ pull_cluster() {
         echo "  <- ${host}:${rdir}/mlruns/"
         local rsync_exit=0
         # Exit code 23 means partial transfer (e.g. source path missing) — safe to ignore
-        rsync -avz --progress "${host}:${rdir}/mlruns/" ./mlruns/ || rsync_exit=$?
+        rsync -avzu --progress "${host}:${rdir}/mlruns/" ./mlruns/ || rsync_exit=$?
         if [[ $rsync_exit -eq 23 ]]; then
             echo "  (no mlruns/ on ${cluster} yet, skipping)"
         elif [[ $rsync_exit -ne 0 ]]; then
@@ -127,6 +144,9 @@ if [[ "$SKIP_ADAPTERS" == true && "$LOGS_ONLY" == false ]]; then
 fi
 if [[ "$SKIP_VIDEOS" == true && "$LOGS_ONLY" == false ]]; then
     echo "Skipping video files (*.mp4). Omit --no-videos to download them."
+fi
+if [[ "$LOGS_ONLY" == false ]]; then
+    echo "Skipping experiment notes.md and config.yaml (kept in git; grid run_*/config.yaml still pulled)."
 fi
 
 for cluster in "${CLUSTERS[@]}"; do
