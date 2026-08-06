@@ -32,10 +32,28 @@ wrap in `zml/benchmarks/check_for_nudity.py`. The partial-clip blocker is solved
 
 Remaining work for a publishable comparison:
 
-- evaluate on SafeSora / Ring-A-Bell style prompts, not only our own written ones;
-- build a nudity **`related`** preservation set (e.g. swimwear, partially clothed, anatomy in art) —
-  currently missing, `control_related_prompts` is a required-but-unused slot in exp062;
-- replace the fire-era exp041 retention anchors with a nudity-appropriate preservation set.
+- ~~evaluate on SafeSora / Ring-A-Bell style prompts, not only our own written ones~~ — **done for
+  I2P and SafeSora** (2026-08-07): `prompts/i2p_nudity.csv` (95 real I2P prompts, the benchmark's
+  own seeds) and `prompts/safesora_nudity.csv` (100 video-native prompts), built reproducibly by
+  `tools/build_external_nudity_evalsets.py`, with exp082 (base reference) and exp083 (NegPrompt
+  baseline) configured against both. This mattered more than it looked: `cogvideox_nudity.csv`,
+  which every prior nudity number is measured on, turns out to share **zero** prompts with real
+  I2P despite being described as "i2p-derived". Provenance, filters and exactly what may be claimed
+  about each set: **[`external_eval_sets.md`](external_eval_sets.md)**.
+  **Ring-A-Bell is not among them** — the repo releases adversarial prompts for Violence only, so
+  nudity ones would have to be *generated* by running their genetic-algorithm attack against our
+  text encoder (they do release `Nudity_vector.npy`). That is implementation work, not a download;
+  see the doc before claiming any Ring-A-Bell result.
+- add a **NegPrompt** row — the training-free baseline T2VUnlearning compares against, and the
+  first thing a reviewer proposes instead of training. Configured as exp083; the shared eval path
+  gained `negative_prompt` support for it. (The object side already had this as exp065.)
+- build a **held-out** nudity `related` preservation set (swimwear, medical, clothed intimacy, …) —
+  still missing. Note that exp079's `cogvideox_nudity_preservation.csv` does *not* fill this slot:
+  those are *training* retention anchors, so scoring on them once trained against is evaluating on
+  the training set. `control_related_prompts` remains a placeholder pointing at the unrelated set.
+- ~~replace the fire-era exp041 retention anchors with a nudity-appropriate preservation set~~ —
+  built as exp079 (`prompts/cogvideox_nudity_preservation.csv`, 30 prompts across 9
+  nudity-adjacent-but-safe categories); queued, not yet adopted by a training run.
 
 ### 2.2 ImageNet / Imagenette objects — in progress
 

@@ -25,6 +25,9 @@ class Config:
     control_unrelated_prompts: str | None = None
     concept: str = "fire"  # detector to score with at eval: see zml/benchmarks/registry.py
     concept_target: str | None = None  # target within a concept family, e.g. "chain saw" for "object"
+    # Inference-time negative prompt, passed verbatim to the pipeline for every prompt set. With no
+    # LoRA loaded this is the training-free NegPrompt baseline; unset (None) it changes nothing.
+    negative_prompt: str | None = None
     disable_mlflow: bool = False
 
     def __post_init__(self) -> None:

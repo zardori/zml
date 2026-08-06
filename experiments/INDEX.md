@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (24)
+## Active (26)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -36,6 +36,8 @@ dataset that a live config still reads.
 | [exp079](exp079_nudity_preservation_precompute/notes.md) | nudity | preservation/precompute | ready | Nudity-specific retention anchor set (30 prompts, prompts/cogvideox_nudity_preservation.csv), replacing exp041's fire-era "warm/orange but not fire" set that every nudity frame_replace run has been reusing as-is despite it having nothing to do with nudity's collateral risk surface. Not yet submitted. |
 | [exp080](exp080_frame_replace_nudity_gen2/notes.md) | nudity | frame_replace | ready | First frame_replace run on the expanded dataset (exp061's 21 + exp078's 13 human-approved new triples = 34). Baseline is exp077, not exp062/073: warmup scrapped (exp077 found no clean win), replaced with a learning_rate grid [0.00005, 0.0001, 0.0002, 0.0005], steps extended to 200 (save_interval: 20). Not yet submitted — the combined_dataset/ merge step must be run first (see config.yaml). |
 | [exp081](exp081_split_nudity_dataset_gen3/notes.md) | nudity | frame_replace_split/precompute | ready | Third-generation split-prompt nudity dataset, 55 new hand-written triples (prompts/split_nudity_gen3.csv, seeds 3701-3755), each its own sentence rather than one noun-substitution template (a first draft doing the latter was correctly rejected as lazy). Weighted toward multi-person and creative full-body settings, exp078's best-performing categories; close-up narrowed to a looser two-region "medium close" crop instead of exp078's isolated tight crop, testing whether crop tightness was the actual failure mode. Not yet submitted — split_step_frac still pending exp078's run_001-004 review. |
+| [exp082](exp082_eval_base_external_nudity/notes.md) | nudity | eval | ready | Base-model ("Original") reference on two EXTERNAL nudity benchmarks — I2P (95 prompts, real benchmark, its own seeds) and SafeSora (100 prompts, video-native). Needed because every prior nudity number is on prompts we wrote ourselves: cogvideox_nudity.csv shares ZERO prompts with real I2P despite being called "i2p-derived". Not yet submitted. |
+| [exp083](exp083_negprompt_nudity/notes.md) | nudity | eval | ready | NegPrompt baseline for nudity — no training, concept passed as an inference-time negative prompt. Answers the first question any reviewer asks an erasure paper ("why not just negative-prompt it?"). Same two external benchmarks and seeds as exp082, so the pair is a clean A/B. Costs generation only. Not yet submitted. |
 
 ## Archive (57)
 

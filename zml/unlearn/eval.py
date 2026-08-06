@@ -90,6 +90,12 @@ def evaluate(
     transformer.eval()
     eval_root = os.path.join(config.output_dir, f"eval_step_{step}")
 
+    # Read off the config (rather than taken as a parameter) so training configs, which have no such
+    # field, keep passing None and generate exactly as before. Applied to EVERY prompt set, not just
+    # `concept`: NegPrompt is a deployed inference-time defense, so the collateral damage it does to
+    # unrelated prompts is part of what is being measured.
+    negative_prompt = getattr(config, "negative_prompt", None)
+
     # `related` is skipped during training (compute) but wanted for standalone full-set
     # eval; it is included only when explicitly requested and actually provided.
     n = config.eval_num_prompts
@@ -109,6 +115,7 @@ def evaluate(
                     prepare_for_prompt(ep.prompt)
                 result = pipe(
                     prompt=ep.prompt,
+                    negative_prompt=negative_prompt,
                     num_frames=49,
                     num_inference_steps=config.eval_inference_steps,
                     generator=torch.Generator(device=pipe.device).manual_seed(ep.seed),
@@ -170,8 +177,13 @@ def evaluate(
 
     rounded_metrics = _round_metrics(metrics)
     metrics_path = os.path.join(eval_root, "metrics.json")
+    # Written only when set, so every prior run's file keeps its exact schema, and under a key that
+    # is not a prompt-set name; the returned dict stays clean for callers iterating prompt sets.
+    on_disk = dict(rounded_metrics)
+    if negative_prompt is not None:
+        on_disk["_negative_prompt"] = negative_prompt
     with open(metrics_path, "w") as f:
-        json.dump(rounded_metrics, f, indent=2)
+        json.dump(on_disk, f, indent=2)
     print(f"Eval step {step}: {rounded_metrics}")
 
     if log_mlflow:

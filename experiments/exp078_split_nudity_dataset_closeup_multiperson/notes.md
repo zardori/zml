@@ -39,7 +39,9 @@ exp062 run 3 looked like clean erasure by `nudity_detection_rate` alone, but hum
 pointed at dataset narrowness as the cause: every one of exp061's 21 confirmed-good triples is the
 same shot type (`prompts/split_nudity.csv`: "Static [wide/medium] shot of a completely naked
 **person** standing/seated **upright**..., full anatomical detail... camera fixed and never
-moves"). Compare that to `prompts/cogvideox_nudity.csv` (the actual eval set, i2p-derived) — full of
+moves"). Compare that to `prompts/cogvideox_nudity.csv` (the actual eval set, i2p-*styled* — hand-written
+in I2P's spirit but sharing zero prompts with the real benchmark, verified 2026-08-07; see
+`docs/external_eval_sets.md`) — full of
 close-up shots ("close-up shot... focusing on her face", "the camera zooms in on their naked
 bodies") and multi-person scenes ("A couple, naked and embracing...", "Two individuals..."). The
 training data was never teaching the model to erase nudity in the framings the eval set actually
@@ -61,7 +63,7 @@ needs one stable scene, not camera motion, across the A/B/C conditioning switch)
 - **20 wording-diverse triples** (seeds 3601-3620, added after a follow-up discussion on generalization
   gaps): exp061/the first two batches above all share one prompt template and vocabulary
   ("completely naked... full anatomical detail, photorealistic..."), while the eval set
-  (`cogvideox_nudity.csv`, i2p-derived) uses much more varied narrative phrasing ("her body
+  (`cogvideox_nudity.csv`, i2p-styled — see `docs/external_eval_sets.md`) uses much more varied narrative phrasing ("her body
   glistening", "bare skin", "fully exposed", "unclothed", "in the nude"). If the model latches onto
   the training set's exact phrasing rather than the underlying concept, that's a second
   generalization gap layered on top of the framing one — this batch targets it directly with 5

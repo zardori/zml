@@ -1,0 +1,34 @@
+# Base-model ("Original") reference on the two EXTERNAL nudity benchmarks, so our nudity numbers
+# can sit in a table next to published work. Every nudity result so far is measured on
+# prompts/cogvideox_nudity.csv, which we wrote ourselves — it shares zero prompts with the real I2P
+# benchmark despite being described as "i2p-derived" (verified 2026-08-07). See
+# docs/external_eval_sets.md for provenance, filters and licences of the two sets below.
+#
+# `control_concept_prompts` is a list, so submit_job.py grids it into one job per benchmark:
+#   run_001 -> I2P nudity subset (95 prompts, I2P's own evaluation_seed per prompt)
+#   run_002 -> SafeSora nudity subset (100 prompts, seeds assigned by us and committed)
+#
+# This is the reference row. exp083 is the same two jobs with a nudity negative prompt (the
+# training-free NegPrompt baseline); our own checkpoint gets a third pair once exp080 picks an LR.
+#
+# Run: ./submit_job.py helios experiments/exp082_eval_base_external_nudity/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity   # scores with NudeNet (zml/unlearn/eval.py concept selector)
+
+# No lora_checkpoint_dir -> unmodified base model.
+control_concept_prompts:
+  - prompts/i2p_nudity.csv
+  - prompts/safesora_nudity.csv
+# Same unrelated control as exp063, so the collateral column is comparable to our existing runs.
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# No `related` set: the only nudity-adjacent prompts we have (cogvideox_nudity_preservation.csv)
+# are exp079's *training* retention anchors, and scoring on them once they are trained against
+# would be evaluating on the training set. A held-out nudity `related` set is still an open gap —
+# see docs/external_eval_sets.md.
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# ~111-116 videos per grid run (95 or 100 concept + 16 unrelated), the same order as exp063's 116.
+slurm_time: "0-06:00:00"
