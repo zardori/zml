@@ -60,7 +60,10 @@ against would be evaluating on the training set (open gap, see the doc).
 - [x] Base rates recorded per set; both pass the gate (see Results).
 - [x] Paired with exp083 (NegPrompt).
 - [ ] Paired with our own checkpoint, once exp080 picks an LR.
-- [ ] DOVER filled in post-hoc (`tools/score_dover.py` on x86_64) — scored on helios, so 0.0.
+- [x] DOVER filled in post-hoc (`tools/score_dover.py`, 2026-08-07): technical 0.0826 (I2P) /
+      0.0900 (SafeSora) / 0.0878 (unrelated), aesthetic 0.9296 / 0.9413 / 0.9666. **Flat across
+      all three** — base video quality does not depend on whether the prompt is about nudity,
+      which is the control needed before reading exp083's numbers as a quality effect.
 - [ ] Visual spot-check of a sample of flagged clips ([[feedback-detector-metrics-not-ground-truth]]).
 
 ## Results (2026-08-07) — both benchmarks pass the gate

@@ -4,10 +4,11 @@ concept: nudity
 method: eval
 thread: nudity
 takeaway: >
-  NegPrompt baseline for nudity. A real baseline, not a strawman: -68% on I2P (0.326->0.105) and
-  -52% on SafeSora (0.480->0.230), both p<0.001. But it does not erase (10-23% residual) and it is
-  not surgical - colorfulness +41%, motion +103% on concept, +16% colorfulness on UNRELATED, all
-  while CLIP score reports no collateral damage. We must beat 0.105/0.230 with the distribution held.
+  NegPrompt baseline for nudity, and it is strong: -68% on I2P (0.326->0.105) and -52% on
+  SafeSora (0.480->0.230), both p<0.001, at NO measurable quality cost (DOVER flat, deltas
+  inconsistent in sign) and near-zero collateral on unrelated prompts. The hoped-for 'it erases
+  but wrecks generation' story did not happen. Our case rests on the residual: it still lets
+  ~1 in 4 blunt video prompts through. Beat 0.105/0.230.
 ---
 # exp083 — NegPrompt baseline (nudity)
 
@@ -102,21 +103,50 @@ the collateral column exp083 was built to produce — and note that **CLIP score
 "no collateral damage" (-0.5%)**. Had we tracked only clip_score we would have concluded NegPrompt
 was cost-free and been wrong. Report the visual statistics alongside it.
 
+### DOVER settles it: the distribution shift is not quality damage
+
+Scored post-hoc on x86_64 with `tools/score_dover.py` (helios reports 0.0 — aarch64):
+
+| set | technical | aesthetic |
+|---|---|---|
+| I2P concept | 0.0826 -> 0.0873 (+5.7%) | 0.9296 -> 0.9193 (-1.1%) |
+| SafeSora concept | 0.0900 -> 0.0868 (-3.6%) | 0.9413 -> 0.9481 (+0.7%) |
+| unrelated | 0.0878 -> 0.0903 (+2.8%) | 0.9666 -> 0.9647 (-0.2%) |
+
+Every delta is small and **the signs are inconsistent** — technical rises on I2P and falls on
+SafeSora, aesthetic does the reverse. That is noise, not an effect. Base quality is also flat across
+all three sets, so the model is not producing worse video on nudity prompts to begin with.
+
+So NegPrompt's +41% colorfulness, +103% motion and 2x H.264 bitrate are **genuinely different but
+technically sound video**, not artefacts. The bitrate already ruled out the opposite failure
+(collapse to blank/static output compresses to nearly nothing); DOVER rules out the remaining one.
+
+**This is the harder result for us, and it overturns the expectation this experiment was set up
+with.** The hoped-for story was "NegPrompt erases as well as we do but wrecks generation" — that is
+what the What-to-watch section above anticipated. It did not happen. NegPrompt buys 52-68% erasure
+at no measurable quality cost and near-zero collateral on unrelated prompts (clip -0.5%, DOVER
+flat). The honest summary is that it is a **strong, cheap baseline with a modest fidelity cost**
+(-5.5%/-6.6% clip on concept prompts, i.e. you get sound video that is less what you asked for).
+
 ### What our method has to do
 
-Beat 0.105 (I2P) / 0.230 (SafeSora) on erasure **while holding colorfulness and motion near base**.
-Erasure alone is not a win here; NegPrompt already gets most of the way and the reason to train
-anything is that it gets there by wrecking the output distribution.
+**Beat 0.105 (I2P) / 0.230 (SafeSora) on erasure.** That is now the whole argument, and it is a
+sufficient one: a deployed five-synonym negative prompt still lets roughly **one in four** blunt
+video-native nudity prompts through. Closing that residual is what a trained method is for.
 
-### What these numbers cannot settle
+Two secondary claims remain available and are worth measuring rather than assuming:
+- **Equal or better quality** — cheap to show now that the DOVER numbers exist for the base and
+  NegPrompt rows on identical prompts and seeds.
+- **Better preservation on nudity-adjacent content.** Neither baseline is tested on this at all;
+  `unrelated` is generic content. A held-out `related` set is the only place a method that erases
+  *without* destroying swimwear can be distinguished from one that does not — and per exp079 our own
+  detector scores a red bikini at 0.844, so the concept column alone would reward the wrong model.
 
-DOVER is 0.0 throughout (scored on helios, aarch64), so **we have no technical-quality reading at
-all**. Colorfulness +41% and motion +103% are consistent with two opposite stories: more varied
-content, or artefacts and incoherent motion. Colorfulness and motion cannot tell those apart, which
-is exactly the softness human review keeps catching and these metrics keep missing. Fill DOVER in
-post-hoc with `tools/score_dover.py` before this table goes in the paper, and spot-check clips
-per [[feedback-detector-metrics-not-ground-truth]]. The residual-nudity clips deserve the same
-scepticism in the other direction.
+### Still unsettled
+
+Per [[feedback-detector-metrics-not-ground-truth]], none of the above is a substitute for looking at
+clips. DOVER is a learned quality model, not ground truth, and the residual-nudity clips deserve the
+same scepticism in the other direction.
 
 ## Run 1 (2026-08-07): timed out in scoring — videos intact, no regeneration needed
 
