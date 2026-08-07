@@ -30,5 +30,6 @@ control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
 eval_inference_steps: 50
 disable_mlflow: true
 
-# ~111-116 videos per grid run (95 or 100 concept + 16 unrelated), the same order as exp063's 116.
-slurm_time: "0-06:00:00"
+# Generation alone took ~6h for ~110 clips, so the original 6h budget died mid-scoring with every
+# video already written (see notes.md). 12h covers generation plus the CPU scoring tail.
+slurm_time: "0-12:00:00"

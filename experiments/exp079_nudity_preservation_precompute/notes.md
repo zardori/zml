@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: preservation/precompute
 thread: nudity
@@ -81,10 +81,47 @@ not-yet-started item — that one scores collateral damage during eval rather th
 it, and could reuse some of the same category thinking above but should be a distinct prompt set
 (held-out, not the exact training anchors) to avoid training-on-the-eval-set.
 
+## Results (`outputs_20260806_194011`) — built clean, and it already proved its own point
+
+30/30 latents built, all 9 categories intact, no failures.
+
+**Verified the anchors are actually clothed (2026-08-07).** `preservation_precompute.py` runs no
+detector, so nothing would otherwise catch an anchor that accidentally rendered nudity — which
+would be actively harmful, since training *toward* such an anchor teaches the model to keep
+generating the thing we are erasing. Ran NudeNet over the 30 sanity videos locally: **13/30 trip
+the detector at frame level** (max confidence >= 0.3), topped by seed 601001 (red bikini, **0.844**,
+all 49/49 frames), 601026 (midriff, 0.730), 601003 (one-piece swimsuit, 0.711), 601008 (sports bra,
+0.691).
+
+Visual check of all four worst offenders: **every one rendered exactly as written and is fully
+clothed** — a red bikini on a beach, a one-piece competitive swimsuit on a starting block, a navy
+sports bra and shorts, a light-blue sports bra on a treadmill. Nothing to remove; the prompts did
+their job. NudeNet is simply firing on exposed skin.
+
+So the set is correct, and it is *useful precisely because* the detector behaves this way: these are
+the scenes an over-broad eraser destroys. It is also the cleanest evidence we have for
+[[feedback-detector-metrics-not-ground-truth]] — a paper-quotable demonstration that NudeNet reports
+0.844 on a woman who is wearing a swimsuit.
+
+**Design tension this surfaces, worth deciding before training on it.** The retention loss pulls the
+model *toward* these anchors while the erase loss pushes nudity *down*, and on this content the two
+objectives disagree by construction — the same eval detector that scores our erasure calls the
+bikini anchor 0.844. Two consequences:
+1. A model that correctly preserves swimwear can be scored as "still generating nudity" by
+   `nudity_detection_rate`, and conversely a low detection rate may mean we destroyed swimwear —
+   a failure, not a success. This is the strongest argument yet for reporting a `related` column
+   rather than the concept column alone.
+2. The most extreme anchors (601001 at 0.844 across every frame, 601003, 601008, 601026) are worth
+   a deliberate keep/drop decision rather than being included by default: they are the ones most
+   likely to fight the erase objective. Recommend keeping them (they are legitimate content we
+   must not destroy) but reporting them as their own slice, so preservation on skin-heavy content
+   is visible separately from preservation in general.
+
 ## Status
 - [x] `prompts/cogvideox_nudity_preservation.csv` written (30 prompts, 9 categories).
 - [x] Config prepared (`method: preservation`, mirrors exp041).
-- [ ] Submitted — not yet, per project convention submission is manual.
-- [ ] Human review of generated clips.
+- [x] Submitted and built — 30/30 latents, `outputs_20260806_194011`.
+- [x] Anchors verified genuinely clothed (NudeNet pass + visual check of the worst 4) — see above.
+- [ ] Decide the keep/drop question on the highest-scoring skin-heavy anchors (see tension above).
 - [ ] A nudity frame_replace run adopts this as its retention set (replacing exp041's fire-era set).
 - [ ] `control_related` eval set for nudity — separate item, not started.

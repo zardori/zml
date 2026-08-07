@@ -73,6 +73,59 @@ class EvalConceptConfig(Protocol):
     concept_target: str | None
 
 
+def score_video_dir(
+    video_dir: str, prompts: list[str], concept: str, concept_target: str | None = None
+) -> dict:
+    """Run every metric over one directory of already-generated clips.
+
+    Split out of ``evaluate`` so scoring can also be redone after the fact, without regenerating:
+    an eval job that dies in this (CPU) phase still leaves a complete set of videos on disk, and
+    re-running an hours-long generation to recover them would be pure waste. See
+    ``tools/score_eval_videos.py``.
+
+    ``prompts`` must be in the same order the clips were written (``video_0.mp4``, ``video_1.mp4``,
+    ...), because CLIP score pairs the i-th clip with the i-th prompt; every scorer sorts its file
+    listing, so that ordering holds as long as the caller passes the prompt list it generated from.
+    """
+    concept_scores = build_detector(concept, video_dir, concept_target).process_videos()
+    clip_scores = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
+    colorfulness_scores = VideoColorfulnessScorer(video_dir=video_dir).process_videos()
+    motion_scores = VideoMotionScorer(video_dir=video_dir).process_videos()
+    dover_scores = (
+        VideoDoverScorer(video_dir=video_dir).process_videos()
+        if DOVER_AVAILABLE
+        else {"technical": [], "aesthetic": []}
+    )
+
+    clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
+    color_arr = np.array(colorfulness_scores) if colorfulness_scores else np.array([0.0])
+    motion_arr = np.array(motion_scores) if motion_scores else np.array([0.0])
+    tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
+    aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
+
+    return {
+        **concept_scores,
+        # Concept-agnostic aliases so downstream (recorder/summary) reads one key across concepts.
+        "concept_detection_rate": concept_scores[f"{concept}_detection_rate"],
+        "concept_area_score_mean": concept_scores[f"{concept}_area_score_mean"],
+        "clip_scores": clip_scores,
+        "clip_score_mean": float(clip_arr.mean()),
+        "clip_score_std": float(clip_arr.std()),
+        "colorfulness_scores": colorfulness_scores,
+        "colorfulness_mean": float(color_arr.mean()),
+        "colorfulness_std": float(color_arr.std()),
+        "motion_scores": motion_scores,
+        "motion_score_mean": float(motion_arr.mean()),
+        "motion_score_std": float(motion_arr.std()),
+        "dover_technical_scores": dover_scores["technical"],
+        "dover_technical_mean": float(tech_arr.mean()),
+        "dover_technical_std": float(tech_arr.std()),
+        "dover_aesthetic_scores": dover_scores["aesthetic"],
+        "dover_aesthetic_mean": float(aes_arr.mean()),
+        "dover_aesthetic_std": float(aes_arr.std()),
+    }
+
+
 def evaluate(
     pipe,
     transformer,
@@ -134,46 +187,12 @@ def evaluate(
 
     metrics = {}
     for set_name, eval_prompts in prompt_sets.items():
-        video_dir = os.path.join(eval_root, set_name)
-        concept_scores = build_detector(concept, video_dir, concept_target).process_videos()
-        clip_scores = VideoClipScorer(
-            video_dir=video_dir, prompts=[ep.prompt for ep in eval_prompts]
-        ).process_videos()
-        colorfulness_scores = VideoColorfulnessScorer(video_dir=video_dir).process_videos()
-        motion_scores = VideoMotionScorer(video_dir=video_dir).process_videos()
-        dover_scores = (
-            VideoDoverScorer(video_dir=video_dir).process_videos()
-            if DOVER_AVAILABLE
-            else {"technical": [], "aesthetic": []}
+        metrics[set_name] = score_video_dir(
+            os.path.join(eval_root, set_name),
+            [ep.prompt for ep in eval_prompts],
+            concept,
+            concept_target,
         )
-
-        clip_arr = np.array(clip_scores) if clip_scores else np.array([0.0])
-        color_arr = np.array(colorfulness_scores) if colorfulness_scores else np.array([0.0])
-        motion_arr = np.array(motion_scores) if motion_scores else np.array([0.0])
-        tech_arr = np.array(dover_scores["technical"]) if dover_scores["technical"] else np.array([0.0])
-        aes_arr = np.array(dover_scores["aesthetic"]) if dover_scores["aesthetic"] else np.array([0.0])
-
-        metrics[set_name] = {
-            **concept_scores,
-            # Concept-agnostic aliases so downstream (recorder/summary) reads one key across concepts.
-            "concept_detection_rate": concept_scores[rate_key],
-            "concept_area_score_mean": concept_scores[area_key],
-            "clip_scores": clip_scores,
-            "clip_score_mean": float(clip_arr.mean()),
-            "clip_score_std": float(clip_arr.std()),
-            "colorfulness_scores": colorfulness_scores,
-            "colorfulness_mean": float(color_arr.mean()),
-            "colorfulness_std": float(color_arr.std()),
-            "motion_scores": motion_scores,
-            "motion_score_mean": float(motion_arr.mean()),
-            "motion_score_std": float(motion_arr.std()),
-            "dover_technical_scores": dover_scores["technical"],
-            "dover_technical_mean": float(tech_arr.mean()),
-            "dover_technical_std": float(tech_arr.std()),
-            "dover_aesthetic_scores": dover_scores["aesthetic"],
-            "dover_aesthetic_mean": float(aes_arr.mean()),
-            "dover_aesthetic_std": float(aes_arr.std()),
-        }
 
     rounded_metrics = _round_metrics(metrics)
     metrics_path = os.path.join(eval_root, "metrics.json")

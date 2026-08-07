@@ -102,3 +102,46 @@ existing tool for this) rather than forcing a merge before any of them has been 
       (0.85) in config must not be trusted for submission until that review lands.
 - [ ] Submitted (manual, per project convention — not done by Claude).
 - [ ] Human review of kept triples.
+
+## Analysis of `outputs_20260806_211431` (added 2026-08-07, by the other session — review before acting)
+
+**Pipeline machinery: all clean.** 55/55 rows accounted for, **0 skipped**, `boundary_margin: 2` and
+`edited_latent_mask` both present. This is the first dataset built after the 2026-08-04 fixes and it
+validates all of them at once: the trailing-row bug is gone (previously rows 29/51/3620 vanished
+silently), and mask-from-construction gives 100% yield versus exp078's 51% under detector-driven
+skipping. `edit_latent_reflected` also verified directly — per-frame |original − edited| is ~1
+(codec noise) across the donor region and jumps exactly at the mask boundary (seed 3731: mask starts
+at latent 7 → pixel 25, diff goes 1.9 → 9.4 precisely there), and seed 3701 visibly shows the
+dancers *clothed and still moving through different poses* in the edited half — motion preserved,
+not the frozen single-frame copy the old `edit_latent` fallback produced.
+
+**Dataset content: mostly unusable as-is.** Scoring each clip's donor region and concept region
+separately with the stored `frame_confidences` (threshold 0.3):
+
+| outcome | n / 55 |
+|---|---:|
+| concept region never rendered nude (orig max < 0.3) | 37 |
+| concept rendered, but the **donor region is also nude** | 12 |
+| clean split (concept nude, donor clean) | **6** |
+
+Only 6/55 are clean: seeds 3701, 3707, 3708, 3709, 3719, 3732 (all with donor max 0.0 and edited max
+0.0 — the edit fully removes the detected concept). In the 12 "donor also nude" cases the edit is
+*structurally* incapable of helping: it copies donor frames that themselves contain the concept, so
+`x0_edited` still shows it — and in 4 of them (3731, 3726, 3718, 3710) the edited clip scores
+*higher* than the original, because the donor frames are more nude than the frames they replaced.
+That failure mode does not depend on trusting NudeNet's calibration: if the donor half contains the
+concept, no frame-replacement scheme can remove it.
+
+The 37 "never rendered nude" bucket **does** depend on the detector, and NudeNet under-detects
+(see [[feedback-detector-metrics-not-ground-truth]]) — so treat that number as an upper bound on
+failure until spot-checked. Two clips were checked by eye and agreed with the detector (3711 renders
+two fully clothed people throughout — a real A-prompt failure; 3731 renders nude throughout
+including the donor half — a real donor contamination).
+
+**Consequence.** This dataset should not go into a training run on its 55-row count. The usable
+fraction is closer to 6 confirmed-good than to 55, which is *worse* than exp078's 13/50 human-approved.
+Two plausible causes worth separating before rebuilding: (a) `split_step_frac: 0.85` here versus the
+`1.0` run exp078's 13 approved clips came from — the same knob exp078's own review left unresolved;
+(b) gen3's hand-written one-sentence prompts, which are much less blunt than exp061's rigid
+"completely naked... full anatomical detail" template and may simply not drive the A-region hard
+enough. (a) is a cheap re-run; (b) is a prompt-authoring question.

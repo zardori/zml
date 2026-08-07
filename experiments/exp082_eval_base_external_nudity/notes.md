@@ -56,6 +56,30 @@ against would be evaluating on the training set (open gap, see the doc).
 ## Status
 - [x] Prompt sets built and committed (`tools/build_external_nudity_evalsets.py`, deterministic).
 - [x] Config drafted; grid + `Config` construction verified end-to-end locally.
-- [ ] Submitted — manual, per project convention.
+- [x] Submitted; all grid runs generated every clip, then timed out during scoring (see above).
+- [ ] Scored — run tools/score_eval_videos.py against the existing videos (no regeneration needed).
 - [ ] Base rates recorded per set; compared against our in-house `cogvideox_nudity.csv` rate.
 - [ ] Paired with exp083 (NegPrompt) and, once exp080 picks an LR, our own checkpoint.
+
+## Run 1 (2026-08-07): timed out in scoring — videos intact, no regeneration needed
+
+All grid runs hit `CANCELLED ... DUE TO TIME LIMIT` at the 6h budget. The failure is entirely mine
+in the config: an eval job generates on GPU first and scores on CPU last, so a too-small budget
+kills it *after* the expensive part. Every clip was written before the kill — 95/95 (I2P), 100/100
+(SafeSora), 15/15 unrelated in each run, verified on the cluster — and only `metrics.json` is
+missing.
+
+So the ~24 h of GPU work is intact and does **not** need repeating. Recover with
+`tools/score_eval_videos.py` (added for this), which reads the run's own config to pair each clip
+with the prompt that generated it and writes the same `metrics.json` via the same `score_video_dir`
+the eval path itself uses — a recovered run is not scored differently from a normal one:
+
+```
+uv run python tools/score_eval_videos.py <grid_dir>/run_001 <grid_dir>/run_002
+```
+
+It needs the videos, which are still cluster-side (the last pull excluded them). Run it on the
+cluster, or pull those `eval_step_0/` dirs first. DOVER only contributes on x86_64, so if scored on
+helios its fields stay 0.0 and can be filled later with `tools/score_dover.py`.
+
+`slurm_time` raised 6h → 12h so a resubmission does not repeat this.
