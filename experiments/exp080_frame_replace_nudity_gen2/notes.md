@@ -1,14 +1,14 @@
 ---
-status: ready
+status: active
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  First frame_replace run on the expanded dataset (exp061's 21 + exp078's 13 human-approved new
-  triples = 34). Baseline is exp077, not exp062/073: warmup scrapped (exp077 found no clean win),
-  replaced with a learning_rate grid [0.00005, 0.0001, 0.0002, 0.0005], steps extended to 200
-  (save_interval: 20).
-  Not yet submitted — the combined_dataset/ merge step must be run first (see config.yaml).
+  First frame_replace run on the expanded dataset (exp061's 21 + exp078's 13 human-approved
+  triples = 34). Baseline is exp077: warmup scrapped, learning_rate grid
+  [0.00005, 0.0001, 0.0002, 0.0005], 200 steps. Submitted 2026-08-07, 3/4 jobs running, with
+  exp041's fire-era retention set; the nudity-specific replacement moved to exp085 as an
+  ablation rather than being swapped in silently. Live eval is n=10 - a monitor, not a result.
 ---
 # exp080 — frame_replace nudity, expanded dataset + LR grid
 
@@ -84,6 +84,34 @@ this CSV can be regenerated straightforwardly from the prompt level rather than 
 - [x] Config drafted (LR grid, 200 steps, no warmup).
 - [x] `prompts/split_nudity_gen2_approved.csv` written (13 rows, durable/committed).
 - [x] `zml/precompute/merge_frame_replace_datasets.py` written (reusable, not nudity-specific).
-- [ ] Merge step actually run — `combined_dataset/` does not exist yet.
-- [ ] Submitted — blocked on the merge step; submission itself is manual per project convention.
+- [x] Merge step run on the cluster; `combined_dataset/` built (34 triples).
+- [x] Submitted 2026-08-07 — 3 of 4 grid jobs running.
+- [ ] Grid completes; LR chosen (human review, not the n=10 detector rate alone).
+- [ ] Chosen checkpoint evaluated on the external benchmarks — that, not this run's live eval, is
+      the number that goes next to exp082/exp083.
+
+## Run 1 (2026-08-07): submitted as configured above
+
+Submitted with the config exactly as it stands in this folder — exp041's fire-era retention set,
+`save_interval: 20`, `eval_num_prompts: 10`, `slurm_time: 16h`. Two improvements were written after
+submission and deliberately **not** applied here, so that this file keeps describing the run that
+actually executed:
+
+1. **Retention set.** exp079's 20 human-reviewed nudity-adjacent anchors instead of exp041's fire
+   near-misses. Moved to **exp085**, which is otherwise identical — making the pair a clean
+   ablation of the retention set, which is more useful than the silent swap would have been.
+2. **Eval budget.** `eval_num_prompts` 10 -> 20 paid for by `save_interval` 20 -> 40 (same 300
+   clips, half the noise per point). Also in exp085.
+
+**Timeout risk, flagged rather than fixed.** Eval fires at every `save_interval`, so this run does
+`200/20 * 3 * 10 = 300` clips plus 200 training steps against a 16h budget. exp077 did 150 clips
+plus 100 steps in ~7h of an 8h budget, so this is close to the line. If it dies late, checkpoints
+are written at every `save_interval` and survive — unlike exp082/exp083, where the timeout landed
+after generation and cost the whole scoring pass. Losing the last checkpoint's eval is recoverable;
+`tools/score_eval_videos.py` handles it.
+
+**Reading the live eval.** `eval_num_prompts: 10` on `cogvideox_nudity.csv` is a training monitor,
+not a result. exp082 showed n=10 is too weak to distinguish anything — exp073's trajectory across
+five checkpoints (0.0, 0.1, 0.1, 0.1, 0.3) is consistent with no effect at all. Use it to detect
+collapse and to rank the four LRs coarsely; do not quote it.
 - [ ] Analysis once results land.

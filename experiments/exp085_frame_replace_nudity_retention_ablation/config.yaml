@@ -1,0 +1,64 @@
+# exp085 - retention-set ablation against exp080.
+#
+# IDENTICAL to exp080's submitted run in every respect except the retention anchors and the eval
+# budget, so the pair isolates one question: does a nudity-specific preservation set beat the
+# fire-era one every nudity run has been reusing? exp080 shipped with exp041's anchors (26
+# deliberate fire near-misses - autumn maples, koi ponds, orange foxes), which have no relationship
+# to what a nudity eraser is likely to damage. This run uses exp079's 20 human-reviewed
+# nudity-adjacent anchors instead.
+#
+# Submit only after exp080's grid finishes, so the comparison is against a complete baseline.
+#
+# Run: ./submit_job.py helios experiments/exp085_frame_replace_nudity_retention_ablation/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+# exp079's nudity-specific retention anchors, human-reviewed down to 20 of 30 (the other 10 either
+# rendered nudity or came out blank). Replaces exp041's fire-era set, which was 26 deliberate
+# fire near-misses — autumn maples, koi ponds, orange foxes — and had no relationship to what a
+# nudity eraser is actually likely to damage. These are clothed scenes adjacent to nudity
+# (swimwear, athletic, medical, sleepwear, close crops), i.e. the collateral surface that matters.
+retention_metadata_file: experiments/exp079_nudity_preservation_precompute/outputs_20260806_194011/metadata_human_filtered.json
+retention_latents_dir: experiments/exp079_nudity_preservation_precompute/outputs_20260806_194011/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+control_related_prompts: prompts/cogvideox_fire_control_unrelated.csv   # placeholder, see exp062's notes
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: [0.00005, 0.0001, 0.0002, 0.0005]   # grid: baseline + 3 smaller values
+steps: 200
+save_interval: 40   # 5 evals/checkpoints over 200 steps; see eval_num_prompts for the budget
+
+timestep_min: 400
+timestep_max: 1000
+
+# 10 -> 20, paid for by halving the eval count (save_interval 20 -> 40). This live eval is a
+# training monitor, not a paper number - the reported row comes from a separate eval on the
+# external benchmarks - but at n=10 one clip is 10 percentage points and exp073's whole trajectory
+# (0.0, 0.1, 0.1, 0.1, 0.3) is consistent with pure noise, which is too weak to pick a learning
+# rate on. Budget is the binding constraint: eval runs at every save_interval over 3 prompt sets,
+# so clips per run = (steps / save_interval) * 3 * eval_num_prompts. 5 * 3 * 20 = 300, the same
+# total as the original 10 * 3 * 10, but with half the noise per point and still five points
+# across training. exp077 did 150 clips plus 100 steps in 8h.
+eval_num_prompts: 20
+eval_inference_steps: 50
+global_seed: 42
+
+# exp077's 100 steps took ~6.25-7h wall time; 200 steps roughly doubles that, plus margin for the
+# larger (34 vs 21 triple) dataset.
+slurm_time: "0-20:00:00"   # 16h left no margin at 300 clips + 200 steps; exp082/exp083 died to exactly that
