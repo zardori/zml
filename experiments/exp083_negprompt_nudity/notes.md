@@ -63,11 +63,10 @@ Two deliberate choices worth defending in the paper:
 - [x] Submitted; all grid runs generated every clip, then timed out during scoring (see above).
 - [x] Scored post-hoc with `tools/score_eval_videos.py` — no regeneration needed.
 - [x] Compared against exp082 (base) on the same pairs; tradeoff column read, not just erasure.
-- [ ] DOVER filled in post-hoc (`tools/score_dover.py` on x86_64) — scored on helios, so 0.0. This
-      matters more here than usual: see "what the numbers cannot settle" below.
+- [x] DOVER filled in post-hoc (`tools/score_dover.py`, 2026-08-07) — flat, see below.
 - [ ] Visual spot-check before believing the low detection rates.
 
-## Results (2026-08-07) — a real baseline, and it does not erase
+## Results (2026-08-07) — a strong baseline that does not erase
 
 | set | n | base (exp082) | NegPrompt | change |
 |---|---|---|---|---|
