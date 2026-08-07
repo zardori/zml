@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
+from zml.video_files import list_video_files
 
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 NUM_FRAMES = 8  # evenly sampled from 49-frame videos
@@ -80,10 +81,7 @@ class VideoClipScorer:
 
     def process_videos(self) -> list[float]:
         """Returns per-video CLIP scores for all videos in video_dir."""
-        video_files = sorted(
-            [f for f in os.listdir(self.video_dir) if f.endswith((".mp4", ".avi", ".mov"))],
-            key=lambda f: int(f.split("_")[1].split(".")[0]),
-        )
+        video_files = list_video_files(self.video_dir)
 
         if not video_files:
             print(f"No video files found in {self.video_dir}")

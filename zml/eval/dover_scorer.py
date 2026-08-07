@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import yaml
 from huggingface_hub import hf_hub_download
+from zml.video_files import list_video_files
 
 try:
     from dover.datasets import UnifiedFrameSampler, spatial_temporal_view_decomposition
@@ -115,12 +116,7 @@ class VideoDoverScorer:
 
     def process_videos(self) -> dict[str, list[float]]:
         """Returns per-video technical and aesthetic quality scores for all videos in video_dir."""
-        # sorted() to match VideoClipScorer/VideoMotionScorer/VideoColorfulnessScorer, so the
-        # per-video lists they all write into one metrics.json stay index-aligned to the same clip.
-        video_files = sorted(
-            f for f in os.listdir(self.video_dir)
-            if f.endswith((".mp4", ".avi", ".mov"))
-        )
+        video_files = list_video_files(self.video_dir)
 
         if not video_files:
             print(f"No video files found in {self.video_dir}")

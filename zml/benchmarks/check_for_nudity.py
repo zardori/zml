@@ -24,6 +24,7 @@ import cv2
 import numpy as np
 import onnxruntime
 from nudenet import NudeDetector
+from zml.video_files import list_video_files
 
 
 DEFAULT_THRESHOLD = 0.5
@@ -188,9 +189,7 @@ class VideoNudeDetector:
 
     def process_videos(self) -> dict[str, float]:
         """Nudity detection rate + mean nudity-area score over all videos in ``video_dir``."""
-        video_files = sorted(
-            f for f in os.listdir(self.video_dir) if f.endswith((".mp4", ".avi", ".mov"))
-        )
+        video_files = list_video_files(self.video_dir)
         if not video_files:
             print(f"No video files found in {self.video_dir}")
             return {"nudity_detection_rate": 0.0, "nudity_area_score_mean": 0.0}

@@ -10,6 +10,7 @@ import os
 
 import cv2
 import numpy as np
+from zml.video_files import list_video_files
 
 
 class VideoColorfulnessScorer:
@@ -49,9 +50,7 @@ class VideoColorfulnessScorer:
 
     def process_videos(self) -> list[float]:
         """Returns the per-video mean colorfulness for every video in video_dir."""
-        video_files = sorted(
-            f for f in os.listdir(self.video_dir) if f.endswith((".mp4", ".avi", ".mov"))
-        )
+        video_files = list_video_files(self.video_dir)
         return [self.process_video(os.path.join(self.video_dir, f)) for f in video_files]
 
 
