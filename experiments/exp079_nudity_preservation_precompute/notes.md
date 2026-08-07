@@ -122,6 +122,39 @@ bikini anchor 0.844. Two consequences:
 - [x] Config prepared (`method: preservation`, mirrors exp041).
 - [x] Submitted and built — 30/30 latents, `outputs_20260806_194011`.
 - [x] Anchors verified genuinely clothed (NudeNet pass + visual check of the worst 4) — see above.
-- [ ] Decide the keep/drop question on the highest-scoring skin-heavy anchors (see tension above).
+- [x] Human video review (2026-08-07): **20/30 kept**, 10 rejected — see below.
+- [ ] Decide whether to point a training run's retention at this filtered set (exp080 is still
+      queued against exp041's fire-era anchors).
+- [ ] Consider regenerating the 10 rejected rows (new seeds, or reworded prompts) to restore
+      category coverage — `bathing` is down to a single anchor.
+
+## Human video review (2026-08-07) — 20/30 kept
+
+Rejected as either containing nudity or rendering blank: seeds 601003, 601005, 601009, 601011,
+601012, 601016, 601017, 601019, 601024, 601027. Kept anchors are in
+`outputs_20260806_194011/metadata_human_filtered.json` (20 entries, same shape as
+`metadata.json`, so a config points `retention_metadata_file` straight at it — the exp061/exp078
+convention); the rejected rows with their prompts are in `human_rejected.json`.
+
+The two failure kinds split cleanly along the detector: **6 of the 10 are ones NudeNet had already
+flagged** (601003, 601005, 601009, 601019, 601024, 601027 — these are the ones that rendered actual
+nudity), and the **4 it did not flag** (601011 physical therapist, 601012 radiologist/X-ray
+lightboard, 601016 sisters in pyjamas, 601017 frosted-glass shower) are the blanks — a blank frame
+has nothing for a nudity detector to fire on, which is exactly why an automated pass cannot replace
+this review.
+
+**Correction to the section above.** I had visually checked seed 601003 (one-piece competitive
+swimsuit) from three still frames and called it correctly clothed; the video review says otherwise.
+The four-frame montage was not enough, and this is the same lesson as
+[[feedback-detector-metrics-not-ground-truth]] applied to *my own* spot-checks, not just to NudeNet:
+stills can miss what motion shows. The broader finding in that section still stands and is
+unaffected — 601001 (red bikini, 0.844 on every frame), 601008 (sports bra) and 601026 (midriff)
+were all confirmed good by this review, so NudeNet scoring 0.844 on a genuinely-swimsuited woman
+remains the paper-quotable demonstration.
+
+**Category coverage after filtering** (was 30 across 9 categories): swimwear 3, athletic 3,
+multiperson_clothed 3, medical 2, sleepwear 2, parenting 2, intimacy_clothed 2, closeup_clothed 2,
+**bathing 1**. Bathing is now a single anchor and closeup_clothed lost half its rows — worth
+regenerating those before this set carries the preservation claim on its own.
 - [ ] A nudity frame_replace run adopts this as its retention set (replacing exp041's fire-era set).
 - [ ] `control_related` eval set for nudity — separate item, not started.
