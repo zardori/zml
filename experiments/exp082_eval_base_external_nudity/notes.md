@@ -1,13 +1,12 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
-  Base-model ("Original") reference on two EXTERNAL nudity benchmarks — I2P (95 prompts, real
-  benchmark, its own seeds) and SafeSora (100 prompts, video-native). Needed because every prior
-  nudity number is on prompts we wrote ourselves: cogvideox_nudity.csv shares ZERO prompts with
-  real I2P despite being called "i2p-derived". Not yet submitted.
+  Base-model reference on two EXTERNAL nudity benchmarks. Both pass the gate: I2P 0.326 (n=95),
+  SafeSora 0.480 (n=100), unrelated 0.000. First nudity eval with usable power (in-house set is
+  n=10, where one clip is 10pp). Erasure claims should be made here, not on cogvideox_nudity.csv.
 ---
 # exp082 — base-model reference on external nudity benchmarks
 
@@ -57,9 +56,46 @@ against would be evaluating on the training set (open gap, see the doc).
 - [x] Prompt sets built and committed (`tools/build_external_nudity_evalsets.py`, deterministic).
 - [x] Config drafted; grid + `Config` construction verified end-to-end locally.
 - [x] Submitted; all grid runs generated every clip, then timed out during scoring (see above).
-- [ ] Scored — run tools/score_eval_videos.py against the existing videos (no regeneration needed).
-- [ ] Base rates recorded per set; compared against our in-house `cogvideox_nudity.csv` rate.
-- [ ] Paired with exp083 (NegPrompt) and, once exp080 picks an LR, our own checkpoint.
+- [x] Scored post-hoc with `tools/score_eval_videos.py` — no regeneration needed.
+- [x] Base rates recorded per set; both pass the gate (see Results).
+- [x] Paired with exp083 (NegPrompt).
+- [ ] Paired with our own checkpoint, once exp080 picks an LR.
+- [ ] DOVER filled in post-hoc (`tools/score_dover.py` on x86_64) — scored on helios, so 0.0.
+- [ ] Visual spot-check of a sample of flagged clips ([[feedback-detector-metrics-not-ground-truth]]).
+
+## Results (2026-08-07) — both benchmarks pass the gate
+
+| set | n | nudity rate | clip | colorfulness | motion |
+|---|---|---|---|---|---|
+| I2P (`run_001`) | 95 | **0.326** | 0.2596 | 38.07 | 0.779 |
+| SafeSora (`run_002`) | 100 | **0.480** | 0.2752 | 37.54 | 1.662 |
+| unrelated (both runs) | 15 | 0.000 | 0.3309 | 33.76 | 2.013 |
+
+**The gate passes on both, SafeSora more strongly.** The risk this experiment existed to test was that
+I2P's image-era art prompts would not drive a T2V model the way they drive SD-1.4, leaving nothing to
+erase. 0.326 is plenty. SafeSora's 0.480 is higher in the predicted direction — it is video-native
+and blunt where I2P is stylised and art-historical.
+
+**This is the first nudity eval with usable statistical power.** Our in-house set runs at n=10, where
+one clip is 10 percentage points; exp073's trajectory over five checkpoints (0.000, 0.100, 0.100,
+0.100, 0.300) is consistent with pure noise. At n=95 the standard error is +/-4.8pp rather than
++/-14.5pp. Erasure claims should be made on these sets, not on `cogvideox_nudity.csv`.
+
+**The unrelated row is a specificity check, and NudeNet passes it: 0.000 over 15 clips.** Read
+together with exp079 (0.844 on a red bikini, 12 of 13 flags false on near-miss content) this locates
+the detector's failure precisely: it is *not* indiscriminate — it is silent on ordinary content and
+over-fires specifically in the near-miss band (swimwear, sports bras, tight crops). That is a
+sharper and more defensible claim than "NudeNet is noisy," and it is the argument for reporting a
+`related` column.
+
+**Determinism confirmed for free.** The `unrelated` row is identical across `run_001` and `run_002`
+— 0.000 / 0.3309 / 33.76 / 2.013 from two independent jobs on the same prompts and seeds. The
+per-prompt seed policy holds end to end.
+
+**Caveat worth a sentence in the paper: I2P's motion is 0.779, well under half the unrelated set's
+2.013.** Those art prompts produce near-static clips, so I2P is partly out of distribution for a
+video model and erasure measured there says less about motion-heavy content. This is an argument for
+reporting both benchmarks rather than choosing one; SafeSora at 1.662 covers the gap.
 
 ## Run 1 (2026-08-07): timed out in scoring — videos intact, no regeneration needed
 

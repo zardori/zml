@@ -1,13 +1,13 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
-  NegPrompt baseline for nudity — no training, concept passed as an inference-time negative prompt.
-  Answers the first question any reviewer asks an erasure paper ("why not just negative-prompt
-  it?"). Same two external benchmarks and seeds as exp082, so the pair is a clean A/B. Costs
-  generation only. Not yet submitted.
+  NegPrompt baseline for nudity. A real baseline, not a strawman: -68% on I2P (0.326->0.105) and
+  -52% on SafeSora (0.480->0.230), both p<0.001. But it does not erase (10-23% residual) and it is
+  not surgical - colorfulness +41%, motion +103% on concept, +16% colorfulness on UNRELATED, all
+  while CLIP score reports no collateral damage. We must beat 0.105/0.230 with the distribution held.
 ---
 # exp083 — NegPrompt baseline (nudity)
 
@@ -60,9 +60,63 @@ Two deliberate choices worth defending in the paper:
       `zml/unlearn/eval.py`); verified it is a strict no-op when unset, so no prior run changes.
 - [x] Config drafted; grid + `Config` construction verified end-to-end locally.
 - [x] Submitted; all grid runs generated every clip, then timed out during scoring (see above).
-- [ ] Scored — run tools/score_eval_videos.py against the existing videos (no regeneration needed).
-- [ ] Compared against exp082 (base) on the same pairs; tradeoff column read, not just erasure.
-- [ ] Visual spot-check before believing any low detection rate.
+- [x] Scored post-hoc with `tools/score_eval_videos.py` — no regeneration needed.
+- [x] Compared against exp082 (base) on the same pairs; tradeoff column read, not just erasure.
+- [ ] DOVER filled in post-hoc (`tools/score_dover.py` on x86_64) — scored on helios, so 0.0. This
+      matters more here than usual: see "what the numbers cannot settle" below.
+- [ ] Visual spot-check before believing the low detection rates.
+
+## Results (2026-08-07) — a real baseline, and it does not erase
+
+| set | n | base (exp082) | NegPrompt | change |
+|---|---|---|---|---|
+| I2P | 95 | 0.326 | **0.105** | -68% rel, z=3.70 |
+| SafeSora | 100 | 0.480 | **0.230** | -52% rel, z=3.69 |
+
+Both drops are significant well past p<0.001, so **NegPrompt is not a strawman** — the strong
+multi-synonym form we chose does substantial work for free, and any erasure claim we make has to
+beat 0.105 / 0.230, not 0.326 / 0.480.
+
+**But it does not erase.** Residual nudity is 10.5% (+/-6.2pp) on I2P and 23.0% (+/-8.2pp) on
+SafeSora. Roughly a quarter of blunt video-native nudity prompts still produce nudity with an
+explicit five-synonym negative prompt in place. That is the gap a trained method exists to close.
+
+### The cost is real, and CLIP score does not see it
+
+| set | clip | colorfulness | motion |
+|---|---|---|---|
+| I2P concept | 0.260 -> 0.245 (-5.5%) | 38.07 -> 53.57 (**+40.7%**) | 0.779 -> 1.580 (**+102.8%**) |
+| SafeSora concept | 0.275 -> 0.257 (-6.6%) | 37.54 -> 44.92 (+19.7%) | 1.662 -> 2.393 (+44.0%) |
+| unrelated | 0.331 -> 0.329 (-0.5%) | 33.76 -> 39.23 (**+16.2%**) | 2.013 -> 2.189 (+8.7%) |
+
+Two things fall out of this table.
+
+**NegPrompt is not surgical — it moves the whole output distribution.** Colorfulness rises 41% and
+motion doubles on the concept set. Steering CFG away from "nudity, naked, nude, bare skin, explicit
+sexual content" does not subtract the concept and leave the rest; it produces materially different
+video, with prompt adherence down 5-7%.
+
+**It is not free on prompts that never contained the concept.** The `unrelated` set is 15 prompts
+with no nudity in them, generated from identical seeds, and colorfulness still moves 16%. This is
+the collateral column exp083 was built to produce — and note that **CLIP score would have reported
+"no collateral damage" (-0.5%)**. Had we tracked only clip_score we would have concluded NegPrompt
+was cost-free and been wrong. Report the visual statistics alongside it.
+
+### What our method has to do
+
+Beat 0.105 (I2P) / 0.230 (SafeSora) on erasure **while holding colorfulness and motion near base**.
+Erasure alone is not a win here; NegPrompt already gets most of the way and the reason to train
+anything is that it gets there by wrecking the output distribution.
+
+### What these numbers cannot settle
+
+DOVER is 0.0 throughout (scored on helios, aarch64), so **we have no technical-quality reading at
+all**. Colorfulness +41% and motion +103% are consistent with two opposite stories: more varied
+content, or artefacts and incoherent motion. Colorfulness and motion cannot tell those apart, which
+is exactly the softness human review keeps catching and these metrics keep missing. Fill DOVER in
+post-hoc with `tools/score_dover.py` before this table goes in the paper, and spot-check clips
+per [[feedback-detector-metrics-not-ground-truth]]. The residual-nudity clips deserve the same
+scepticism in the other direction.
 
 ## Run 1 (2026-08-07): timed out in scoring — videos intact, no regeneration needed
 
