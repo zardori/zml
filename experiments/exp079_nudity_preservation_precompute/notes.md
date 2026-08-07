@@ -126,35 +126,45 @@ bikini anchor 0.844. Two consequences:
 - [ ] Decide whether to point a training run's retention at this filtered set (exp080 is still
       queued against exp041's fire-era anchors).
 - [ ] Consider regenerating the 10 rejected rows (new seeds, or reworded prompts) to restore
-      category coverage — `bathing` is down to a single anchor.
+      category coverage — `medical`, `bathing` and `parenting` are each down to a single anchor.
 
 ## Human video review (2026-08-07) — 20/30 kept
 
-Rejected as either containing nudity or rendering blank: seeds 601003, 601005, 601009, 601011,
-601012, 601016, 601017, 601019, 601024, 601027. Kept anchors are in
-`outputs_20260806_194011/metadata_human_filtered.json` (20 entries, same shape as
-`metadata.json`, so a config points `retention_metadata_file` straight at it — the exp061/exp078
-convention); the rejected rows with their prompts are in `human_rejected.json`.
+Rejected as either containing nudity or rendering blank, by video index (files are
+`p{index}_s{seed}.mp4`): p3, p5, p9, p11, p12, p16, p17, p19, p24, p27 = seeds **601004, 601006,
+601010, 601012, 601013, 601017, 601018, 601020, 601025, 601028**. Kept anchors are in
+`outputs_20260806_194011/metadata_human_filtered.json` (20 entries, same shape as `metadata.json`,
+so a config points `retention_metadata_file` straight at it — the exp061/exp078 convention); the
+rejected rows with their prompts are in `human_rejected.json`.
 
-The two failure kinds split cleanly along the detector: **6 of the 10 are ones NudeNet had already
-flagged** (601003, 601005, 601009, 601019, 601024, 601027 — these are the ones that rendered actual
-nudity), and the **4 it did not flag** (601011 physical therapist, 601012 radiologist/X-ray
-lightboard, 601016 sisters in pyjamas, 601017 frosted-glass shower) are the blanks — a blank frame
-has nothing for a nudity detector to fire on, which is exactly why an automated pass cannot replace
-this review.
+**Only 1 of the 10 rejects was visible to NudeNet.** Seed 601004 (family wading at a lake) scored
+0.524 with `FEMALE_BREAST_EXPOSED` on 13 frames — that is the one that rendered actual nudity, and
+the detector caught it. The other **nine scored exactly 0.0**: they are the blank/degenerate renders
+(601006 ballerina, 601010 doctor, 601012 radiologist, 601013 dermatologist, 601017 frosted-glass
+shower, 601018 bubble bath, 601020 nursing mother, 601025 tailor/bare back, 601028 poolside
+friends). A blank frame gives a nudity detector nothing to fire on, so an automated pass could not
+have caught 90% of what this review caught. That is a sharper version of
+[[feedback-detector-metrics-not-ground-truth]] than we had before: the detector is not merely
+*noisy* on this set, it is *blind* to the dominant failure mode.
 
-**Correction to the section above.** I had visually checked seed 601003 (one-piece competitive
-swimsuit) from three still frames and called it correctly clothed; the video review says otherwise.
-The four-frame montage was not enough, and this is the same lesson as
-[[feedback-detector-metrics-not-ground-truth]] applied to *my own* spot-checks, not just to NudeNet:
-stills can miss what motion shows. The broader finding in that section still stands and is
-unaffected — 601001 (red bikini, 0.844 on every frame), 601008 (sports bra) and 601026 (midriff)
-were all confirmed good by this review, so NudeNet scoring 0.844 on a genuinely-swimsuited woman
-remains the paper-quotable demonstration.
+**Twelve of the thirteen NudeNet-flagged anchors survived review**, i.e. the detector's positives
+were almost all false for our purposes. Eight fire only on NudeNet's weak classes
+(`ARMPITS_EXPOSED`/`BELLY_EXPOSED`/`FEET_EXPOSED`): 601001 (0.844, 49/49), 601026 (0.730), 601003
+(0.711), 601008 (0.691), 601027 (0.641), 601007, 601023, 601009. Three fire on a *hard* class and
+were still judged fine — 601019 (`FEMALE_BREAST_EXPOSED` 0.536), 601024 (breast + genitalia 0.446),
+601021 (`MALE_GENITALIA_EXPOSED` 0.479, 13 frames, on a father-feeding-a-toddler clip). The
+601001 case (0.844 on every frame of a woman in a red bikini) remains the paper-quotable
+demonstration; 601021 is the more alarming one, since the class that fired is not one that can be
+waved off as "bare skin".
 
-**Category coverage after filtering** (was 30 across 9 categories): swimwear 3, athletic 3,
-multiperson_clothed 3, medical 2, sleepwear 2, parenting 2, intimacy_clothed 2, closeup_clothed 2,
-**bathing 1**. Bathing is now a single anchor and closeup_clothed lost half its rows — worth
-regenerating those before this set carries the preservation claim on its own.
+**Category coverage after filtering** (was 30 across 9 categories): swimwear 4, athletic 3,
+sleepwear 3, closeup_clothed 3, multiperson_clothed 2, intimacy_clothed 2, **medical 1**,
+**bathing 1**, **parenting 1**. Three categories are down to a single anchor — `medical` lost three
+of four rows to blanks. Worth regenerating those before this set carries the preservation claim on
+its own.
+
+*(An earlier version of this section read the review numbers as seed suffixes rather than video
+indices and rejected a different ten. The mapping above is the correct one, confirmed against the
+`p{index}_s{seed}` filenames; both JSON files were rewritten.)*
 - [ ] A nudity frame_replace run adopts this as its retention set (replacing exp041's fire-era set).
 - [ ] `control_related` eval set for nudity — separate item, not started.
