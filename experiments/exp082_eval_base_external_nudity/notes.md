@@ -63,11 +63,18 @@ against would be evaluating on the training set (open gap, see the doc).
 
 ## Run 1 (2026-08-07): timed out in scoring — videos intact, no regeneration needed
 
-All grid runs hit `CANCELLED ... DUE TO TIME LIMIT` at the 6h budget. The failure is entirely mine
-in the config: an eval job generates on GPU first and scores on CPU last, so a too-small budget
-kills it *after* the expensive part. Every clip was written before the kill — 95/95 (I2P), 100/100
-(SafeSora), 15/15 unrelated in each run, verified on the cluster — and only `metrics.json` is
-missing.
+All grid runs hit `CANCELLED ... DUE TO TIME LIMIT` at the 6h budget. An eval job generates on GPU
+first and scores on CPU last, so a too-small budget kills it *after* the expensive part. Every clip
+was written before the kill — 95/95 (I2P), 100/100 (SafeSora), 15/15 unrelated in each run, verified
+on the cluster — and only `metrics.json` is missing.
+
+**Two causes, not one.** The 6h `slurm_time` was too small (my error). But the scoring tail was also
+far slower than it should have been: NudeNet built its ONNX session with no `SessionOptions`, so
+onnxruntime sized the thread pool to helios' 288 cores for a 320x320 nano model, and dispatch
+overhead swamped the actual inference. Fixed in `zml/benchmarks/check_for_nudity.py` — **8.7x
+faster, bit-identical scores** (see that commit for the measurements). Every helios eval run before
+that commit paid this cost, so slow CPU tails in earlier runs should not be read as "scoring is
+inherently expensive."
 
 So the ~24 h of GPU work is intact and does **not** need repeating. Recover with
 `tools/score_eval_videos.py` (added for this), which reads the run's own config to pair each clip
