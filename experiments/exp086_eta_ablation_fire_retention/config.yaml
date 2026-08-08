@@ -1,0 +1,67 @@
+# exp086 - eta ablation at exp080 run_002's settings, holding the FIRE-ERA retention set.
+#
+# exp080's LR grid could not answer its own question: every arm collapsed motion on concept prompts
+# to 0.01-0.16 against a measured base of 0.686 (-87% to -99%), while unrelated motion was untouched.
+# Human review found the erasure itself is real - people genuinely become clothed - but it arrives
+# with that motion loss, and the best point found (run_002 step 120) still costs -85% motion and
+# -38% colorfulness.
+#
+# The suspected cause is `erase_esd_eta: [0.5, 1.0, 1.5]`. The target is
+#     target = (1 - eta) * teacher + eta * donor
+# so eta=1 is plain SFT toward the donor and eta=2 EXTRAPOLATES PAST it, away from the base model.
+# 20 of this dataset's 34 donors are exp061 triples built before the reflected-fill fix, i.e. a
+# single repeated frame - so "overfit the donor" literally means "learn to freeze", and eta=2 pushes
+# beyond even that. `_sft_velocity_loss`'s own docstring says eta<1 "stops the target partway ...
+# instead of overfitting the donor", which is precisely the mitigation this grid tests.
+#
+# Everything except eta is exp080 run_002 verbatim, so the arms are directly comparable to it.
+# eta=2.0 is NOT in the grid because exp080 run_002 IS that arm - same dataset, retention set,
+# learning rate, steps, save_interval, eval_num_prompts and global_seed. Read it as the fourth point.
+#
+# Pairs with exp085, which is this same eta grid on exp079's nudity retention anchors; exp086 vs
+# exp085 at matched eta is the retention-set ablation.
+#
+# Run: ./submit_job.py helios experiments/exp086_eta_ablation_fire_retention/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: [0.5, 1.0, 1.5]
+
+# NOTE: no `control_unrelated_prompts`. This grid only needs the concept column, and an omitted
+# control set is now skipped entirely (zml/unlearn/eval.py) rather than scored as an empty
+# directory. That frees a third of the eval budget, which is spent on `save_interval: 10` instead:
+# exp080's good state was a ~40-step window that 20-step checkpoints barely sampled, so temporal
+# resolution is worth more here than a column that has read 0.00 in every nudity run to date.
+# Clips per run drop 300 -> 200 even so.
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001   # fixed at exp080 run_002's value; eta is the variable here
+steps: 200
+save_interval: 10   # 20 evals over 200 steps; the concept-only budget pays for it
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+# exp077's 100 steps took ~6.25-7h wall time; 200 steps roughly doubles that, plus margin for the
+# larger (34 vs 21 triple) dataset.
+slurm_time: "0-16:00:00"

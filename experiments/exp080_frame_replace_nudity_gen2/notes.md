@@ -98,10 +98,13 @@ submission and deliberately **not** applied here, so that this file keeps descri
 actually executed:
 
 1. **Retention set.** exp079's 20 human-reviewed nudity-adjacent anchors instead of exp041's fire
-   near-misses. Moved to **exp085**, which is otherwise identical — making the pair a clean
-   ablation of the retention set, which is more useful than the silent swap would have been.
+   near-misses. Moved to **exp085**, making the pair an ablation of the retention set rather than a
+   silent swap.
 2. **Eval budget.** `eval_num_prompts` 10 -> 20 paid for by `save_interval` 20 -> 40 (same 300
-   clips, half the noise per point). Also in exp085.
+   clips, half the noise per point). **Dropped** once this run's results came in: exp085 and exp086
+   hold run_002's settings exactly so their eta arms stay directly comparable to it, and the phase
+   structure turned out to be legible in colorfulness at `save_interval: 20` anyway. Worth
+   revisiting for a run that has to *pick* a checkpoint on its own numbers.
 
 **Timeout risk, flagged rather than fixed.** Eval fires at every `save_interval`, so this run does
 `200/20 * 3 * 10 = 300` clips plus 200 training steps against a 16h budget. exp077 did 150 clips
@@ -115,3 +118,101 @@ not a result. exp082 showed n=10 is too weak to distinguish anything — exp073'
 five checkpoints (0.0, 0.1, 0.1, 0.1, 0.3) is consistent with no effect at all. Use it to detect
 collapse and to rank the four LRs coarsely; do not quote it.
 - [ ] Analysis once results land.
+
+## Results (2026-08-07) — all 4 arms completed; the LR grid answered the wrong question
+
+All four runs finished 200 steps and all 10 evals; no timeout.
+
+**Base reference** (exp063, unmodified model, same `cogvideox_nudity.csv` prompts and seeds):
+concept motion **0.686**, colorfulness 36.28; unrelated motion **2.015**, colorfulness 33.81.
+
+### Concept motion collapses in every arm
+
+| lr | step 20 | 60 | 100 | 200 | vs base | unrelated @200 |
+|---|---|---|---|---|---|---|
+| 5e-5 | 0.720 | 0.580 | 0.190 | 0.090 | **-87%** | 1.970 |
+| 1e-4 | 0.670 | 0.150 | 0.140 | 0.030 | **-96%** | 2.100 |
+| 2e-4 | 0.480 | 0.110 | 0.120 | 0.010 | **-99%** | 2.440 |
+| 5e-4 | 0.040 | 0.010 | 0.090 | 0.160 | **-77%** | 2.580 |
+
+Unrelated motion is untouched (base 2.015), so this is a **targeted freeze on concept prompts**, not
+global collapse. Higher LR only arrives sooner. **No LR in the grid avoids it** — the variable under
+test was not the one that mattered.
+
+### Human review (2026-08-07): four phases, and the erasure is real
+
+Watching the clips across checkpoints: (1) still nude, (2) distorted while the model is deciding
+whether the person is clothed, (3) clothed, (4) nudity returns. Runs 1 (5e-5) and 4 (5e-4) are poor;
+the best point is **run_002 (1e-4) step 120**, where everyone is clothed.
+
+This corrects a reading taken from the metrics alone, that the erasure *was* the freeze (a still
+frame trivially scores 0.0 on NudeNet). It is not — people genuinely put clothes on. The motion
+collapse is a **co-occurring cost**, not the mechanism.
+
+**The phases are visible in colorfulness, once you know to look.** The trough is phase 2, and its
+position is monotonic in LR:
+
+| lr | colorfulness trough | value |
+|---|---|---|
+| 5e-5 | step 140 | 13.1 |
+| 1e-4 | step 80 | 14.6 |
+| 2e-4 | step 60 | 14.2 |
+| 5e-4 | step <=20 | 15.9 |
+
+The human-picked good spot sits **~40 steps after the trough** (trough 80 -> good 120). That also
+explains both failures: 5e-4 hits the trough at or before the first checkpoint so its phase-3 window
+is gone by ~100 and we barely sample it, while 5e-5 never climbs out — colorfulness 13-22 through
+steps 100-200, i.e. clothed but washed out. If the trough-plus-offset relationship holds on the next
+grid it gives **automatic checkpoint selection**, which is worth having in a paper whose own finding
+is that the detector cannot be trusted.
+
+**Phase 4 shows in the detection rate too**, rising late across three arms (2e-4 hits 0.20 at steps
+140/180/200; 1e-4 and 5e-4 at 160). At n=10 each point is noise, but the pattern across four runs
+and ten checkpoints is not. 5e-5 is the only arm that never reaches phase 4 by step 200 — everything
+is shifted late.
+
+### What the best point costs
+
+run_002 step 120 against the base model on the same ten prompts:
+
+| | clip | colorfulness | motion |
+|---|---|---|---|
+| base | 0.2907 | 35.12 | 0.744 |
+| run_002 step 120 | 0.2700 | 21.94 | 0.110 |
+| | **-7.1%** | **-37.5%** | **-85.2%** |
+
+For comparison, exp083's NegPrompt baseline leaves 10-23% residual nudity at **no** measurable
+quality cost (DOVER flat, clip -0.5% on unrelated). A reviewer will put those side by side.
+
+### Cause: 59% of the training targets encode "freeze"
+
+Checked the `donor_map` of every source triple. **20 of exp061's 21 use a single repeated donor
+frame** (`[7,7,7,7,7]`, `[8,8,8,8]`) — they were built 2026-08-02, three days before
+`edit_latent_reflected` landed. exp078's 13 are clean (`[4,3,2,1,0,1,2,3]`). So **20 of exp080's 34
+targets literally teach "on a nudity prompt, emit a still image."** exp055 measured this exact
+pathology at concept -84%; we see -85% to -99%, with unrelated spared here, presumably because the
+retention branch and region-limited editing hold the rest in place.
+
+### Collateral, and a caveat on the losses
+
+**Unrelated colorfulness inflates** at higher LR: 30.65 -> 52.44 (2e-4) and 33.68 -> 51.98 (5e-4)
+against a 33.81 base, with clip flat at 0.33 — real collateral that only the visual statistics saw,
+the same signature exp083 found for NegPrompt. `loss_retain` also **rose** in all four arms
+(0.084 -> 0.11-0.12).
+
+`loss_erase` is flat (0.350 -> 0.345 at 5e-5, 0.302 -> 0.308 at 5e-4), but that is **not** evidence
+of failure to learn: every micro-step draws a fresh random timestep, so per-step loss is dominated
+by t-dependence (`min` 0.11, `max` 0.82 within one run). Note also that one *step* is one optimizer
+step over `gradient_accumulation_steps: 4` draws **with replacement**, so 200 steps is ~800 draws
+from 34 triples — roughly 23 exposures each, under ~23 different (t, noise) pairs.
+
+## Downstream
+- **exp086** — eta ablation [0.5, 1.0, 1.5] at run_002's exact settings, fire-era anchors held
+  fixed. run_002 *is* the eta=2.0 arm. eta=2 extrapolates past the donor
+  (`target = (1-eta)*teacher + eta*donor`), and the donors are frozen, so it pushes beyond "freeze";
+  eta<1 is the documented mitigation for overfitting the donor.
+- **exp085** — the same eta grid on exp079's nudity anchors. exp085 vs exp086 at matched eta is the
+  retention-set ablation.
+- **Not yet scheduled, and the structural fix:** rebuild exp061's 21 triples with
+  `edit_latent_reflected`. A precompute, no GPU-days. If neither eta grid recovers motion, run this
+  before searching further.

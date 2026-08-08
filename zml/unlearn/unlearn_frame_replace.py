@@ -48,8 +48,6 @@ class Config:
     metadata_file: str  # frame_replace metadata.json (prompt, seed, latent_path, ...)
     latents_dir: str  # directory of x0_edited .pt files
     control_concept_prompts: str
-    control_related_prompts: str
-    control_unrelated_prompts: str
     lora_rank: int
     lora_alpha: float
     lora_dropout: float
@@ -63,6 +61,11 @@ class Config:
     # detector in zml/unlearn/eval.py; unrelated to the training data itself. `concept_target` names
     # the specific thing inside a concept family — the ImageNet class for concept "object".
     concept: str = "fire"
+    # Control sets are optional: a run that only needs the concept column should not spend
+    # generation time on the others. Omitting one skips it entirely rather than writing a
+    # zero-filled row, which would be indistinguishable from a real measurement of 0.
+    control_related_prompts: str | None = None
+    control_unrelated_prompts: str | None = None
     concept_target: str | None = None
     # Retention anchor: SFT toward the base model's *unedited* preservation latents (built by
     # zml/precompute/preservation_precompute.py) to keep erasure local. Disabled when the

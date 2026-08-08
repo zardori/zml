@@ -161,3 +161,23 @@ Per `CLAUDE.md`, cluster commands and job submission are done by the project own
 The initial migration (2026-08-02) moved 57 of 72 experiments into five threads — `esd_fire` (16),
 `unhype` (16), `frame_replace_fire` (20), `baselines` (2), `misc` (3) — leaving 15 flat: `exp041`
 plus the live nudity (`exp059`–`exp063`) and ImageNet-object (`exp064`–`exp072`) work.
+
+## Human-review artifacts belong at the experiment root
+
+`.gitignore` excludes `experiments/**/outputs_*/`, so anything written there travels to a cluster by
+rsync (`pull_results.sh`) and **never by git**. A `metadata_human_filtered.json` produced by a local
+review pass and saved into `outputs_{timestamp}/` therefore does not exist on any cluster, and a
+config pointing at it fails `slurm/check_config_paths.sh` at submission time — which is how exp085
+aborted on 2026-08-08.
+
+Put review artifacts (`metadata_human_filtered.json`, `human_rejected.json`, approved-prompt CSVs)
+at the **experiment folder root**, where they are tracked, and leave only cluster-generated data
+(`latents/`, `videos/`, the unfiltered `metadata.json`) under `outputs_*`. A config then splits the
+two naturally:
+
+```yaml
+retention_metadata_file: experiments/expNNN_.../metadata_human_filtered.json          # git
+retention_latents_dir:   experiments/expNNN_.../outputs_{timestamp}/latents           # rsync
+```
+
+exp061 and exp079 both follow this split.

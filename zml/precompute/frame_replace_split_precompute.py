@@ -124,6 +124,35 @@ class Config:
         )
 
 
+def build_edit_masks(
+    split_latent_frame: int, region: str, boundary_margin: int
+) -> tuple[list[bool], list[bool]]:
+    """``(concept_latent_mask, edit_mask)`` for a clip split at ``split_latent_frame``.
+
+    The concept mask is known by *construction* — split-prompt chooses which temporal region is
+    conditioned on the concept prompt — so it is derived here rather than from a detector, which is
+    what the detector-driven version got wrong (it cost exp078 half its yield).
+
+    ``edit_mask`` is the concept block widened by ``boundary_margin`` frames, and is what actually
+    gets replaced. The concept block always touches a clip edge in this construction, so donors come
+    from one side only; the margin pushes the nearest donor away from the seam, where the heal
+    phase's joint cross-attention could have bled concept content across. ``concept_latent_mask``
+    stays the true, unwidened mask and is what training uses to weight the erase loss.
+
+    Shared by the builder and by ``tools/reedit_frame_replace_dataset.py`` so a re-edit of an
+    existing dataset cannot drift from how it would be built today.
+    """
+    if region == "second":
+        concept = [i >= split_latent_frame for i in range(NUM_LATENT_FRAMES)]
+        donor_boundary = max(0, split_latent_frame - boundary_margin)
+        edit = [i >= donor_boundary for i in range(NUM_LATENT_FRAMES)]
+    else:
+        concept = [i < split_latent_frame for i in range(NUM_LATENT_FRAMES)]
+        donor_boundary = min(NUM_LATENT_FRAMES, split_latent_frame + boundary_margin)
+        edit = [i < donor_boundary for i in range(NUM_LATENT_FRAMES)]
+    return concept, edit
+
+
 def edit_latent_reflected(
     latent: torch.Tensor, edit_mask: list[bool], region: str
 ) -> tuple[torch.Tensor, dict[int, list[int]]]:
@@ -200,23 +229,7 @@ def main(config: Config) -> None:
             # The concept mask is known by construction (see module docstring): generate_split_clip
             # conditions frames [sf:] (region="second") or [:sf] (region="first") on prompt_a during
             # the split phase. No detection needed to find it.
-            concept_latent = [i >= sf for i in range(NUM_LATENT_FRAMES)] if region == "second" \
-                else [i < sf for i in range(NUM_LATENT_FRAMES)]
-
-            # edit_latent's donor for this construction is always the single safe frame nearest the
-            # boundary, copied across the whole concept block (never a two-sided interpolation,
-            # since the concept block always touches a clip edge here — see edit_latent's docstring
-            # on the one-sided fallback). boundary_margin pushes that donor further from the
-            # boundary to reduce the chance it was touched by the heal phase's joint attention
-            # across the whole clip. This edit_mask (concept block + margin) is what's actually
-            # passed to edit_latent; concept_latent above stays the true construction mask, kept in
-            # metadata for accurate labeling.
-            if region == "second":
-                donor_boundary = max(0, sf - config.boundary_margin)
-                edit_mask = [i >= donor_boundary for i in range(NUM_LATENT_FRAMES)]
-            else:
-                donor_boundary = min(NUM_LATENT_FRAMES, sf + config.boundary_margin)
-                edit_mask = [i < donor_boundary for i in range(NUM_LATENT_FRAMES)]
+            concept_latent, edit_mask = build_edit_masks(sf, region, config.boundary_margin)
             nofire = [i for i, is_c in enumerate(edit_mask) if not is_c]
 
             if len(nofire) < config.min_donor_frames:

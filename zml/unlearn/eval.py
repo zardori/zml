@@ -149,13 +149,17 @@ def evaluate(
     # unrelated prompts is part of what is being measured.
     negative_prompt = getattr(config, "negative_prompt", None)
 
-    # `related` is skipped during training (compute) but wanted for standalone full-set
-    # eval; it is included only when explicitly requested and actually provided.
+    # Every set other than `concept` is optional, and an absent one is *skipped* rather than
+    # scored as an empty directory — a zero-filled row reads exactly like a real measurement of 0,
+    # which is the mistake DOVER's 0.0-on-aarch64 already taught us once (see CLAUDE.md).
+    # `related` additionally needs an explicit opt-in: it is wanted for standalone full-set eval but
+    # skipped during training to save generation time.
     n = config.eval_num_prompts
     prompt_sets = {"concept": concept_prompts[:n]}
     if include_related and related_prompts:
         prompt_sets["related"] = related_prompts[:n]
-    prompt_sets["unrelated"] = unrelated_prompts[:n]
+    if unrelated_prompts:
+        prompt_sets["unrelated"] = unrelated_prompts[:n]
     if anchor_prompts:
         prompt_sets["anchor"] = anchor_prompts[:n]
 

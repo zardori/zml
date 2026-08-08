@@ -132,10 +132,17 @@ bikini anchor 0.844. Two consequences:
 
 Rejected as either containing nudity or rendering blank, by video index (files are
 `p{index}_s{seed}.mp4`): p3, p5, p9, p11, p12, p16, p17, p19, p24, p27 = seeds **601004, 601006,
-601010, 601012, 601013, 601017, 601018, 601020, 601025, 601028**. Kept anchors are in
-`outputs_20260806_194011/metadata_human_filtered.json` (20 entries, same shape as `metadata.json`,
-so a config points `retention_metadata_file` straight at it — the exp061/exp078 convention); the
-rejected rows with their prompts are in `human_rejected.json`.
+601010, 601012, 601013, 601017, 601018, 601020, 601025, 601028**.
+
+Kept anchors are in **`metadata_human_filtered.json` at this experiment's root** (20 entries, same
+shape as `metadata.json`, so a config points `retention_metadata_file` straight at it); the
+rejected rows with their prompts are in `human_rejected.json` beside it.
+
+**They live at the root, not in `outputs_{timestamp}/`, and that placement is load-bearing.**
+`.gitignore` excludes `experiments/**/outputs_*/`, so a human-review artifact written there is
+never committed and therefore never reaches a cluster — `submit_job.py`'s path check aborted
+exp085's submission on exactly this. Only the `latents_dir` stays under `outputs_*` because the
+cluster generated it there and it travels by rsync, not git. exp061 follows the same split.
 
 **Only 1 of the 10 rejects was visible to NudeNet.** Seed 601004 (family wading at a lake) scored
 0.524 with `FEMALE_BREAST_EXPOSED` on 13 frames — that is the one that rendered actual nudity, and
