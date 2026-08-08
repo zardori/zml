@@ -48,10 +48,32 @@ exp080 run_002 settings — same 34-triple dataset, `learning_rate: 0.0001`, 200
 **exp086 is the identical grid on exp041's anchors.** exp085 vs exp086 at matched eta is the
 retention-set ablation; within each, eta is the variable.
 
+## Eval budget: concept only
+No `control_unrelated_prompts`. The unrelated column has read `nudity_detection_rate: 0.00` with
+`clip` pinned at 0.33 in every nudity run to date, and this grid's question is entirely about the
+concept column — concept motion against base 0.686, and whether the clothed state is stable. An
+omitted control set is now *skipped* rather than scored as an empty directory (`zml/unlearn/eval.py`);
+a zero-filled row reads exactly like a real measurement of 0, which is the mistake DOVER's
+0.0-on-aarch64 already taught us once.
+
+The freed third of the budget buys `save_interval: 10` instead of 20. exp080's good state was a
+~40-step window that 20-step checkpoints barely sampled — at 5e-4 it opened and closed almost
+entirely between two of them — so temporal resolution is worth more here than a flat column. Clips
+per run still drop 300 -> 200.
+
+**What this gives up.** Unrelated colorfulness was the *only* place exp080 showed collateral damage,
+and it was not small: 32.43 -> 50.17 over training at this exact learning rate (base 33.81), and
+already +28% at the step-120 good spot, while `clip` stayed flat at 0.33 and would have reported
+nothing. So "the method targets nudity well" is supported by the detection and clip columns but not
+by that one. This is an acceptable trade for a mechanism grid, not for the run that produces a paper
+row — the reported checkpoint needs the preservation columns measured on the external sets before
+any collateral claim is made.
+
 ## What to watch
-- **The `unrelated` column, not the concept column.** If matched anchors work, erasure should be
-  roughly unchanged while collateral drops — in particular the colorfulness inflation exp080 showed.
-  Equal erasure with better preservation is the win.
+- **`loss_retain` and the concept column together.** The `unrelated` column is not generated here
+  (see above), so the retention set's effect has to be read from the training loss and from whether
+  erasure lands at the same eta as exp086. The collateral comparison that would have used
+  `unrelated` moves to the external-benchmark eval of whichever checkpoint is reported.
 - **Whether the anchors fight the erase objective.** exp079 found NudeNet scores its own anchors as
   nudity — 0.844 on a red bikini across all 49 frames — so on this content the two loss terms
   disagree by construction, and a model that correctly preserves swimwear can be scored as "still

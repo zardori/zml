@@ -37,9 +37,13 @@ erase_input_latent: original
 erase_loss_space: velocity
 erase_esd_eta: [0.5, 1.0, 1.5]
 
+# NOTE: no `control_unrelated_prompts`. This grid only needs the concept column, and an omitted
+# control set is now skipped entirely (zml/unlearn/eval.py) rather than scored as an empty
+# directory. That frees a third of the eval budget, which is spent on `save_interval: 10` instead:
+# exp080's good state was a ~40-step window that 20-step checkpoints barely sampled, so temporal
+# resolution is worth more here than a column that has read 0.00 in every nudity run to date.
+# Clips per run drop 300 -> 200 even so.
 control_concept_prompts: prompts/cogvideox_nudity.csv
-control_related_prompts: prompts/cogvideox_fire_control_unrelated.csv   # placeholder, see exp062's notes
-control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
 
 lora_rank: 8
 lora_alpha: 8.0
@@ -49,7 +53,7 @@ gradient_accumulation_steps: 4
 lr_scheduler: constant
 learning_rate: 0.0001   # fixed at exp080 run_002's value; eta is the variable here
 steps: 200
-save_interval: 20
+save_interval: 10   # 20 evals over 200 steps; the concept-only budget pays for it
 
 timestep_min: 400
 timestep_max: 1000

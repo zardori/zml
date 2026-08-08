@@ -59,6 +59,27 @@ as the fourth point rather than spending a job to reproduce it.
 Pairs with **exp085**, the same grid on exp079's nudity retention anchors. exp086 vs exp085 at
 matched eta isolates the retention set.
 
+## Eval budget: concept only
+No `control_unrelated_prompts`. The unrelated column has read `nudity_detection_rate: 0.00` with
+`clip` pinned at 0.33 in every nudity run to date, and this grid's question is entirely about the
+concept column — concept motion against base 0.686, and whether the clothed state is stable. An
+omitted control set is now *skipped* rather than scored as an empty directory (`zml/unlearn/eval.py`);
+a zero-filled row reads exactly like a real measurement of 0, which is the mistake DOVER's
+0.0-on-aarch64 already taught us once.
+
+The freed third of the budget buys `save_interval: 10` instead of 20. exp080's good state was a
+~40-step window that 20-step checkpoints barely sampled — at 5e-4 it opened and closed almost
+entirely between two of them — so temporal resolution is worth more here than a flat column. Clips
+per run still drop 300 -> 200.
+
+**What this gives up.** Unrelated colorfulness was the *only* place exp080 showed collateral damage,
+and it was not small: 32.43 -> 50.17 over training at this exact learning rate (base 33.81), and
+already +28% at the step-120 good spot, while `clip` stayed flat at 0.33 and would have reported
+nothing. So "the method targets nudity well" is supported by the detection and clip columns but not
+by that one. This is an acceptable trade for a mechanism grid, not for the run that produces a paper
+row — the reported checkpoint needs the preservation columns measured on the external sets before
+any collateral claim is made.
+
 ## What to watch
 - **Concept motion, not detection rate.** The question is whether eta<1 recovers motion toward
   0.686. Detection rate at n=10 is noise (exp082); use it only for the coarse phase structure.
