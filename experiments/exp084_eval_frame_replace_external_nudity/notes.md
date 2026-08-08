@@ -44,6 +44,18 @@ again) and picked this as the point where everyone is clothed; 5e-5 and 5e-4 wer
 where the concept column is the whole question. This is a paper row, and a row without a
 preservation column cannot be set beside exp082/exp083, both of which have one.
 
+`control_related_prompts` was added 2026-08-08: `prompts/cogvideox_nudity_control_related.csv`, 36
+held-out nudity-adjacent prompts (seeds 602001-602036, zero overlap with exp079's *training*
+anchors). **exp089 generates the base and NegPrompt rows on the same CSV**, so the three are
+directly comparable. This column reads backwards from the concept one: NudeNet scores clothed
+near-miss content as nudity (exp079: 0.844 on a red bikini), so preservation means *keeping* the
+base detection rate, and a drop means we destroyed swimwear — a failure the concept column scores as
+success. Since exp083 showed NegPrompt costs no measurable quality, this is now the differentiator
+that is actually available to us.
+
+**If this experiment was already submitted without the related set**, do not disturb it — the
+reported row will come from a re-point at exp088's checkpoint anyway, and that run picks this up.
+
 ## What to watch
 - **Transfer.** Does the erasure hold on prompts nobody here wrote? A large gap between our in-house
   rate and these two would be a finding in itself — it would say our prompt set is unusually easy.

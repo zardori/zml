@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (30)
+## Active (31)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -42,6 +42,7 @@ dataset that a live config still reads.
 | [exp085](exp085_frame_replace_nudity_retention_ablation/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5, 2.0] on exp079's nudity retention anchors, at exp080 run_002's settings. Paired with exp086 (identical grid, fire-era anchors) so the two together isolate the retention set — a comparison no nudity run has ever made, since every one has reused exp041's fire near-misses. Not yet submitted. |
 | [exp086](exp086_eta_ablation_fire_retention/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5] at exp080 run_002's settings, fire-era retention held fixed. exp080 showed erasure is real (human review: people become clothed) but costs -85% motion and -38% colorfulness even at its best point. eta=2 extrapolates PAST the donor, and 20 of 34 donors are frozen single-frame fills, so the current setting pushes beyond "freeze". exp080 run_002 is the eta=2.0 arm. Not yet submitted. |
 | [exp088](exp088_frame_replace_nudity_clean/notes.md) | nudity | frame_replace | ready | exp080's regime on exp087's re-edited dataset — the candidate for the reported checkpoint. Two fields (erase_esd_eta, retention set) are placeholders until exp085/exp086 report. Blocked on those, not on compute. |
+| [exp089](exp089_eval_related_baselines/notes.md) | nudity | eval | ready | Base and NegPrompt rows on the new held-out nudity-adjacent set (prompts/cogvideox_nudity_control_related.csv, 36 prompts). exp082/exp083 never generated a related column, so without these a preservation number from our checkpoint has nothing to sit beside. 72 clips total. Not yet submitted. |
 
 ## Archive (57)
 
