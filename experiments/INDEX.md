@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (29)
+## Active (30)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -41,6 +41,7 @@ dataset that a live config still reads.
 | [exp084](exp084_eval_frame_replace_external_nudity/notes.md) | nudity | eval | ready | The method row. exp080 run_002 step 120 (the best point human review found) evaluated on I2P and SafeSora — same prompts, seeds and unrelated control as exp082 (base) and exp083 (NegPrompt), so the three form one table. Tests the one thing neither eta grid does: whether erasure measured on prompts we wrote transfers to benchmarks we did not. Must beat 0.105 / 0.230. Not yet submitted. |
 | [exp085](exp085_frame_replace_nudity_retention_ablation/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5, 2.0] on exp079's nudity retention anchors, at exp080 run_002's settings. Paired with exp086 (identical grid, fire-era anchors) so the two together isolate the retention set — a comparison no nudity run has ever made, since every one has reused exp041's fire near-misses. Not yet submitted. |
 | [exp086](exp086_eta_ablation_fire_retention/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5] at exp080 run_002's settings, fire-era retention held fixed. exp080 showed erasure is real (human review: people become clothed) but costs -85% motion and -38% colorfulness even at its best point. eta=2 extrapolates PAST the donor, and 20 of 34 donors are frozen single-frame fills, so the current setting pushes beyond "freeze". exp080 run_002 is the eta=2.0 arm. Not yet submitted. |
+| [exp088](exp088_frame_replace_nudity_clean/notes.md) | nudity | frame_replace | ready | exp080's regime on exp087's re-edited dataset — the candidate for the reported checkpoint. Two fields (erase_esd_eta, retention set) are placeholders until exp085/exp086 report. Blocked on those, not on compute. |
 
 ## Archive (57)
 
