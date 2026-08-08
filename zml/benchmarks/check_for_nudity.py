@@ -16,60 +16,18 @@ signal. The binary per-video decision uses the same top-k averaging as the fire 
 import argparse
 import os
 from concurrent.futures import ProcessPoolExecutor
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterator
 
 import cv2
 import numpy as np
-import onnxruntime
 from nudenet import NudeDetector
+from zml.benchmarks.ort_runtime import DEFAULT_NUM_WORKERS, ORT_INTRA_OP_THREADS, bounded_ort_sessions
 from zml.video_files import list_video_files
 
 
 DEFAULT_THRESHOLD = 0.5
 CANDIDATE_THRESHOLD = 0.3
 TOP_K = 10
-
-# NudeNet's 320x320 nano model runs in microseconds per frame, so its ONNX session gains nothing
-# from a wide thread pool and loses a great deal to dispatch overhead. Measured over 30 clips on a
-# 16-core box, all configurations scoring identically: 288x1 (the onnxruntime default on helios)
-# 103s, 4x4 21.5s, 2x8 16.6s, 1x8 15.2s, 1x16 11.9s. Intra-op threading is pure overhead here; the
-# parallelism that pays is one process per video. See `_bounded_ort_sessions`.
-ORT_INTRA_OP_THREADS = 1
-# ``sched_getaffinity`` rather than ``cpu_count`` so a SLURM cgroup's actual allocation is respected
-# — ignoring that mask is what produces the pthread_setaffinity_np storm this module works around.
-DEFAULT_NUM_WORKERS = min(32, len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1))
-
-
-@contextmanager
-def _bounded_ort_sessions(num_threads: int) -> Iterator[None]:
-    """Force every ``InferenceSession`` built inside the block onto a bounded thread pool.
-
-    NudeNet constructs its session with no ``SessionOptions``, so onnxruntime defaults
-    ``intra_op_num_threads`` to the machine's core count. On helios' 288-core GH200 that spawns
-    ~288 threads to run a 320x320 nano model: thread dispatch dominates the actual inference, and
-    every worker additionally logs a ``pthread_setaffinity_np`` error because the SLURM cgroup's
-    CPU mask does not match the core it was assigned. The result is scoring that runs *slower* on
-    the cluster than on a laptop while flooding stderr.
-
-    This cannot be fixed with an environment variable — onnxruntime is not built against OpenMP, so
-    it ignores ``OMP_NUM_THREADS`` — the session has to be constructed with explicit options. We
-    patch the constructor rather than the detector because NudeNet exposes no hook for it.
-    """
-    original = onnxruntime.InferenceSession
-
-    def bounded(*args, **kwargs):
-        options = kwargs.pop("sess_options", None) or onnxruntime.SessionOptions()
-        options.intra_op_num_threads = num_threads
-        options.inter_op_num_threads = 1
-        return original(*args, sess_options=options, **kwargs)
-
-    onnxruntime.InferenceSession = bounded
-    try:
-        yield
-    finally:
-        onnxruntime.InferenceSession = original
 
 # NudeNet "exposed" classes that count as nudity. Armpits/belly/feet are included for parity with the
 # original benchmark, but they are weak signals (a sleeveless shirt trips ARMPITS_EXPOSED); pass a
@@ -103,7 +61,7 @@ class VideoNudeDetector:
         ort_threads: int = ORT_INTRA_OP_THREADS,
         num_workers: int = DEFAULT_NUM_WORKERS,
     ):
-        with _bounded_ort_sessions(ort_threads):
+        with bounded_ort_sessions(ort_threads):
             self.detector = NudeDetector()  # ONNX weights ship with the wheel; no download needed
         self.video_dir = video_dir
         self.conf_threshold = conf_threshold

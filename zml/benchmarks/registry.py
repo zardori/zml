@@ -22,14 +22,15 @@ class VideoDetector(Protocol):
     def process_videos(self) -> dict[str, float]: ...
 
 
-CONCEPTS = ("fire", "nudity", "object")
+CONCEPTS = ("fire", "nudity", "object", "face")
 
 
 def build_detector(concept: str, video_dir: str, target: str | None = None, **kwargs) -> VideoDetector:
     """Detector for ``concept`` over ``video_dir``.
 
-    ``target`` names the specific thing to detect for concepts that cover a family — currently only
-    ``object``, where it is the ImageNet class (e.g. ``"chain saw"``).
+    ``target`` names the specific thing to detect for concepts that cover a family — the ImageNet
+    class for ``object`` (e.g. ``"chain saw"``), or the identity name for ``face``
+    (e.g. ``"Barack Obama"``, see ``zml/benchmarks/face_identities.py``).
     """
     if concept == "fire":
         from zml.eval.check_for_fire import VideoFireDetector
@@ -47,4 +48,13 @@ def build_detector(concept: str, video_dir: str, target: str | None = None, **kw
                 "concept 'object' needs a target ImageNet class; set `concept_target` in the config."
             )
         return VideoObjectDetector(video_dir=video_dir, target_class=target, **kwargs)
+    if concept == "face":
+        from zml.benchmarks.check_for_face import VideoFaceDetector
+
+        if not target:
+            raise ValueError(
+                "concept 'face' needs a target identity; set `concept_target` in the config "
+                "(see zml/benchmarks/face_identities.FACE_IDENTITIES for valid names)."
+            )
+        return VideoFaceDetector(video_dir=video_dir, target_identity=target, **kwargs)
     raise ValueError(f"Unknown concept {concept!r}; expected one of {CONCEPTS}.")

@@ -5,13 +5,14 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (27)
+## Active (37)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
 
 | ID | Concept | Method | Status | Takeaway |
 |----|---------|--------|--------|----------|
+| [exp032](exp032_eval_tuned_model_on_full_set/notes.md) | ? | ? | ? | (not recorded) |
 | [exp041](exp041_preservation_precompute/notes.md) | none | preservation/precompute | done | Base-model preservation anchors for the frame_replace retention branch. Fire-era but concept-agnostic, so it is still the retention set for the nudity pilot (exp062). |
 | [exp059](exp059_split_prompt_nudity/notes.md) | nudity | split_prompt/precompute | done | Milestone 1 of split-prompt: generate A/B/C + combined clips and inspect the splice. The splice works — a coherent clip, clothed early and naked late. |
 | [exp060](exp060_nudity_report_exp059/notes.md) | nudity | benchmark | done | Per-frame NudeNet validation of exp059's clips. NudeNet fires on our decoded frames (A: mean max 0.699, 47.25/49 nude frames) and is silent on B and C, confirming both the detector and the temporal localization. |
@@ -39,6 +40,15 @@ dataset that a live config still reads.
 | [exp082](exp082_eval_base_external_nudity/notes.md) | nudity | eval | done | Base-model reference on two EXTERNAL nudity benchmarks. Both pass the gate: I2P 0.326 (n=95), SafeSora 0.480 (n=100), unrelated 0.000. First nudity eval with usable power (in-house set is n=10, where one clip is 10pp). Erasure claims should be made here, not on cogvideox_nudity.csv. |
 | [exp083](exp083_negprompt_nudity/notes.md) | nudity | eval | done | NegPrompt baseline for nudity, and it is strong: -68% on I2P (0.326->0.105) and -52% on SafeSora (0.480->0.230), both p<0.001, at NO measurable quality cost (DOVER flat, deltas inconsistent in sign) and near-zero collateral on unrelated prompts. The hoped-for 'it erases but wrecks generation' story did not happen. Our case rests on the residual: it still lets ~1 in 4 blunt video prompts through. Beat 0.105/0.230. |
 | [exp085](exp085_frame_replace_nudity_retention_ablation/notes.md) | nudity | frame_replace | ready | Retention-set ablation against exp080: identical run with exp079's 20 human-reviewed nudity-adjacent anchors instead of exp041's fire-era near-misses. Answers whether a concept-matched preservation set actually buys anything, which no nudity run has ever tested. Not yet submitted — narrow the LR grid to exp080's winner first. |
+| [exp090](exp090_eval_base_face/notes.md) | face | eval | ready | Base-model ID-Similarity reference on all 5 identities — the `Original` row, the pilot's hard gate, and the source of `identity_threshold`. Not yet submitted. |
+| [exp091](exp091_negprompt_face/notes.md) | face | eval | ready | NegPrompt baseline for the 2 pilot identities — the training-free bar our method has to beat. Blocked on exp090 (identity choice + gate). Not yet submitted. |
+| [exp092](exp092_split_face_obama_dataset/notes.md) | face | frame_replace_split/precompute | ready | Split-prompt frame_replace dataset for Barack Obama, 30 triples (seeds 7401-7430), with the whole-clip target variant emitted alongside. Blocked on exp090's pilot-identity confirmation. Not yet submitted. |
+| [exp093](exp093_split_face_merkel_dataset/notes.md) | face | frame_replace_split/precompute | ready | Split-prompt frame_replace dataset for Angela Merkel, 30 triples (seeds 7501-7530), identical recipe to exp092 (Obama). Blocked on exp090's pilot-identity confirmation. Not yet submitted. |
+| [exp094](exp094_face_preservation/notes.md) | face | preservation/precompute | ready | Retention anchors for the face-identity axis: 5 identities x 3 prompts + 10 generic-person anchors (25 total, seeds 7601-7625). Not yet submitted. |
+| [exp095](exp095_frame_replace_obama/notes.md) | face | frame_replace | ready | First frame_replace erasure of a face identity (Barack Obama), copying exp080's best nudity regime field-for-field. Grid target_variant [split, wholeclip] — the A/B this run exists to answer. Blocked on exp092/exp094. Not yet submitted. |
+| [exp096](exp096_frame_replace_merkel/notes.md) | face | frame_replace | ready | frame_replace erasure of Angela Merkel, same regime as exp095 (Obama) with target_variant narrowed to exp095's winner. Blocked on exp093/exp094 and on exp095 picking a winner. Not yet submitted. |
+| [exp097](exp097_eval_frame_replace_obama/notes.md) | face | eval | ready | Reported ID-Similarity (Erase/Preserve) for the Obama frame_replace checkpoint — the number that goes in the final comparison table, not exp095's live-eval monitor. Blocked on exp095. Not yet submitted. |
+| [exp098](exp098_eval_frame_replace_merkel/notes.md) | face | eval | ready | Reported ID-Similarity (Erase/Preserve) for the Merkel frame_replace checkpoint — completes the pilot comparison table alongside exp090/exp091/exp097. Blocked on exp096. Not yet submitted. |
 
 ## Archive (57)
 

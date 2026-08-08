@@ -47,7 +47,7 @@ from diffusers import CogVideoXPipeline
 from tqdm import tqdm
 
 from zml.benchmarks.registry import build_detector
-from zml.precompute.split_prompt_precompute import generate_split_clip, resolve_split
+from zml.precompute.split_prompt_precompute import generate_plain_clip, generate_split_clip, resolve_split
 from zml.precompute.split_prompt_precompute import Config as SplitConfig
 from zml.unlearn.frame_replace_ops import (
     EXPECTED_LATENT_SHAPE,
@@ -98,6 +98,17 @@ class Config:
     output_dir: str = "."
     save_videos: bool = True
     videos_subdir: str = "videos"
+    # Also build a second target variant per kept row: prompt A's own plain clip as "original" and
+    # prompt B's same-seed plain clip as the "edited"/donor target — a whole-clip swap rather than a
+    # frame-local edit. Costs two extra plain generations per row (~2.3x the per-row generation cost
+    # of the split target alone), so off by default. Motivating case: identity is present in every
+    # frame and maximally salient (docs/face_identity.md), so a temporally-spliced target risks a
+    # visible mid-clip face-swap seam or a heal phase that washes the identity back out — the
+    # whole-clip variant is a same-pass hedge, not a separate dataset build, for exactly that
+    # failure mode. `unlearn_frame_replace.Config.target_variant` selects which a training run
+    # consumes ("split" | "wholeclip"); nonfire_frame_weight is inert under "wholeclip" since every
+    # frame is a concept frame by construction.
+    emit_whole_clip_target: bool = False
 
     def __post_init__(self) -> None:
         if self.frame_nudity_threshold is not None:
@@ -237,6 +248,45 @@ def main(config: Config) -> None:
                     write_mp4(original_frames, os.path.join(videos_dir, f"{stem}_original.mp4"))
                     write_mp4(decode_to_bgr_frames(pipe, x0_edited), os.path.join(videos_dir, f"{stem}_edited.mp4"))
 
+                # variants["split"] always mirrors the flat top-level keys below unchanged, so every
+                # dataset built before emit_whole_clip_target existed still loads exactly as before.
+                variants: dict = {
+                    "split": {
+                        "latent_path": edited_path,
+                        "original_latent_path": original_path,
+                        "concept_latent_mask": concept_latent,
+                    },
+                }
+
+                if config.emit_whole_clip_target:
+                    # 4. (optional) A whole-clip target: prompt A's own plain clip is the "original",
+                    # prompt B's same-seed plain clip is the donor/edited target. No donor-frame
+                    # gate here — every frame is concept-bearing in A and concept-free in B by
+                    # construction, unlike the frame-local split target above.
+                    z_a = generate_plain_clip(pipe, row["prompt_a"], seed, split_cfg)
+                    z_b = generate_plain_clip(pipe, row["prompt_b"], seed, split_cfg)
+                    a_frames = decode_to_bgr_frames(pipe, z_a)
+                    b_frames = decode_to_bgr_frames(pipe, z_b)
+                    a_confidences = detector.frame_confidences(a_frames)
+                    b_confidences = detector.frame_confidences(b_frames)
+
+                    wholeclip_edited_path = f"{stem}_x0wholeclip.pt"
+                    wholeclip_original_path = f"{stem}_x0wholeclip_original.pt"
+                    torch.save(z_b.cpu(), os.path.join(latents_dir, wholeclip_edited_path))
+                    torch.save(z_a.cpu(), os.path.join(latents_dir, wholeclip_original_path))
+                    if config.save_videos:
+                        write_mp4(a_frames, os.path.join(videos_dir, f"{stem}_wholeclip_a.mp4"))
+                        write_mp4(b_frames, os.path.join(videos_dir, f"{stem}_wholeclip_b.mp4"))
+
+                    variants["wholeclip"] = {
+                        "latent_path": wholeclip_edited_path,
+                        "original_latent_path": wholeclip_original_path,
+                        "concept_latent_mask": [True] * NUM_LATENT_FRAMES,  # every frame is concept, by construction
+                        "donor_prompt": row["prompt_b"],
+                        "frame_confidences": [round(c, 4) for c in a_confidences],
+                        "donor_frame_confidences": [round(c, 4) for c in b_confidences],
+                    }
+
                 metadata.append({
                     "prompt": row["prompt_a"],  # the plain concept prompt we erase at inference
                     "seed": seed,
@@ -257,6 +307,7 @@ def main(config: Config) -> None:
                     "edited_max_confidence": round(max(edited_confidences), 4),
                     "scaling_factor": scaling_factor,
                     "prediction_type": "v_prediction",
+                    "variants": variants,
                 })
 
             # Flush after every row (kept or skipped) so a crash/timeout never silently loses the

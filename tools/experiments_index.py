@@ -38,7 +38,7 @@ EXP_DIR_RE = re.compile(r"^exp\d{3}_")
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\s*\n", re.DOTALL)
 
 VALID_STATUSES = ("ready", "active", "done", "superseded", "abandoned")
-VALID_CONCEPTS = ("fire", "nudity", "imagenet", "none")
+VALID_CONCEPTS = ("fire", "nudity", "imagenet", "face", "none")
 LIVE_STATUSES = ("ready", "active")  # work not yet finished — never archive one
 RETIRED_STATUSES = ("superseded", "abandoned")
 
@@ -55,6 +55,7 @@ THREAD_DOCS: dict[str, tuple[str, str | None]] = {
     "shared": ("Datasets and anchors shared across threads", None),
     "nudity": ("Transfer to nudity via split-prompt", "docs/split_prompt.md"),
     "imagenet": ("Transfer to ImageNet object classes", "docs/imagenet_objects.md"),
+    "face_identity": ("Transfer to celebrity face/identity erasure", "docs/face_identity.md"),
 }
 
 NOT_RECORDED = "(not recorded)"

@@ -60,3 +60,4 @@ report/
 # Other
 *.pdf
 *debug*
+docs/diagrams/

@@ -73,12 +73,20 @@ eval mode (`mode: imagenet`), the ten-class prompt sets, and a two-class pilot (
 in exp064–exp072. Full write-up — class list with ImageNet indices, exact metric definitions, our
 deviations from the papers, threshold calibration, and status: **[`imagenet_objects.md`](imagenet_objects.md)**.
 
-### 2.3 Celebrity identity — if time allows
+### 2.3 Celebrity identity — in progress
 
 Strong comparison point (T2VUnlearning and VideoEraser both use 5 identities) with an objective
-metric (ArcFace ID-similarity, GIPHY celebrity detector). But identity is present in every frame,
-same situation as nudity, so it depends entirely on split-prompt working. Worth doing only after
-2.2 confirms the pipeline generalizes.
+metric (ArcFace ID-similarity, GIPHY celebrity detector) — and unlike the ImageNet axis, T2VUnlearning
+reports faces on **CogVideoX-5B**, the same base model this project uses, so it's the one axis with no
+"different base model" caveat. Their 150 face eval prompts are also published, so this axis measures
+on a set nobody on the team wrote (see `external_eval_sets.md` §1 for why that matters for nudity).
+They publish no evaluation code, reference embeddings, or baseline row for faces at all, so the
+metric instrument and a NegPrompt row are built from scratch here.
+
+Identity is present in every frame — same situation as nudity, sharper — so it depends entirely on
+split-prompt working, same as §2.2 anticipated. Protocol, the ArcFace instrument, the whole-clip
+target-variant hedge against a seam-visible splice, and the 2-identity pilot (Obama + Merkel,
+exp090–exp098): **[`face_identity.md`](face_identity.md)**.
 
 ### 2.4 Artistic style — weak fit, deprioritize
 
