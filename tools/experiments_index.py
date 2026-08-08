@@ -22,6 +22,7 @@ Field reference and archive policy: ``docs/experiment_registry.md``.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -59,6 +60,26 @@ THREAD_DOCS: dict[str, tuple[str, str | None]] = {
 }
 
 NOT_RECORDED = "(not recorded)"
+# Written by slurm/run_info.sh for every job, including ones that crash or hit their wall clock.
+RUN_INFO_NAME = "run_info.json"
+
+
+@dataclass(frozen=True)
+class RunSummary:
+    """Where an experiment's jobs ran and how long they took, rolled up across its runs."""
+
+    cluster: str
+    elapsed_s: int | None
+    outcome: str
+    count: int  # a grid contributes one run_info.json per combination
+
+    def render(self) -> str:
+        parts = [self.cluster or "?", format_elapsed(self.elapsed_s)]
+        if self.outcome != "completed":
+            parts.append(self.outcome)
+        if self.count > 1:
+            parts.append(f"×{self.count}")
+        return " ".join(parts)
 
 
 @dataclass(frozen=True)
@@ -73,10 +94,48 @@ class Experiment:
     method: str
     thread: str | None
     takeaway: str
+    run: RunSummary | None  # None for experiments that predate run_info.json, or never ran
 
     @property
     def archived(self) -> bool:
         return self.rel_dir.parts[0] == "archive"
+
+
+def format_elapsed(seconds: int | None) -> str:
+    """Wall time as `1h45m` / `12m`, the granularity you actually size an sbatch --time at."""
+    if seconds is None:
+        return "—"
+    hours, minutes = divmod(round(seconds / 60), 60)
+    return f"{hours}h{minutes:02d}m" if hours else f"{minutes}m"
+
+
+def collect_run(exp_dir: Path) -> RunSummary | None:
+    """Roll up every run_info.json under one experiment.
+
+    A grid writes one per combination, so the longest is what a resubmission has to survive —
+    hence max elapsed rather than the newest run's. The outcome reported is the worst one, so a
+    single timed-out arm cannot hide behind nine that finished.
+    """
+    records = []
+    for path in sorted(exp_dir.glob(f"**/{RUN_INFO_NAME}")):
+        try:
+            records.append(json.loads(path.read_text()))
+        except (OSError, json.JSONDecodeError):
+            continue
+    if not records:
+        return None
+
+    elapsed = [r["elapsed_s"] for r in records if isinstance(r.get("elapsed_s"), int)]
+    outcomes = {str(r.get("outcome", "?")) for r in records}
+    for worst in ("running", "timeout", "failed", "completed"):
+        if worst in outcomes:
+            break
+    return RunSummary(
+        cluster=str(records[-1].get("cluster") or "?"),
+        elapsed_s=max(elapsed) if elapsed else None,
+        outcome=worst,
+        count=len(records),
+    )
 
 
 def parse_frontmatter(notes: Path) -> tuple[dict, list[str]]:
@@ -149,6 +208,7 @@ def discover() -> tuple[list[Experiment], list[str]]:
                 method=data.get("method", "?"),
                 thread=data.get("thread"),
                 takeaway=" ".join(str(data.get("takeaway", NOT_RECORDED)).split()),
+                run=collect_run(exp_dir),
             )
         )
     return experiments, problems
@@ -176,12 +236,15 @@ def find_archive_references(experiments: list[Experiment]) -> list[str]:
 
 def render_table(experiments: list[Experiment], *, link_prefix: str = "") -> list[str]:
     lines = [
-        "| ID | Concept | Method | Status | Takeaway |",
-        "|----|---------|--------|--------|----------|",
+        "| ID | Concept | Method | Status | Run | Takeaway |",
+        "|----|---------|--------|--------|-----|----------|",
     ]
     for exp in experiments:
         link = f"[{exp.exp_id}]({link_prefix}{exp.rel_dir}/notes.md)"
-        lines.append(f"| {link} | {exp.concept} | {exp.method} | {exp.status} | {exp.takeaway} |")
+        run = exp.run.render() if exp.run else "—"
+        lines.append(
+            f"| {link} | {exp.concept} | {exp.method} | {exp.status} | {run} | {exp.takeaway} |"
+        )
     return lines
 
 

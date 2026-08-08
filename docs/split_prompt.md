@@ -61,6 +61,64 @@ split phase lasts). Both are decisive:
 - split phase too long / C phase too short → a visible hard seam, two clips glued together;
 - concept can also leak into the safe half if guidance is high.
 
+The default is **0.85**, picked by the exp074/exp076 sweep.
+
+**How much `split_step_frac` matters depends on what prompt C removes.** Re-scoring exp074's and
+exp076's nudity sweep for seam contrast (see below) shows it is nearly flat above 0.3:
+
+| `split_step_frac` | 0.2 | 0.3 | 0.4 | 0.5 | 0.6 | 0.7 | 0.8 | 0.85 | 0.9 | 0.95 | 1.0 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| two-state clips | 2/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 |
+| median seam ratio | 6.4 | 13.7 | 14.4 | 15.9 | 14.7 | 13.9 | 13.9 | 14.1 | 14.2 | 14.1 | 15.1 |
+
+Only 0.2 degrades. So for nudity, a long heal phase is nearly harmless — and the reason is visible in
+the prompts: nudity's C ("a person standing upright in a studio") **keeps the subject**, and only the
+clothed/naked attribute is left unspecified. The heal phase has little to erase.
+
+For the object classes it is the opposite. Church's C is "a green English village on a clear
+afternoon" and chain saw's is "a wooden workbench in a cluttered garage" — **C removes the object
+entirely**, so every heal step actively argues against the concept surviving in the concept half. That
+makes heal-phase length trade directly against concept survival in a way it never did for nudity, and
+it is the most likely reading of exp066's 17 `no_concept` rows at 0.5.
+
+**Practical rule: the more of the concept prompt C drops, the shorter the heal phase should be.**
+Do not carry a `split_step_frac` across concepts without checking what C leaves behind.
+
+### Measuring the collapse: seam contrast, not motion
+
+The first failure mode is the one that silently produces useless training targets, so it is worth
+measuring rather than eyeballing. The instinct is to check whether the clip moves — and that is
+wrong. **A split clip that is nearly static within each half is a perfectly good target**, because
+the supervision lives in the *difference between the halves*, not in motion. What kills a target is
+collapsing to a single state across all 49 frames: the concept half and the safe half show the same
+thing, so `x0_edited` ≈ `x0_original` and there is nothing to learn.
+
+Averaging frame-to-frame differences conflates the two. exp066's `p25_s3226` has a median
+frame-to-frame difference of 0.470 — indistinguishable from a frozen clip by that measure — and a
+17.03 step exactly at its seam; it is the best clip in its batch.
+
+`tools/check_seam_contrast.py` measures the right thing, in pixel space, from the `videos/*.mp4` that
+`pull_results.sh` already downloads (no GPU, no VAE, no `.pt` off the cluster). Per clip it takes the
+largest consecutive-frame difference, where it falls relative to the construction seam
+(pixel frame `1 + 4*(sf-1)`), and how far it stands above the within-half median:
+
+- **two-state** — one dominant transition, at the seam. What we want.
+- **collapsed** — no transition anywhere; one state; no erase signal.
+- **diffuse** — motion spread across the clip with no seam standing out. Either the halves never
+  separated, or there is so much motion that the boundary is smeared away (exp067's `p16_s3317`:
+  median 17.6, max/median 1.2).
+
+This complements `tools/check_latent_motion.py`, which answers a different question in latent space —
+is the *donor fill* frozen — and needs the latents.
+
+**Known limitation: it is a whole-frame measure.** The step at the seam is a mean over all pixels, so a
+concept occupying a small share of the frame produces a smaller step than a full-frame one even when
+the split worked perfectly. Nudity swaps most of the subject and scores a median seam ratio of ~14;
+church swaps one building inside an otherwise identical village and scored 3.8. The `max/median`
+normalisation absorbs part of that but not all of it, so **read the two-state fraction as a
+within-concept comparison, not an absolute bar across concepts**, and confirm a low score by eye
+before concluding the split failed.
+
 ## 3. From split clip to frame_replace dataset
 
 `frame_replace_split_precompute.py` chains the sampler into a dataset, mirroring the fire builder:
@@ -186,3 +244,14 @@ split-prompt is concept-agnostic. The cost of a new concept is exactly two thing
 
 Everything else — sampler, mask construction, `edit_latent`, the trainer — is unchanged.
 See [`comparison_targets.md`](comparison_targets.md) for which concepts are worth attacking next.
+
+**One open question about the CSVs themselves.** Every split CSV we have written so far ends all three
+of A, B and C with the same scaffold: `"Static shot … The camera is fixed and never moves."` — 30/30
+rows in both `split_imagenet_*.csv` and 52/52 in `split_nudity.csv`. It was a reasonable choice (a
+fixed camera keeps the subject in a stable screen position, so the temporal splice reads cleanly), and
+since a static two-state clip is a perfectly good target it is not a defect. But it does bound what the
+method has been shown to do, it makes the training prompt A stylistically unlike the eval prompts,
+and `edit_latent_reflected` has since changed the trade-off — it *mirrors* the safe segment's motion
+into the concept block, so motion in the safe half is now an asset rather than a liability. Whether
+split-prompt can stitch two prompts that both carry motion, or whether motion smears the seam away
+(exp067's `p16_s3317`), is exp099.

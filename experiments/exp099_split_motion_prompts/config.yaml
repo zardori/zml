@@ -1,0 +1,42 @@
+# Does split-prompt work when both halves carry motion, or does it need a static camera?
+#
+# Every split CSV we have written pins the camera ("Static shot ... The camera is fixed and never
+# moves.") in all three of A, B and C — 30/30 rows in both split_imagenet_*.csv and 52/52 in
+# split_nudity.csv. That is not a defect (a static two-state clip is a perfectly good target), but it
+# bounds what the method has been shown to do, it makes the training prompt A stylistically unlike the
+# 20 eval prompts, and edit_latent_reflected has since changed the trade-off: it mirrors the safe
+# segment's motion into the concept block, so safe-half motion is now an asset rather than a liability.
+#
+# The risk being tested is specific: exp067's p16_s3317 had so much diffuse motion that the seam was
+# smeared away entirely (median frame diff 17.6, max/median 1.2). If motion-carrying prompts land
+# there, the scaffold stays.
+#
+# 2x2: prompt style x split_step_frac, both list-valued so submit_job.py grids into 4 jobs of 5 rows.
+# Run: ./submit_job.py helios experiments/exp099_split_motion_prompts/config.yaml
+job_type: precompute
+method: split_prompt
+
+# Same 5 scenes and seeds in both files (3 church, 2 chain saw), so the only difference between the
+# two arms is the prompt wording. The seeds are drawn from exp066/exp067 run 1 and deliberately span
+# its outcomes: 3328 and 3226 were the two clips that came out cleanly two-state, 3322 was the one
+# that collapsed to a single state, 3311 is the clip whose detector flicker started this thread.
+csv_path:
+  - prompts/split_imagenet_static_sweep.csv
+  - prompts/split_imagenet_motion_sweep.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: second
+split_jitter: 0          # fixed, so the seam sits at the same index in every clip and arms compare directly
+skip_plain_abc: true     # only the combined clip is scored; A/B/C would triple the cost for nothing
+save_latents: false      # seam contrast is measured in pixel space, off the MP4s
+
+# 0.5 is exp066/exp067 run 1's value, 0.85 is the current default. Included so a prompt-style effect
+# cannot be confused with the split_step_frac change the rebuild makes at the same time.
+split_step_frac: [0.5, 0.85]
+
+# 5 rows x 1 generation per job, ~3 min/row at 0.85; the model load dominates.
+slurm_time: "0-02:00:00"
