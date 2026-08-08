@@ -20,7 +20,7 @@ concept: nudity
 
 metadata_file: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
 latents_dir: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/latents
-retention_metadata_file: experiments/exp079_nudity_preservation_precompute/outputs_20260806_194011/metadata_human_filtered.json
+retention_metadata_file: experiments/exp079_nudity_preservation_precompute/metadata_human_filtered.json
 retention_latents_dir: experiments/exp079_nudity_preservation_precompute/outputs_20260806_194011/latents
 retention_weight: 1.0
 
