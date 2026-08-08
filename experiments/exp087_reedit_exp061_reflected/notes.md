@@ -1,13 +1,14 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace_split/reedit
 thread: nudity
 takeaway: >
-  Re-edits exp061's 21 human-approved triples from their SAVED ORIGINALS with edit_latent_reflected
-  and construction-derived masks — no GPU, no regeneration, no new human review, because the source
-  clips are unchanged. Fixes 20 frozen single-donor targets and 7 wrong concept masks that together
-  were 59% of exp080's training set. Not yet run.
+  Re-edited exp061's 21 human-approved triples from their SAVED ORIGINALS with
+  edit_latent_reflected and construction-derived masks - no GPU, no regeneration, no new human
+  review. Frozen targets 20/21 -> 0/21, edit/safe motion ratio 0.01 -> 1.00, and 7 wrong concept
+  masks corrected. Verified the safe regions were never static, so there was real motion to
+  mirror. These 21 were 59% of exp080's training set.
 ---
 # exp087 — re-edit exp061's triples with the reflected fill
 
@@ -77,11 +78,38 @@ candidate for the reported checkpoint; exp084 is then re-pointed at it.
 reproducible: exp080 is the finding that produced this diagnosis, and the eta grids measure whether
 eta can work *around* donor overfitting — which frozen donors make maximally visible.
 
+## Results (2026-08-08) — 20/21 frozen -> 0/21, and the risky check passed
+
+Ran on helios against the real latents: `21 entries ... frozen (single-donor) targets: 20 before ->
+0 after ... concept masks corrected to construction: 7`, exactly as the dry run predicted.
+
+`tools/check_latent_motion.py` on both datasets, measuring mean frame-to-frame variation inside vs
+outside the edited region straight off the latents (no decode):
+
+| | mean edit/safe ratio | frozen (<0.15) |
+|---|---|---|
+| exp061 (old) | **0.01** | **20 / 21** |
+| exp087 (re-edited) | **1.00** | **0 / 21** |
+
+The old targets read `edit = 0.0000` exactly — the signature of a literal frame copy, bit-identical
+across the whole block. The new ones land in 0.95-1.08, i.e. the edited region now carries the same
+amount of motion as the untouched part of its own clip, which is precisely what a mirrored fill
+should produce. (Seed 3125 at 0.29 is the one triple that was never frozen, consistent with 20/21.)
+
+**The check that could have invalidated the whole diagnosis passed.** `safe` motion is 0.054-0.158
+in both datasets, so exp061's safe regions were never static — there was real motion available to
+mirror. Had they been flat, a mirrored fill of a still segment would still be a still segment and
+this rebuild would have bought nothing. That is the one failure mode a `donor_map` cannot detect,
+which is why it was worth measuring rather than assuming.
+
 ## Status
 - [x] `tools/reedit_frame_replace_dataset.py` written; verified end-to-end on synthetic latents
       (mirrored fill, originals symlinked, stale keys dropped, training keys intact).
 - [x] `build_edit_masks` extracted from the builder so both paths share one definition.
 - [x] Dry run against exp061's metadata: 20 frozen, 7 masks to correct.
-- [ ] Run on the cluster against the real latents.
-- [ ] Two or three re-edited clips eyeballed.
+- [x] Run on the cluster: 20 -> 0 frozen, 7 masks corrected.
+- [x] Motion verified in latent space (`tools/check_latent_motion.py`): ratio 0.01 -> 1.00.
 - [ ] Merged with exp078's 13 into a training dataset.
+- [ ] A couple of clips eyeballed — now a low-priority confirmation rather than a gate, since the
+      latent measurement is direct rather than a proxy, and exp081 already validated
+      `edit_latent_reflected` visually on freshly built clips.
