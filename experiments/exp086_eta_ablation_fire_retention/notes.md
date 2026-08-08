@@ -49,9 +49,10 @@ precisely the mitigation this grid tests. exp055 measured the same pathology fro
 concept -84%; we see -85% to -99%.
 
 ## Setup
-exp080 run_002 verbatim — same 34-triple dataset, same exp041 retention anchors, `learning_rate:
-0.0001`, 200 steps, `save_interval: 20`, `eval_num_prompts: 10`, `global_seed: 42` — with
-`erase_esd_eta` gridded over **[0.5, 1.0, 1.5]**.
+exp080 run_002's settings — same 34-triple dataset, same exp041 retention anchors, `learning_rate:
+0.0001`, 200 steps, `eval_num_prompts: 10`, `global_seed: 42` — with `erase_esd_eta` gridded over
+**[0.5, 1.0, 1.5]**, and the eval budget re-cut (concept only, `save_interval: 10`) as described
+below.
 
 **eta=2.0 is deliberately absent: exp080 run_002 *is* that arm**, identical in every field. Read it
 as the fourth point rather than spending a job to reproduce it.

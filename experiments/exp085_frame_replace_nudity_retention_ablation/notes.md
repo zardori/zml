@@ -37,8 +37,8 @@ And `loss_retain` rose in all four arms (0.084 -> 0.11-0.12), i.e. retention deg
 training on anchors that had nothing to do with the concept.
 
 ## Setup
-exp080 run_002 settings — same 34-triple dataset, `learning_rate: 0.0001`, 200 steps,
-`save_interval: 20`, `eval_num_prompts: 10`, `global_seed: 42` — with two changes:
+exp080 run_002's settings — same 34-triple dataset, `learning_rate: 0.0001`, 200 steps,
+`eval_num_prompts: 10`, `global_seed: 42` — with two changes (plus the re-cut eval budget below):
 
 - `retention_metadata_file` / `retention_latents_dir` -> exp079's `metadata_human_filtered.json`
   (20 anchors) instead of exp041's (25).
@@ -94,5 +94,5 @@ recovers motion, that rebuild is the next thing to run.
 - [x] exp079's anchors built and human-reviewed (20/30 kept).
 - [x] Config prepared; reuses exp080's merged `combined_dataset/`, so no new precompute.
 - [ ] Submitted (can run alongside exp086; they share no outputs).
-- [ ] Compared against exp086 at matched eta on the `unrelated` column.
+- [ ] Compared against exp086 at matched eta (`loss_retain` + concept column).
 - [ ] `loss_retain` trend compared against exp080's rising curve.
