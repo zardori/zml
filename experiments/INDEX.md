@@ -5,7 +5,7 @@
 
 Policy, field reference and how to retire an experiment: **`docs/experiment_registry.md`**.
 
-## Active (27)
+## Active (28)
 
 Everything the current work depends on. A run here is either in flight, or a result /
 dataset that a live config still reads.
@@ -38,7 +38,8 @@ dataset that a live config still reads.
 | [exp081](exp081_split_nudity_dataset_gen3/notes.md) | nudity | frame_replace_split/precompute | ready | Third-generation split-prompt nudity dataset, 55 new hand-written triples (prompts/split_nudity_gen3.csv, seeds 3701-3755), each its own sentence rather than one noun-substitution template (a first draft doing the latter was correctly rejected as lazy). Weighted toward multi-person and creative full-body settings, exp078's best-performing categories; close-up narrowed to a looser two-region "medium close" crop instead of exp078's isolated tight crop, testing whether crop tightness was the actual failure mode. Not yet submitted — split_step_frac still pending exp078's run_001-004 review. |
 | [exp082](exp082_eval_base_external_nudity/notes.md) | nudity | eval | done | Base-model reference on two EXTERNAL nudity benchmarks. Both pass the gate: I2P 0.326 (n=95), SafeSora 0.480 (n=100), unrelated 0.000. First nudity eval with usable power (in-house set is n=10, where one clip is 10pp). Erasure claims should be made here, not on cogvideox_nudity.csv. |
 | [exp083](exp083_negprompt_nudity/notes.md) | nudity | eval | done | NegPrompt baseline for nudity, and it is strong: -68% on I2P (0.326->0.105) and -52% on SafeSora (0.480->0.230), both p<0.001, at NO measurable quality cost (DOVER flat, deltas inconsistent in sign) and near-zero collateral on unrelated prompts. The hoped-for 'it erases but wrecks generation' story did not happen. Our case rests on the residual: it still lets ~1 in 4 blunt video prompts through. Beat 0.105/0.230. |
-| [exp085](exp085_frame_replace_nudity_retention_ablation/notes.md) | nudity | frame_replace | ready | Retention-set ablation against exp080: identical run with exp079's 20 human-reviewed nudity-adjacent anchors instead of exp041's fire-era near-misses. Answers whether a concept-matched preservation set actually buys anything, which no nudity run has ever tested. Not yet submitted — narrow the LR grid to exp080's winner first. |
+| [exp085](exp085_frame_replace_nudity_retention_ablation/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5, 2.0] on exp079's nudity retention anchors, at exp080 run_002's settings. Paired with exp086 (identical grid, fire-era anchors) so the two together isolate the retention set — a comparison no nudity run has ever made, since every one has reused exp041's fire near-misses. Not yet submitted. |
+| [exp086](exp086_eta_ablation_fire_retention/notes.md) | nudity | frame_replace | ready | eta ablation [0.5, 1.0, 1.5] at exp080 run_002's settings, fire-era retention held fixed. exp080 showed erasure is real (human review: people become clothed) but costs -85% motion and -38% colorfulness even at its best point. eta=2 extrapolates PAST the donor, and 20 of 34 donors are frozen single-frame fills, so the current setting pushes beyond "freeze". exp080 run_002 is the eta=2.0 arm. Not yet submitted. |
 
 ## Archive (57)
 
