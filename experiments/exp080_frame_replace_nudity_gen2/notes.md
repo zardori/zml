@@ -98,10 +98,13 @@ submission and deliberately **not** applied here, so that this file keeps descri
 actually executed:
 
 1. **Retention set.** exp079's 20 human-reviewed nudity-adjacent anchors instead of exp041's fire
-   near-misses. Moved to **exp085**, which is otherwise identical — making the pair a clean
-   ablation of the retention set, which is more useful than the silent swap would have been.
+   near-misses. Moved to **exp085**, making the pair an ablation of the retention set rather than a
+   silent swap.
 2. **Eval budget.** `eval_num_prompts` 10 -> 20 paid for by `save_interval` 20 -> 40 (same 300
-   clips, half the noise per point). Also in exp085.
+   clips, half the noise per point). **Dropped** once this run's results came in: exp085 and exp086
+   hold run_002's settings exactly so their eta arms stay directly comparable to it, and the phase
+   structure turned out to be legible in colorfulness at `save_interval: 20` anyway. Worth
+   revisiting for a run that has to *pick* a checkpoint on its own numbers.
 
 **Timeout risk, flagged rather than fixed.** Eval fires at every `save_interval`, so this run does
 `200/20 * 3 * 10 = 300` clips plus 200 training steps against a 16h budget. exp077 did 150 clips
