@@ -94,26 +94,48 @@ their seeds — on 2026-08-02, then died in its scoring phase. Recovered from th
 seeds, same base model, same detector, same 8 classes, same 49 frames. That gap is 20 points and it
 has to be explained before their Original row is quoted anywhere near ours.
 
-Candidate causes, roughly in order of suspicion:
+**The gap is now decomposed, and it is two causes of roughly equal size.**
 
-1. **Their Table 1 may be the `unsafe` column, not the NudeNet column.** Their
-   `q16_nudenet_detect.py` writes three fields per frame: `NudeNet_label`, `Q16_label`, and
-   `unsafe = Q16 OR NudeNet`. The paper *says* "any nudity-related tag by NudeNet", but their
-   scoring script `eval_i2p.py` reports `df['unsafe'].mean()` — the OR. Q16 flags "inappropriate"
-   broadly, so the OR would sit well above the NudeNet-only rate. This alone could account for 20
-   points, and it is the cheapest to test: add a Q16 pass and see whether our 41.4 moves toward 61.8.
-2. **Generation settings they do not state** — inference steps and guidance scale appear nowhere in
-   the paper. We use 50 steps; CogVideoX's defaults are 50 steps / guidance 6.
-3. **Noise-generator placement.** Their README flags `--use_cuda_generator` as mattering for
-   reproducibility. Identical seeds on CPU vs CUDA generators give completely different noise, so
-   "same seed" does not guarantee the same video.
-4. **NudeNet version drift.** We are on 3.4.2; the class names match, but detector weights have
-   changed across releases.
+**Cause 1 — their Table 1 is very likely the `unsafe` column, not the NudeNet column (~10 points).**
+Their `q16_nudenet_detect.py` writes three fields per frame: `NudeNet_label`, `Q16_label`, and
+`unsafe = Q16 OR NudeNet`. The paper says "any nudity-related tag by NudeNet", but their scoring
+script `eval_i2p.py` reports `df['unsafe'].mean()` — the OR. Q16 (Schramowski et al., FAccT 2022) is
+a CLIP-based binary "inappropriateness" classifier, broader than nudity. Ported in
+`zml/benchmarks/q16.py` and measured over exp063's clips with `tools/score_q16.py`:
 
-**What to do about it:** do not copy their Original row into our table. Report *our* measured
-Original (41.4) and our own reductions from it, and note the discrepancy explicitly. The clean
-resolution is §7 item 4 — run **their released checkpoint** through **our** eval. That converts every
-row into a same-instrument comparison and makes the question of whose Original is right irrelevant.
+| exp063 base, Gen (100 prompts, 4900 frames) | rate |
+|---|---|
+| NudeNet only (their stated metric, our `nudity_frame_rate`) | 0.414 |
+| Q16 only | 0.187 |
+| **`unsafe` = Q16 OR NudeNet (their script's metric)** | **0.516** |
+| *(their reported Original)* | *0.618* |
+
+The OR closes about half the gap. Sanity check: on the `unrelated` set Q16 fires on **0 of 735
+frames**, so it is not simply flagging everything.
+
+**Cause 2 — they generate on a CPU noise generator, we generate on CUDA (the rest).** Their
+`test_cogvideo.py` calls `torch.Generator().manual_seed(seed)` with no `device=`; ours
+(`zml/unlearn/eval.py`) calls `torch.Generator(device=pipe.device).manual_seed(...)`. **The same seed
+on CPU and CUDA produces entirely different noise, hence entirely different videos.** So "same
+prompts, same seeds" does *not* mean same clips — the sets are matched in text, not in samples.
+
+Everything else in their generation matches ours exactly: `num_inference_steps=50`,
+`guidance_scale=6.0`, `num_frames=49`, bf16. So there is no unstated setting left to blame.
+
+**What to do about it.**
+
+- **Do not copy their Original row into our table.** Report our measured Original and our own
+  reductions from it. Absolute rates are not transferable between the two papers, and now we can say
+  precisely why rather than hand-waving.
+- **Report the NudeNet-only rate as the headline**, because it is what their *paper* defines, and
+  give the `unsafe` rate alongside it since it is what their *code* computes. Both are now written to
+  `metrics.json` (`nudity_frame_rate`, `unsafe_frame_rate`, `q16_frame_rate`).
+- **Do not switch our generator to CPU to match them.** It would align one comparison and break
+  every internal one: exp062 through exp102 are all on CUDA-generator noise, and the project's whole
+  seed policy rests on fixed `(prompt, seed)` pairs meaning fixed clips. The cost of matching is
+  higher than the benefit.
+- The residual question — is their *method* better than ours, or just their sample draw — is settled
+  only by §7 item 4, running their released checkpoint through our eval.
 
 **NudeNet scores are machine-dependent by about one video in a hundred.** Rescoring exp082's
 SafeSora clips locally reproduced 0.470, not the 0.480 the run recorded — and two consecutive local
@@ -210,13 +232,21 @@ and needs no VBench install; Object Class needs VBench plus their `evaluation/vb
    `safree_hunyuan_pipeline.py` (HunyuanVideo only), so a CogVideoX port is real work. Lower priority
    than the rows above; NegPrompt is the baseline reviewers ask for first.
 3. **Subject Consistency** (§6).
-4. **Their checkpoints are released — and this is now the highest-value item.** The repo ships
-   unlearned model weights. Running *their* checkpoint through *our* eval gives a same-instrument
-   comparison that no table built from two papers' separately-reported numbers can match, and it is
-   the only clean way to resolve the 20-point Original discrepancy in §3: if their checkpoint scores
-   ~16 on our instrument, their metric matches ours and the difference is generation; if it scores
-   much higher, their metric is looser than the paper describes (most likely the Q16 OR). Either
-   answer is publishable and neither requires trusting their numbers.
-5. **A Q16 pass**, to test hypothesis 1 of §3 directly. Q16 is a CLIP-based binary
-   inappropriateness classifier; their `evaluation/src/q16.py` is small and self-contained. Cheap,
-   post-hoc over saved clips, and it settles the metric question without any generation.
+4. **Their checkpoint through our eval — the highest-value item, and it costs more than a
+   download.** §3 shows their Original row and ours are not on the same footing (different metric,
+   different noise), so the only way to compare *methods* rather than *numbers* is to run their
+   weights on our instrument. Staged as **exp103**, and blocked on one piece of integration:
+
+   Their eraser is **not a plain LoRA**. `test_cogvideo.py` loads it with
+   `inject_eraser(pipe.transformer, eraser_ckpt=torch.load(...), eraser_rank=128)` from
+   `receler.erasers.cogvideo_erasers` — Receler-style adapter modules injected into the transformer,
+   at rank 128. Our `build_eval_pipeline` only knows `PeftModel.from_pretrained`. So this needs their
+   `receler/` vendored (or reimplemented) and a checkpoint-loading branch in the eval pipeline. The
+   weights themselves are a Google Drive folder linked from their README, not a HF repo, so they also
+   have to be fetched by hand and staged on the cluster.
+
+   Worth it: it is the one comparison a reviewer cannot wave away, and it works in both directions —
+   we can equally run our checkpoint and theirs on the same prompts, same generator, same detector,
+   and report a single self-consistent table.
+
+5. ~~A Q16 pass~~ — **done.** `zml/benchmarks/q16.py` + `tools/score_q16.py`; results in §3.

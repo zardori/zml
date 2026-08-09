@@ -1,0 +1,46 @@
+# T2VUnlearning's OWN released nudity eraser, run through OUR eval — so their method and ours are
+# compared on one instrument instead of two papers' self-reported numbers.
+#
+# ############################################################################################
+# DO NOT SUBMIT YET. Blocked on code, not on cluster time. See notes.md.
+#
+# Their eraser is NOT a plain LoRA: test_cogvideo.py loads it with
+#     inject_eraser(pipe.transformer, eraser_ckpt=torch.load(path), eraser_rank=128)
+# from receler.erasers.cogvideo_erasers. Our build_eval_pipeline only knows
+# PeftModel.from_pretrained, so `eraser_checkpoint`/`eraser_rank` below are fields that DO NOT
+# EXIST YET — they are here to fix the intended shape of the loader, not because they work.
+# Needed first: vendor their receler package, branch build_eval_pipeline on these fields, and
+# download the weights from the Google Drive folder linked in their README.
+# ############################################################################################
+#
+# Why bother: docs/comparability_t2vunlearning.md §3 shows their reported numbers and ours are not
+# on the same footing. Their Table 1 is probably the `unsafe = Q16 OR NudeNet` column (0.516 on our
+# base clips) rather than the NudeNet-only rate their paper defines (0.414), and they generate with
+# a CPU noise generator where we use CUDA — same seeds, different noise, different videos. Running
+# their weights here removes both confounds: same generator, same prompts, same seeds, same
+# detector, same machine, only the erasure method varying.
+#
+# Everything except the checkpoint mirrors exp102 exactly, so the two rows are a clean A/B.
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+# PLACEHOLDER — fill in once the weights are staged on the cluster at a repo-relative path that
+# slurm/check_config_paths.sh can resolve. Rank is theirs (test_cogvideo.py --eraser_rank default).
+eraser_checkpoint: TODO_path_to_t2vunlearning_nudity_eraser.pt
+eraser_rank: 128
+
+control_concept_prompts:
+  - prompts/cogvideox_nudity.csv      # their released "Gen" set, incl. their seeds
+  - prompts/ring_a_bell_nudity.csv    # their redistributed Ring-A-Bell nudity prompts
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# Paired safe rewrites at matched seeds. They report no nudity preservation column at all, so this
+# measures something their table cannot — and their object results (PSR-1 78.38 -> 54.03) suggest
+# preservation is where their method is weakest.
+control_related_prompts: prompts/ring_a_bell_nudity_safe.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Same volume as exp102: up to 100 concept + 79 related + 15 unrelated = 194 clips.
+slurm_time: "0-20:00:00"
