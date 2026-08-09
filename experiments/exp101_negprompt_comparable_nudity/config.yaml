@@ -1,0 +1,35 @@
+# NegPrompt baseline on the two prompt sets T2VUnlearning reports for CogVideoX-5B, so our
+# NegPrompt row can be read directly against theirs (Gen 46.35, Ring-A-Bell 14.91 — frame-level
+# Nudity Rate, %). Protocol mapping: docs/comparability_t2vunlearning.md.
+#
+# exp083 already ran NegPrompt, but on I2P and our own SafeSora filter — neither of which
+# T2VUnlearning evaluates for video. This is the same intervention on their sets.
+#
+# `negative_prompt` is copied verbatim from exp083 so the two NegPrompt rows differ only in the
+# prompt set, and it is deliberately a strong multi-synonym version rather than the bare word
+# "nudity" — this baseline should not be one we beat by under-specifying it.
+#
+# Applied to EVERY prompt set including `unrelated`, because NegPrompt is a deployed inference-time
+# defence and its collateral damage is part of what is being measured.
+#
+# Gridded into one job per set: run_001 -> Gen (100), run_002 -> Ring-A-Bell (79).
+#
+# Run: ./submit_job.py helios experiments/exp101_negprompt_comparable_nudity/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+# No lora_checkpoint_dir -> base model + negative prompt only. No training.
+negative_prompt: "nudity, naked, nude, bare skin, explicit sexual content"
+
+control_concept_prompts:
+  - prompts/cogvideox_nudity.csv      # == T2VUnlearning's released "Gen" set, incl. their seeds
+  - prompts/ring_a_bell_nudity.csv    # their redistributed Ring-A-Bell nudity prompts
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# 100 (or 79) concept + 15 unrelated. exp082/exp083 lost their scoring phase at a 6h limit with
+# every clip already written, so 12h covers generation plus the CPU tail.
+slurm_time: "0-12:00:00"

@@ -11,12 +11,17 @@ papers do and recommends the order in which we should follow.
 
 | Paper | Base models | Concepts | Detectors / metrics |
 |---|---|---|---|
-| [T2VUnlearning (2505.17550)](https://arxiv.org/abs/2505.17550) | CogVideoX-2B/5B, HunyuanVideo | nudity; 5 celebrity identities; 10 ImageNet objects | NudeNet nudity rate; ArcFace ID-similarity; per-frame classifier ESR/PSR (classifier unnamed — we use ResNet-50, see [`imagenet_objects.md`](imagenet_objects.md)); VBench |
+| [T2VUnlearning (2505.17550)](https://arxiv.org/abs/2505.17550) — **full protocol mapping: [`comparability_t2vunlearning.md`](comparability_t2vunlearning.md)** | CogVideoX-2B/5B, HunyuanVideo | nudity; 5 celebrity identities; 10 ImageNet objects | NudeNet nudity rate (**frame-level**, see below); ArcFace ID-similarity; per-frame classifier ESR/PSR (classifier unnamed — we use ResNet-50, see [`imagenet_objects.md`](imagenet_objects.md)); VBench Object Class + Subject Consistency |
 | [VideoEraser (2508.15314)](https://arxiv.org/abs/2508.15314) | AnimateDiff, LaVie, ZeroScope, ModelScope, CogVideoX | Imagenette objects; 5 artists (Van Gogh, Picasso, …); 5 celebrities; toxic categories (violence, pornography, …) | ResNet-50 ACCe/ACCu; GIPHY celebrity detector; DOVER; attack success rate vs Ring-A-Bell / MMA-Diffusion / UnlearnDiffAtk |
 | [Video Unlearning via Low-Rank Refusal Vector (2506.07891)](https://arxiv.org/abs/2506.07891) | Open-Sora, ZeroScope | T2VSafetyBench / SafeSora categories | benchmark-native safety scores |
 
 T2VUnlearning is the closest comparison: same base model family (CogVideoX-5b) and same
-v-prediction parameterization.
+v-prediction parameterization. It is also closer than we realised — **`prompts/cogvideox_nudity.csv`,
+the set every nudity number in this project is measured on, turns out to *be* their released "Gen"
+eval set** (same 100 prompts, same seeds), and they release their Ring-A-Bell nudity prompts and
+their SAFREE/unlearned checkpoints too. What matched, what did not (chiefly: their Nudity Rate is
+**per-frame**, ours was per-video), and what closing each gap costs:
+**[`comparability_t2vunlearning.md`](comparability_t2vunlearning.md)**.
 
 **Prompt sets / benchmarks worth adopting** so numbers are directly comparable: **SafeSora** and
 **Ring-A-Bell** (nudity), **Imagenette / ImageNet** class prompts (objects), **VBench** (utility /
@@ -40,10 +45,12 @@ Remaining work for a publishable comparison:
   which every prior nudity number is measured on, turns out to share **zero** prompts with real
   I2P despite being described as "i2p-derived". Provenance, filters and exactly what may be claimed
   about each set: **[`external_eval_sets.md`](external_eval_sets.md)**.
-  **Ring-A-Bell is not among them** — the repo releases adversarial prompts for Violence only, so
-  nudity ones would have to be *generated* by running their genetic-algorithm attack against our
-  text encoder (they do release `Nudity_vector.npy`). That is implementation work, not a download;
-  see the doc before claiming any Ring-A-Bell result.
+  **Ring-A-Bell is now among them too** (2026-08-09): the Ring-A-Bell repo itself releases
+  adversarial prompts for Violence only, but T2VUnlearning redistributes the 79 nudity prompts it
+  used, so `prompts/ring_a_bell_nudity.csv` is a download rather than an attack re-run. Cite them as
+  "Ring-A-Bell nudity prompts as released by T2VUnlearning", and do not call the result a robustness
+  test — their own Original baseline scores *lower* on Ring-A-Bell (42.50) than on plain prompts
+  (61.80).
 - add a **NegPrompt** row — the training-free baseline T2VUnlearning compares against, and the
   first thing a reviewer proposes instead of training. Configured as exp083; the shared eval path
   gained `negative_prompt` support for it. (The object side already had this as exp065.)

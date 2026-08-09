@@ -50,6 +50,13 @@ def load_eval_prompts(path: str | None) -> list[EvalPrompt]:
     return [EvalPrompt(prompt=str(p), seed=int(s)) for p, s in zip(df["prompt"], df["seed"])]
 
 
+# Detector-specific scores that only some concepts emit, logged to wandb/mlflow when present so the
+# paper's comparison row can be read straight off a run. `nudity_frame_rate` is T2VUnlearning's
+# "Nudity Rate" (see docs/comparability_t2vunlearning.md); it is deliberately kept alongside our own
+# video-level `nudity_detection_rate` rather than replacing it, so historical runs stay readable.
+OPTIONAL_EVAL_METRICS = ("nudity_frame_rate",)
+
+
 def _round_metrics(obj: object, ndigits: int = 2) -> object:
     if isinstance(obj, float):
         return round(obj, ndigits)
@@ -227,6 +234,9 @@ def evaluate(
             if DOVER_AVAILABLE:
                 mlflow.log_metric(f"eval/{set_name}_dover_technical_mean", round(scores["dover_technical_mean"], 2), step=step)
                 mlflow.log_metric(f"eval/{set_name}_dover_aesthetic_mean", round(scores["dover_aesthetic_mean"], 2), step=step)
+            for key in OPTIONAL_EVAL_METRICS:
+                if key in scores:
+                    mlflow.log_metric(f"eval/{set_name}_{key}", round(scores[key], 4), step=step)
 
     wandb_metrics = {
         f"eval/{set_name}_{k}": round(v, 4)
@@ -248,6 +258,12 @@ def evaluate(
                 ("dover_aesthetic_mean", scores["dover_aesthetic_mean"]),
             ]
         })
+    wandb_metrics.update({
+        f"eval/{set_name}_{k}": round(scores[k], 4)
+        for set_name, scores in metrics.items()
+        for k in OPTIONAL_EVAL_METRICS
+        if k in scores
+    })
     wandb.log(wandb_metrics, step=step)
 
     if was_training:

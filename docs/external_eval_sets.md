@@ -6,25 +6,40 @@ eval number later, and so the paper's claims about these sets stay inside what t
 
 ## 1. Why we needed them
 
+> **Correction (2026-08-09).** The premise below is **wrong on its central factual claim** and is
+> kept here only because it explains why these two sets exist. `prompts/cogvideox_nudity.csv` is
+> **not** a set we wrote: it is byte-for-byte T2VUnlearning's released
+> `evaluation/data/nudity_cogvideox.csv` — the same 100 prompts, same order, same 100 seeds — i.e.
+> the "Gen" set of their Table 1. Our entire historical nudity series is therefore *already* on a
+> published paper's own eval prompts and seeds. The comparability argument in point 1 does not
+> apply; point 2 (we authored the *training* prompts) still does. Verified in code by
+> `tools/build_t2vunlearning_evalsets.py:verify_gen_set`; full protocol mapping in
+> [`comparability_t2vunlearning.md`](comparability_t2vunlearning.md).
+
 Every nudity number the project had before 2026-08-07 was measured on `prompts/cogvideox_nudity.csv`
 — a set **we wrote**. It is described in several places as "i2p-derived", which is misleading:
 comparing it against the real I2P release finds **zero shared prompts**. It is I2P-*styled*
 hand-written text, not the benchmark.
+
+*(The "zero shared prompts with I2P" part is correct — the set is not I2P-derived. The inference that
+it was therefore written in-house is what was wrong.)*
 
 That is a problem on two independent counts:
 
 1. **Comparability.** Published T2V unlearning work (T2VUnlearning, VideoEraser) reports nudity
    rates on real benchmarks. A number on our own prompts cannot be put in the same table, which
    removes the whole point of the "comparable to published work" framing in
-   [`comparison_targets.md`](comparison_targets.md).
+   [`comparison_targets.md`](comparison_targets.md). — **Superseded: it is their benchmark.**
 2. **Credibility.** We authored both the training prompts (`split_nudity*.csv`) and the eval
    prompts. That invites the reasonable objection that the eval vocabulary resembles what we
    trained on, and that a detection rate of 0.0 is partly an artefact of that overlap. Scoring on
-   sets nobody on the team wrote removes the objection instead of arguing about it.
+   sets nobody on the team wrote removes the objection instead of arguing about it. — **Still
+   stands for the training prompts, which are ours.**
 
-`cogvideox_nudity.csv` is **not** retired — it stays as the in-house set every historical run is
-measured on, so exp062/exp073/exp077/exp080 remain mutually comparable. The external sets are
-added alongside it, not in place of it.
+`cogvideox_nudity.csv` is **not** retired — it stays as the set every historical run is measured on,
+so exp062/exp073/exp077/exp080 remain mutually comparable, and (given the correction above) it is
+the *most* comparable set we have, not the least. The external sets are added alongside it, not in
+place of it.
 
 ## 2. `prompts/i2p_nudity.csv` — 95 prompts
 
@@ -74,20 +89,33 @@ vocabulary was too narrow.
 
 ## 4. What we deliberately did NOT build
 
-**Ring-A-Bell adversarial nudity prompts.** [`comparison_targets.md`](comparison_targets.md) lists
-Ring-A-Bell as a target, and it would give the robustness/red-teaming row reviewers increasingly
-expect. But the repository releases inverted (adversarial) prompts for **Violence only**
-(`data/InvPrompt/Violence/`); there is no nudity equivalent to download. Producing them means
-running their genetic-algorithm attack against our text encoder using the released
-`Concept Vectors/Nudity_vector.npy` — an implementation task, not a fetch. Tracked as possible
-future work; **not** claimed as available, and nothing in the repo should be labelled
-"Ring-A-Bell" until that attack is actually run.
+**Ring-A-Bell adversarial nudity prompts.** — **Superseded (2026-08-09): these are available and
+are now built.** The reasoning below is correct about the *Ring-A-Bell* repository, which releases
+inverted prompts for Violence only, but it missed that **T2VUnlearning ships the 79 nudity prompts
+it used** in its own repo (`evaluation/data/nudity-ring-a-bell.csv`). Their Ring-A-Bell column is
+reproducible by download, not by re-running the attack. Built as `prompts/ring_a_bell_nudity.csv` by
+`tools/build_t2vunlearning_evalsets.py`, together with the paired safe rewrites shipped alongside
+them (`prompts/ring_a_bell_nudity_safe.csv`). The original reasoning, for the record:
 
-**A held-out nudity `related` set.** Still missing. `prompts/cogvideox_nudity_preservation.csv`
-(exp079) is a *training* retention anchor set — once a run trains against it, scoring on it is
-evaluating on the training set. A separate, held-out nudity-adjacent set (swimwear, medical,
-clothed intimacy, …) is needed before `control_related_prompts` means anything for nudity; every
-nudity config currently points that slot at the unrelated set as a placeholder.
+> But the repository releases inverted (adversarial) prompts for **Violence only**
+> (`data/InvPrompt/Violence/`); there is no nudity equivalent to download. Producing them means
+> running their genetic-algorithm attack against our text encoder using the released
+> `Concept Vectors/Nudity_vector.npy` — an implementation task, not a fetch.
+
+One caveat survives: these are Ring-A-Bell prompts *as redistributed by T2VUnlearning*, and we have
+not run the attack ourselves. Cite them as such. Note also that they are not adversarially strong
+against CogVideoX — T2VUnlearning's own Original baseline scores *lower* on them (42.50) than on the
+plain Gen set (61.80), so this is a second distribution, not a robustness test.
+
+**A held-out nudity `related` set.** — **Done (2026-08-08/09).**
+`prompts/cogvideox_nudity_control_related.csv` (36 held-out nudity-adjacent prompts, 9 categories,
+seeds 602001-602036, zero overlap with exp079's training anchors), plus the *paired*
+`prompts/ring_a_bell_nudity_safe.csv`, where each safe rewrite carries the same seed as its
+adversarial partner so the two differ only in wording. The original note, still correct on why the
+exp079 set does not fill this slot:
+
+> `prompts/cogvideox_nudity_preservation.csv` (exp079) is a *training* retention anchor set — once a
+> run trains against it, scoring on it is evaluating on the training set.
 
 ## 5. How they are used
 

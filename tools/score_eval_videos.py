@@ -37,6 +37,19 @@ SET_TO_CONFIG_FIELD = {
 }
 
 
+def _output_dirs(run_dir: Path) -> list[Path]:
+    """Every outputs dir under a run, across both experiment layouts.
+
+    A grid run writes ``run_NNN/outputs/``; a single-run experiment writes
+    ``expNNN_name/outputs_{timestamp}/`` (see the layout in CLAUDE.md). Supporting only the first
+    made single-run experiments unrecoverable by this tool — which is how exp063's 115 base-model
+    clips sat scored-never-written for a week despite the videos being on disk.
+    """
+    if (run_dir / "outputs").is_dir():
+        return [run_dir / "outputs"]
+    return sorted(p for p in run_dir.glob("outputs_*") if p.is_dir())
+
+
 def score_run(run_dir: Path, dry_run: bool) -> None:
     config = yaml.safe_load((run_dir / "config.yaml").read_text())
     concept = config.get("concept", "fire")
@@ -44,11 +57,13 @@ def score_run(run_dir: Path, dry_run: bool) -> None:
     negative_prompt = config.get("negative_prompt")
 
     step_dirs = sorted(
-        (run_dir / "outputs").glob("eval_step_*"),
+        (step for out in _output_dirs(run_dir) for step in out.glob("eval_step_*")),
         key=lambda p: int(p.name.rsplit("_", 1)[-1]),
     )
     if not step_dirs:
-        raise FileNotFoundError(f"No eval_step_*/ directories under {run_dir / 'outputs'}")
+        raise FileNotFoundError(
+            f"No eval_step_*/ directories under {run_dir}/outputs/ or {run_dir}/outputs_*/"
+        )
 
     for step_dir in step_dirs:
         metrics: dict[str, object] = {}

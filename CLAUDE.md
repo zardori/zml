@@ -168,6 +168,13 @@ A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame det
 Which concepts other T2V unlearning papers erase, with what detectors and prompt sets, and why we
 pick them in this order: **`docs/comparison_targets.md`**.
 
+**Comparability with T2VUnlearning (arXiv:2505.17550), our closest comparison: `docs/comparability_t2vunlearning.md`.**
+Read it before reporting any nudity number. Two things it settles: `prompts/cogvideox_nudity.csv` *is*
+their released "Gen" eval set (same 100 prompts and seeds — every historical run is already on their
+prompts), and their "Nudity Rate" is **per-frame**, not per-video. Detectors now emit both
+(`nudity_frame_rate` alongside `nudity_detection_rate`); they are not interchangeable, and
+`tools/score_nudity_frame_rate.py` backfills the frame rate onto already-generated clips with no GPU.
+
 ### Seed Management Policy
 
 - **Training**: use a single global `seed` field in `config.yaml`. It controls process-level randomness (model initialization, batch ordering, dropout, etc.).
