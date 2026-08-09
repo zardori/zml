@@ -32,6 +32,25 @@ under `grid_{TIMESTAMP}/run_001` and `run_002`.
 - ESR-5 vs. ESR-1: the paper's argument is that baselines move ESR-1 but not ESR-5, because the
   object is distorted rather than removed. Worth checking whether that holds here too.
 
+## Run 1 (`grid_20260803_233332`, athena) — timed out, resubmit
+
+Both arms hit the 10 h wall clock partway through `golf_ball` and wrote **no `esr_psr.json`**:
+run_001 (chain saw) 163/200 videos, run_002 (church) 164/200. Nothing is wrong with the results that
+did land — generation is resumable, so a resubmission picks up the remaining ~37 per arm.
+
+Measured from video mtimes, both arms ran at **219 s/video**, so a cold 200-video run needs ~12.2 h.
+`slurm_time` raised 10 h → **14 h**, sized for a cold start rather than for the resume.
+
+That rate is **2.1x exp064's** (200 videos in 5.71 h = 103 s/video) on the same cluster, same 50
+inference steps, same 200 prompts — and a negative prompt adds no forward pass, so the cause is not
+the thing being tested. Most likely node-to-node variation or contention between the two concurrent
+grid arms, but the logs record neither node nor elapsed time, so it cannot be settled after the fact.
+This run is why `slurm/run_info.sh` now exists: every job writes `$OUTPUT_DIR/run_info.json` with
+cluster, node, elapsed and outcome, **including on timeout**, and `tools/experiments_index.py`
+surfaces it as a column in `INDEX.md`.
+
 ## Status
-- [ ] Submitted (independent of everything else; can run any time after exp064).
+- [x] Submitted (independent of everything else; can run any time after exp064).
+- [x] Run 1 timed out at 10 h — 163/200 and 164/200, no report written.
+- [ ] Resubmitted at 14 h (resumes from the existing videos).
 - [ ] Results pulled, NegPrompt row recorded.

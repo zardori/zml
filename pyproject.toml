@@ -11,6 +11,8 @@ dependencies = [
     "imageio>=2.37.3",
     "imageio-ffmpeg>=0.6.0",
     "numpy>=2.4.2",
+    "onnxruntime>=1.20",  # explicit: was only transitive via nudenet, now also used directly by
+                          # zml/benchmarks/arcface_embedder.py (face-identity ArcFace inference)
     "opencv-python>=4.13.0.90",
     "pandas>=2.0.0",
     "peft>=0.18.1",

@@ -33,6 +33,7 @@ experiments/**/eval_outputs*/
 # Merged datasets built by zml/precompute/merge_frame_replace_datasets.py — derived artifacts
 # (symlinked .pt latents + a metadata.json pointing at them), reproducible from the sources.
 experiments/**/combined_dataset/
+experiments/INDEX.md
 
 # MLflow tracking data
 mlruns/
@@ -60,3 +61,4 @@ report/
 # Other
 *.pdf
 *debug*
+docs/diagrams/

@@ -7,6 +7,12 @@ symlinks each source's ``.pt`` files into a combined ``latents/`` dir (prefixed 
 filename collisions across runs) and writes one combined ``metadata.json`` with ``latent_path``/
 ``original_latent_path`` updated to match.
 
+Also relinks every target's ``variants[*]`` block (``emit_whole_clip_target``,
+``docs/face_identity.md``), with the same source prefix — otherwise a merged dataset's
+``variants["wholeclip"]`` paths would still point at the unmerged source directory, and a
+``target_variant: wholeclip`` training run would fail (or silently read from the wrong place) as
+soon as its dataset came from a merge.
+
 No GPU needed — this is pure file I/O, so it can run locally (after pulling the source latents with
 ``pull_results.sh --include-weights``) or directly on a cluster login node.
 
@@ -24,6 +30,24 @@ import json
 import os
 
 
+def _relink_paths(d: dict, prefix: str, latents_dir: str, latents_out: str) -> None:
+    """Symlink ``d``'s ``latent_path``/``original_latent_path`` (whichever are present) into
+    ``latents_out`` under ``prefix``, rewriting ``d`` in place to point at the new names.
+
+    Shared by the top-level entry and every ``variants[*]`` sub-dict, so a target variant's paths
+    are relinked the same way its flat-key counterpart always has been.
+    """
+    for key in ("latent_path", "original_latent_path"):
+        old_path = d.get(key)
+        if old_path is None:
+            continue
+        new_name = prefix + os.path.basename(old_path)
+        link_path = os.path.join(latents_out, new_name)
+        if not os.path.exists(link_path):
+            os.symlink(os.path.abspath(os.path.join(latents_dir, old_path)), link_path)
+        d[key] = new_name
+
+
 def merge(sources: list[tuple[str, str]], output_dir: str) -> None:
     latents_out = os.path.join(output_dir, "latents")
     os.makedirs(latents_out, exist_ok=True)
@@ -37,17 +61,14 @@ def merge(sources: list[tuple[str, str]], output_dir: str) -> None:
         prefix = f"src{source_idx}_"
         for entry in entries:
             new_entry = dict(entry)
-            for key in ("latent_path", "original_latent_path"):
-                old_path = entry.get(key)
-                if old_path is None:
-                    continue
-                new_name = prefix + os.path.basename(old_path)
-                link_path = os.path.join(latents_out, new_name)
-                if not os.path.exists(link_path):
-                    os.symlink(
-                        os.path.abspath(os.path.join(latents_dir, old_path)), link_path
-                    )
-                new_entry[key] = new_name
+            _relink_paths(new_entry, prefix, latents_dir, latents_out)
+            if "variants" in new_entry:
+                new_entry["variants"] = {
+                    variant_name: dict(variant_dict)
+                    for variant_name, variant_dict in new_entry["variants"].items()
+                }
+                for variant_dict in new_entry["variants"].values():
+                    _relink_paths(variant_dict, prefix, latents_dir, latents_out)
             new_entry["_source_metadata_file"] = metadata_file  # provenance, not read by the trainer
             combined.append(new_entry)
 

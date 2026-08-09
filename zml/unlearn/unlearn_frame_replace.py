@@ -93,6 +93,18 @@ class Config:
     # regresses toward the edited fireless target, teaching a fire->fireless denoising redirection.
     # Requires "original_latent_path" in the target metadata (precompute saves it).
     erase_input_latent: str = "edited"
+    # Which target variant a frame_replace_split dataset's erase branch consumes. "split" (default)
+    # is the flat top-level keys every dataset already has — a temporally-spliced, frame-local edit
+    # (byte-identical behaviour to before this field existed). "wholeclip" reads the nested
+    # variants["wholeclip"] block written when the dataset was built with
+    # `emit_whole_clip_target: true` (frame_replace_split_precompute.py): prompt A's own plain clip
+    # as the erase-branch input, prompt B's same-seed plain clip as the target — a whole-clip swap
+    # rather than a frame-local one, for concepts (e.g. face identity, docs/face_identity.md) where a
+    # mid-clip splice risks a visible seam or the heal phase washing the concept back out.
+    # `nonfire_frame_weight` is inert under "wholeclip": its concept_latent_mask is all-True by
+    # construction (every frame is concept-bearing), so any nonfire_frame_weight value produces an
+    # identical unmasked loss.
+    target_variant: str = "split"
     # ESD-style partial redirection for the erase branch. ``None`` (default) keeps plain SFT: the
     # student regresses *all the way* to the donor (edited) target. When set, the erase target
     # becomes ``teacher - eta*(teacher - donor) = (1-eta)*teacher + eta*donor``, where ``teacher``
@@ -132,6 +144,34 @@ def _load_target_latent(latents_dir: str, latent_path: str, device: str) -> torc
     x0 = torch.load(os.path.join(latents_dir, latent_path), map_location=device).to(dtype=DTYPE)
     assert x0.shape == EXPECTED_LATENT_SHAPE, f"unexpected target shape {x0.shape}"
     return x0
+
+
+def _target_view(entry: dict, variant: str) -> dict:
+    """``latent_path`` / ``original_latent_path`` / ``concept_latent_mask`` for one target variant.
+
+    "split" returns the flat metadata keys unchanged — every dataset built before
+    ``target_variant`` existed still trains identically. "wholeclip" reads the nested
+    ``variants["wholeclip"]`` block a dataset only has if it was built with
+    ``emit_whole_clip_target: true``; a dataset built without it fails loudly here rather than
+    silently training on the wrong (or missing) target.
+    """
+    if variant == "split":
+        return {
+            "latent_path": entry["latent_path"],
+            "original_latent_path": entry.get("original_latent_path"),
+            "concept_latent_mask": entry.get("concept_latent_mask") or entry.get("fire_latent_mask"),
+        }
+    if variant == "wholeclip":
+        variants = entry.get("variants") or {}
+        if "wholeclip" not in variants:
+            raise KeyError(
+                "target_variant='wholeclip' but this target has no variants['wholeclip'] entry — the "
+                "dataset was built without emit_whole_clip_target: true "
+                "(zml/precompute/frame_replace_split_precompute.py). Rebuild it with that flag set, "
+                "or set target_variant: split in this run's config."
+            )
+        return variants["wholeclip"]
+    raise ValueError(f"Unknown target_variant {variant!r}; expected 'split' or 'wholeclip'.")
 
 
 def _fire_frame_mask(entry: dict, nonfire_weight: float, device: str) -> torch.Tensor:
@@ -393,6 +433,7 @@ def main(config: Config) -> None:
             "nonfire_frame_weight": config.nonfire_frame_weight,
             "erase_loss_space": config.erase_loss_space,
             "erase_input_latent": config.erase_input_latent,
+            "target_variant": config.target_variant,
             "erase_esd_eta": config.erase_esd_eta,
             "eval_num_prompts": config.eval_num_prompts,
             "eval_inference_steps": config.eval_inference_steps,
@@ -420,19 +461,20 @@ def main(config: Config) -> None:
         for _ in range(accum):
             # Erase branch: pull the fire prompt toward its edited (fireless) latent.
             erase_entry = random.choice(metadata)
-            x0_edited = _load_target_latent(config.latents_dir, erase_entry["latent_path"], device)
+            erase_view = _target_view(erase_entry, config.target_variant)
+            x0_edited = _load_target_latent(config.latents_dir, erase_view["latent_path"], device)
             # "original" noises the pre-edit fire latent (x0_input) while still regressing toward
             # the edited fireless latent (x0_target) — a fire->fireless redirection on the states
             # the model actually traverses. "edited" keeps plain reconstruction (x0_input == x0_target).
             if config.erase_input_latent == "original":
-                assert "original_latent_path" in erase_entry, (
-                    "erase_input_latent='original' needs 'original_latent_path' in the target metadata; "
+                assert erase_view.get("original_latent_path") is not None, (
+                    "erase_input_latent='original' needs 'original_latent_path' for this target_variant; "
                     "re-run the precompute with the original-latent-saving version."
                 )
-                x0_input = _load_target_latent(config.latents_dir, erase_entry["original_latent_path"], device)
+                x0_input = _load_target_latent(config.latents_dir, erase_view["original_latent_path"], device)
             else:
                 x0_input = x0_edited
-            erase_frame_mask = _fire_frame_mask(erase_entry, config.nonfire_frame_weight, device)
+            erase_frame_mask = _fire_frame_mask(erase_view, config.nonfire_frame_weight, device)
             loss_erase = _sft_velocity_loss(
                 transformer, scheduler, x0_input, prompt_emb_cache[erase_entry["prompt"]],
                 image_rotary_emb, config, device, frame_mask=erase_frame_mask,

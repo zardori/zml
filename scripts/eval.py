@@ -99,5 +99,12 @@ if __name__ == "__main__":
 
         run_eval(params, args.config, args.output_dir, experiment_name,
                  config_cls=ImageNetConfig, eval_fn=imagenet_main)
+    elif mode == "face":
+        # Imported here so the fire/nudity/imagenet eval paths keep no import-time dependency on the
+        # ONNX face stack (same reason zml/benchmarks/registry.py imports lazily).
+        from zml.eval.face_eval import Config as FaceConfig, main as face_main
+
+        run_eval(params, args.config, args.output_dir, experiment_name,
+                 config_cls=FaceConfig, eval_fn=face_main)
     else:
-        raise ValueError(f"Unknown mode '{mode}'; expected 'eval', 'imagenet' or 'generate'.")
+        raise ValueError(f"Unknown mode '{mode}'; expected 'eval', 'imagenet', 'face' or 'generate'.")

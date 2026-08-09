@@ -152,10 +152,15 @@ and must stay that way. We preserve the classes, not the test items.
   which is *not* on the same scale as a NudeNet detection score: church frames never exceed 0.49 even
   when the building fills the frame, so a nudity-style 0.5 would mask nothing at all.
 
-  **The errors are not symmetric.** A frame *below* threshold becomes a donor
-  (`frame_replace_split_precompute.py:133-135`), so a false negative silently splices the object into
-  `x0_edited` and poisons the training target; a false positive only shrinks the donor pool and
-  surfaces loudly as `insufficient_donor_frames` in the skip list. **Err low.**
+  **Since `543eed8` this field is logging-only and gates nothing.** The concept mask is derived from
+  `(split_latent_frame, concept_region)`, so the threshold decides only `concept_pixel_mask` in
+  `metadata.json`, which nothing reads. It still earns its calibration, because the raw
+  `frame_confidences` logged next to it are how you rank rows when reviewing whether prompt A rendered
+  the object at all — the one job the detector still has here (§6, exp066/exp067 run 1).
+
+  Before that commit the errors were asymmetric and dangerous: a frame *below* threshold became a
+  donor, so a false negative silently spliced the object into `x0_edited`. exp066/exp067's run 1 is the
+  cautionary record of what that cost — see §6.
 
   **Calibrate against the negative distribution**, not by eye: score the target class on the *other*
   nine classes' clips and put the threshold just above that ceiling. From exp064 (8820 negative
@@ -193,13 +198,42 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp | what | status |
 |---|---|---|
 | exp064 | base-model ESR/PSR over all ten classes; the `Original` row and the sanity gate for classifier + prompts | **done** — gate passed, see below |
-| exp065 | NegPrompt baseline, chain saw + church (grid) | not yet run |
-| exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | not yet run |
-| exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | not yet run |
-| exp068 | preservation anchors, 10 classes x 3 prompts | not yet run |
-| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | not yet run |
-| exp070 | frame_replace erasure of church, same regime | not yet run |
-| exp071 / exp072 | reported ESR/PSR for the two LoRAs | not yet run |
+| exp065 | NegPrompt baseline, chain saw + church (grid) | ran 2026-08-03, **timed out** at 163/200 and 164/200 with no report; `slurm_time` 10 h → 14 h, resubmit (resumable) |
+| exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | run 1 kept **4/30**, discarded; rebuilding at `split_step_frac: 0.85` |
+| exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | run 1 kept **7/30**, discarded; rebuilding at `split_step_frac: 0.85` |
+| exp068 | preservation anchors, 10 classes x 3 prompts | **done** — 30 entries, 3 per class, `outputs_20260803_233647` |
+| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | blocked on exp066's rebuild |
+| exp070 | frame_replace erasure of church, same regime | blocked on exp067's rebuild |
+| exp071 / exp072 | reported ESR/PSR for the two LoRAs | blocked on exp069 / exp070 |
+
+**exp066/exp067 run 1 — why the datasets were discarded.** Both ran 2026-08-03, two days before
+`543eed8` made the concept mask construction-derived, so their masks were still detection-derived.
+Yields were 4/30 and 7/30, and in both the skip reasons are perfectly bimodal — every `no_concept` row
+has 13 donor frames and every `insufficient_donor_frames` row has 0. That is a detector reading noise
+and splitting it, not a detector finding an object and missing some frames. Church made it explicit:
+six of its seven *kept* rows have confidences that never leave the 0.021–0.050 band against a 0.03
+threshold, and four have `edited_max_confidence` at or above threshold, meaning the edit removed
+nothing by the detector's own reading. All seven kept church rows were `concept_region: first` despite
+`concept_region: random`, which alone would have taught the positional shortcut.
+
+Chain saw's 17 `no_concept` rows point at a *sampler* cause rather than a detector one, and the
+mechanism is specific to object classes: at `split_step_frac: 0.5` half the schedule is the prompt-C
+heal phase, and for objects **C removes the object entirely** ("a wooden workbench in a cluttered
+garage", "a green English village on a clear afternoon"), so every heal step argues against the
+concept surviving. Nudity never had this problem because its C keeps the subject and leaves only the
+clothed/naked attribute open — re-scoring exp074/exp076 shows seam contrast is flat there from 0.3 to
+1.0. Hence the rebuild at 0.85, which is also the current default (`cb63756`). See
+`docs/split_prompt.md` §2 for the table and the general rule.
+
+**Judge these clips by seam contrast, not motion.** A split-prompt target only carries erase signal if
+the two halves settle on different content; a clip that is nearly static *within* each half is fine, and
+one that collapses to a single state across all 49 frames is useless. Averaging frame-to-frame
+differences confuses the two — exp066's `p25_s3226` has a median difference of 0.470, which reads as
+"static", but a 17.03 step exactly at its seam, and it is the best clip in that batch.
+`tools/check_seam_contrast.py` measures this from the saved MP4s (no GPU, no latents): run 1 scored
+**2/4** and **1/7** two-state. It is a whole-frame measure, so compare an object class against itself
+across runs rather than against nudity's numbers — swapping one building inside a village moves fewer
+pixels than swapping most of a subject.
 
 **exp064 (done) — the gate, and what it changed.** 200 videos in 5.71 h on athena. Both pilot classes
 render well (chain saw top-1 .506 / top-5 .795, church .739 / .950), so the pilot is viable and the

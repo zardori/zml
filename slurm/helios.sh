@@ -30,6 +30,9 @@ ZML_CLUSTER=helios source slurm/peer_roots.sh
 # Untracked secrets (e.g. OPENROUTER_API_KEY for the search job's prompt proposer). Never commit it.
 set -a; source "$HOME/.openrouter_env" 2>/dev/null; set +a
 
+# Records $OUTPUT_DIR/run_info.json (cluster, elapsed, outcome) — including on timeout.
+ZML_CLUSTER=helios source slurm/run_info.sh
+
 case "${JOB_TYPE:-unlearn}" in
     unlearn)    uv run scripts/unlearn.py    --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     eval)       uv run scripts/eval.py       --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;

@@ -2,8 +2,12 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 [--cluster CLUSTER] [--logs-only] [--include-weights] [--no-videos]"
+    echo "Usage: $0 [--cluster CLUSTER] [--experiment PATH] [--logs-only] [--include-weights] [--no-videos]"
     echo "  --cluster  Cluster name: athena or helios (reads cluster.conf, default: both)"
+    echo "  --experiment PATH  Pull only this repo-relative experiment dir (e.g."
+    echo "                     experiments/exp066_split_chainsaw_dataset). Pair with --include-weights"
+    echo "                     to fetch one experiment's latents without dragging every checkpoint in"
+    echo "                     the repo across the wire. Skips the MLflow sync."
     echo "  --logs-only        Download only logs, skip experiment outputs"
     echo "  --include-weights  Include model weight files (.safetensors, .pt) when downloading outputs (excluded by default)"
     echo "  --no-videos        Skip generated video files (.mp4) when downloading outputs"
@@ -11,6 +15,7 @@ usage() {
 }
 
 CLUSTER=""
+EXPERIMENT=""
 LOGS_ONLY=false
 SKIP_ADAPTERS=true
 SKIP_VIDEOS=false
@@ -18,6 +23,7 @@ SKIP_VIDEOS=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --cluster)          CLUSTER="$2"; shift ;;
+        --experiment)       EXPERIMENT="${2%/}"; shift ;;
         --logs-only)        LOGS_ONLY=true ;;
         --include-weights)  SKIP_ADAPTERS=false ;;
         --no-videos)        SKIP_VIDEOS=true ;;
@@ -25,6 +31,19 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+# The path is spliced into both an ssh-side source and a local destination, so it has to stay inside
+# the experiments tree — anything else would write outside the repo on a pull.
+if [[ -n "$EXPERIMENT" ]]; then
+    if [[ "$EXPERIMENT" != experiments/* || "$EXPERIMENT" == *..* ]]; then
+        echo "Error: --experiment must be a repo-relative path under experiments/ (got '${EXPERIMENT}')." >&2
+        exit 1
+    fi
+    if [[ "$LOGS_ONLY" == true ]]; then
+        echo "Error: --experiment and --logs-only are mutually exclusive." >&2
+        exit 1
+    fi
+fi
 
 CONFIG_FILE="$(dirname "$0")/cluster.conf"
 if [[ ! -f "$CONFIG_FILE" ]]; then
@@ -108,6 +127,26 @@ pull_cluster() {
             rsync_opts+=(--exclude='*.mp4')
         fi
 
+        if [[ -n "$EXPERIMENT" ]]; then
+            # Narrow pull: one experiment, straight to its own path. The archive redirection is
+            # irrelevant here because the caller named the destination themselves.
+            mkdir -p "./${EXPERIMENT}"
+            echo "Pulling ${EXPERIMENT} from all members (${cluster})..."
+            for rdir in "${remote_dirs[@]}"; do
+                echo "  <- ${host}:${rdir}/${EXPERIMENT}/"
+                # Only the member who ran it has the folder; 23 (partial transfer, source missing)
+                # is the expected answer from every other root.
+                local exp_exit=0
+                rsync "${rsync_opts[@]}" "${host}:${rdir}/${EXPERIMENT}/" "./${EXPERIMENT}/" || exp_exit=$?
+                if [[ $exp_exit -eq 23 ]]; then
+                    echo "  (not present in ${rdir}, skipping)"
+                elif [[ $exp_exit -ne 0 ]]; then
+                    exit $exp_exit
+                fi
+            done
+            return 0
+        fi
+
         # The bulk transfer never re-creates a flat folder for an archived experiment;
         # pull_pre_archive fetches those into experiments/archive/ instead.
         local bulk_opts=("${rsync_opts[@]}") name
@@ -147,6 +186,9 @@ if [[ "$SKIP_VIDEOS" == true && "$LOGS_ONLY" == false ]]; then
 fi
 if [[ "$LOGS_ONLY" == false ]]; then
     echo "Skipping experiment notes.md and config.yaml (kept in git; grid run_*/config.yaml still pulled)."
+fi
+if [[ -n "$EXPERIMENT" ]]; then
+    echo "Pulling only ${EXPERIMENT}; skipping the MLflow sync."
 fi
 
 for cluster in "${CLUSTERS[@]}"; do

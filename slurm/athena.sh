@@ -32,6 +32,9 @@ ZML_CLUSTER=athena source slurm/peer_roots.sh
 # NOTE: athena compute nodes may lack outbound internet; the search job is intended for helios.
 set -a; source "$HOME/.openrouter_env" 2>/dev/null; set +a
 
+# Records $OUTPUT_DIR/run_info.json (cluster, elapsed, outcome) — including on timeout.
+ZML_CLUSTER=athena source slurm/run_info.sh
+
 case "${JOB_TYPE:-unlearn}" in
     unlearn)    uv run scripts/unlearn.py    --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;
     eval)       uv run scripts/eval.py       --config "$CONFIG" --output_dir "$OUTPUT_DIR" ;;

@@ -116,8 +116,14 @@ def _predict(pipe, latents, embeds, t, rope, guidance_scale: float, do_cfg: bool
 
 
 @torch.no_grad()
-def _generate_plain(pipe, prompt: str, seed: int, config: Config) -> torch.Tensor:
-    """Vanilla generation -> clean latent in (B, C, F, H, W). Fresh generator so init noise == seed."""
+def generate_plain_clip(pipe, prompt: str, seed: int, config: Config) -> torch.Tensor:
+    """Vanilla generation -> clean latent in (B, C, F, H, W). Fresh generator so init noise == seed.
+
+    Public (promoted from ``_generate_plain``) because ``frame_replace_split_precompute.py`` reuses
+    it directly for the whole-clip target variant (``emit_whole_clip_target``): prompt A's own plain
+    clip as the "original" and prompt B's same-seed plain clip as the donor, generated the same way
+    the paired A/B baseline here always has been.
+    """
     generator = torch.Generator(device=DEVICE).manual_seed(seed)
     out = pipe(
         prompt=prompt,
@@ -130,6 +136,10 @@ def _generate_plain(pipe, prompt: str, seed: int, config: Config) -> torch.Tenso
     return out.frames.permute(0, 2, 1, 3, 4).contiguous()  # (B, F, C, H, W) -> (B, C, F, H, W)
 
 
+# Private alias kept for anything still importing the old name.
+_generate_plain = generate_plain_clip
+
+
 @torch.no_grad()
 def generate_split_clip(
     pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int, config: Config,
@@ -138,7 +148,7 @@ def generate_split_clip(
     """Temporal split-prompt generation -> clean latent in (B, C, F, H, W).
 
     ``concept_region`` selects which side gets the concept prompt A: "second" -> frames
-    ``[split:]``; "first" -> ``[:split]``. Shares its initial noise with ``_generate_plain`` for the
+    ``[split:]``; "first" -> ``[:split]``. Shares its initial noise with ``generate_plain_clip`` for the
     same seed, so the combined clip is comparable to the plain A/B/C clips. Reused by the dataset
     builder (``frame_replace_split_precompute``).
     """
@@ -232,9 +242,9 @@ def main(config: Config) -> None:
                     pipe, row["prompt_a"], row["prompt_b"], row["prompt_c"], seed, config, sf, region),
             }
             if not config.skip_plain_abc:
-                clips["A"] = _generate_plain(pipe, row["prompt_a"], seed, config)
-                clips["B"] = _generate_plain(pipe, row["prompt_b"], seed, config)
-                clips["C"] = _generate_plain(pipe, row["prompt_c"], seed, config)
+                clips["A"] = generate_plain_clip(pipe, row["prompt_a"], seed, config)
+                clips["B"] = generate_plain_clip(pipe, row["prompt_b"], seed, config)
+                clips["C"] = generate_plain_clip(pipe, row["prompt_c"], seed, config)
             paths = {tag: _save(pipe, z, stem, tag, videos_dir, latents_dir, config.save_latents)
                      for tag, z in clips.items()}
             metadata.append({
