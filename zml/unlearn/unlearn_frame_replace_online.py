@@ -31,7 +31,7 @@ from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
 from zml.eval.check_for_fire import VideoFireDetector
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate, load_eval_prompts
 from zml.unlearn.frame_replace_ops import (
     EXPECTED_LATENT_SHAPE,
     NUM_LATENT_FRAMES,
@@ -174,9 +174,6 @@ class TargetBuffer:
         return len(self._items)
 
 
-def _load_eval_prompts(path: str) -> list[EvalPrompt]:
-    df = pd.read_csv(path)
-    return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
 def _load_train_prompts(path: str) -> list[TrainPrompt]:
@@ -305,9 +302,9 @@ def main(config: Config) -> None:
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    control_concept = _load_eval_prompts(config.control_concept_prompts)
-    control_related = _load_eval_prompts(config.control_related_prompts)
-    control_unrelated = _load_eval_prompts(config.control_unrelated_prompts)
+    control_concept = load_eval_prompts(config.control_concept_prompts)
+    control_related = load_eval_prompts(config.control_related_prompts)
+    control_unrelated = load_eval_prompts(config.control_unrelated_prompts)
 
     train_prompts = _load_train_prompts(config.train_prompts)
     if not train_prompts:

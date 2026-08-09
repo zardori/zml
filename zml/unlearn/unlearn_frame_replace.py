@@ -24,7 +24,7 @@ from diffusers import CogVideoXPipeline
 from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate, load_eval_prompts
 from zml.unlearn.metrics_log import MetricsRecorder
 from zml.utils import set_seed
 
@@ -126,9 +126,6 @@ class Config:
     metrics_log_interval: int = 50
 
 
-def _load_eval_prompts(path: str) -> list[EvalPrompt]:
-    df = pd.read_csv(path)
-    return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
 def _load_target_latent(latents_dir: str, latent_path: str, device: str) -> torch.Tensor:
@@ -266,9 +263,9 @@ def main(config: Config) -> None:
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    control_concept = _load_eval_prompts(config.control_concept_prompts)
-    control_related = _load_eval_prompts(config.control_related_prompts)
-    control_unrelated = _load_eval_prompts(config.control_unrelated_prompts)
+    control_concept = load_eval_prompts(config.control_concept_prompts)
+    control_related = load_eval_prompts(config.control_related_prompts)
+    control_unrelated = load_eval_prompts(config.control_unrelated_prompts)
 
     with open(config.metadata_file) as f:
         metadata: list[dict] = json.load(f)

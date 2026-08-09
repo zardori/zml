@@ -155,13 +155,21 @@ def evaluate(
     # `related` additionally needs an explicit opt-in: it is wanted for standalone full-set eval but
     # skipped during training to save generation time.
     n = config.eval_num_prompts
-    prompt_sets = {"concept": concept_prompts[:n]}
+    prompt_sets = {}
+    if concept_prompts:
+        prompt_sets["concept"] = concept_prompts[:n]
     if include_related and related_prompts:
         prompt_sets["related"] = related_prompts[:n]
     if unrelated_prompts:
         prompt_sets["unrelated"] = unrelated_prompts[:n]
     if anchor_prompts:
         prompt_sets["anchor"] = anchor_prompts[:n]
+    if not prompt_sets:
+        raise ValueError(
+            "evaluate() was given no prompts in any set, so it would write a metrics.json of "
+            "zeros — which is indistinguishable from a real measurement. Check the config's "
+            "control_*_prompts fields."
+        )
 
     with torch.no_grad():
         for set_name, eval_prompts in prompt_sets.items():

@@ -24,7 +24,7 @@ from diffusers import CogVideoXPipeline
 from transformers import CLIPTextModelWithProjection, CLIPTokenizer
 from tqdm.auto import tqdm
 
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate, load_eval_prompts
 from zml.unlearn.metrics_log import MetricsRecorder
 from zml.unlearn.unhype_modules import (
     HyperLoRALinear,
@@ -103,9 +103,6 @@ def _load_prompts_csv(path: str, column: str = "prompt") -> list[str]:
     return pd.read_csv(path)[column].tolist()
 
 
-def _load_eval_prompts(path: str) -> list[EvalPrompt]:
-    df = pd.read_csv(path)
-    return [EvalPrompt(prompt=row["prompt"], seed=int(row["seed"])) for _, row in df.iterrows()]
 
 
 def _tensor_norm(t: torch.Tensor) -> float:
@@ -174,9 +171,9 @@ def build_context(config: Config) -> UnhypeContext:
 
     target_mapping = _load_target_mapping(config.target_mapping_path)
     retain_prompts = _load_prompts_csv(config.retain_prompts_path)
-    control_concept = _load_eval_prompts(config.control_concept_prompts)
-    control_related = _load_eval_prompts(config.control_related_prompts)
-    control_unrelated = _load_eval_prompts(config.control_unrelated_prompts)
+    control_concept = load_eval_prompts(config.control_concept_prompts)
+    control_related = load_eval_prompts(config.control_related_prompts)
+    control_unrelated = load_eval_prompts(config.control_unrelated_prompts)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.bfloat16

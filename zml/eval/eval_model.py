@@ -5,7 +5,7 @@ import torch
 from diffusers import CogVideoXPipeline
 from peft import PeftModel
 
-from zml.unlearn.eval import EvalPrompt, evaluate
+from zml.unlearn.eval import EvalPrompt, evaluate, load_eval_prompts
 
 # Standalone evaluation runs at a synthetic "step" so its outputs share the
 # eval_step_<n>/ layout produced during training.
@@ -39,13 +39,6 @@ class Config:
             raise ValueError("At least one control prompt CSV must be provided.")
 
 
-def _load_eval_prompts(path: str | None) -> list[EvalPrompt]:
-    """Load a prompt CSV into EvalPrompts, using the per-prompt seed baked into the file
-    (seed policy). Missing path -> empty set."""
-    if path is None:
-        return []
-    df = pd.read_csv(path)
-    return [EvalPrompt(prompt, seed) for prompt, seed in zip(df["prompt"], df["seed"])]
 
 
 def build_eval_pipeline(model_id: str, lora_checkpoint_dir: str | None = None) -> CogVideoXPipeline:
@@ -66,9 +59,9 @@ def build_eval_pipeline(model_id: str, lora_checkpoint_dir: str | None = None) -
 
 
 def main(config: Config) -> dict:
-    concept = _load_eval_prompts(config.control_concept_prompts)
-    related = _load_eval_prompts(config.control_related_prompts)
-    unrelated = _load_eval_prompts(config.control_unrelated_prompts)
+    concept = load_eval_prompts(config.control_concept_prompts)
+    related = load_eval_prompts(config.control_related_prompts)
+    unrelated = load_eval_prompts(config.control_unrelated_prompts)
 
     pipe = build_eval_pipeline(config.model_id, config.lora_checkpoint_dir)
 
