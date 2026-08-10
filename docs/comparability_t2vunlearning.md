@@ -96,7 +96,16 @@ has to be explained before their Original row is quoted anywhere near ours.
 
 **The gap is now decomposed, and it is two causes of roughly equal size.**
 
-**Cause 1 — their Table 1 is very likely the `unsafe` column, not the NudeNet column (~10 points).**
+> **Update after scoring Q16 on all five base/NegPrompt rows (2026-08-10): cause 1 is weaker than
+> stated below, and may be wrong.** The OR does close ~10 points, but Q16 turns out to be nearly
+> *insensitive to the intervention* — see "What Q16 actually measures" below — which creates a floor
+> the OR metric can never go beneath. Their own method reports **16.47** on Gen, which is *below* our
+> measured Q16-alone rate on the same prompts (**18.7**). If Table 1 were the OR column, their
+> checkpoint would have had to cut Q16 detections by more than half as well. Possible, but not
+> demonstrated, and it is evidence against the simple reading. Cause 2 (the generator) is confirmed
+> from their code and is unaffected. **We cannot settle this from our data alone; exp103 is the test.**
+
+**Cause 1 — their Table 1 may be the `unsafe` column, not the NudeNet column (~10 points).**
 Their `q16_nudenet_detect.py` writes three fields per frame: `NudeNet_label`, `Q16_label`, and
 `unsafe = Q16 OR NudeNet`. The paper says "any nudity-related tag by NudeNet", but their scoring
 script `eval_i2p.py` reports `df['unsafe'].mean()` — the OR. Q16 (Schramowski et al., FAccT 2022) is
@@ -112,6 +121,39 @@ a CLIP-based binary "inappropriateness" classifier, broader than nudity. Ported 
 
 The OR closes about half the gap. Sanity check: on the `unrelated` set Q16 fires on **0 of 735
 frames**, so it is not simply flagging everything.
+
+#### What Q16 actually measures — and why the OR is the wrong headline
+
+Scoring Q16 across all five base and NegPrompt rows (`tools/score_q16.py`, ~22k frames, no GPU
+needed beyond CLIP):
+
+| set | intervention | NudeNet | Q16 | `unsafe` (OR) |
+|---|---|---|---|---|
+| Gen (exp063) | base | 0.414 | 0.187 | 0.516 |
+| I2P (exp082) | base | 0.346 | 0.218 | 0.464 |
+| I2P (exp083) | NegPrompt | **0.137** | 0.186 | 0.298 |
+| SafeSora (exp082) | base | 0.500 | 0.272 | 0.631 |
+| SafeSora (exp083) | NegPrompt | **0.263** | 0.270 | 0.463 |
+
+**Q16 barely responds to the intervention.** NegPrompt cuts NudeNet by 60% on I2P and 47% on
+SafeSora; it moves Q16 by 15% and **0.7%** respectively. Q16 is flagging something these prompts
+carry independently of nudity — I2P and SafeSora are drawn from broadly unsafe prompt pools
+(violence, shocking imagery, self-harm), and suppressing nudity does not remove that.
+
+Three consequences:
+
+1. **The OR dilutes any erasure result.** On SafeSora, NudeNet reports a 47% reduction and the OR
+   reports 27%, purely because a ~0.27 Q16 floor is added to both rows. Reporting our method on the
+   OR would understate it by roughly a third for reasons unrelated to what the method does.
+2. **Report NudeNet-only as the headline** — it is what their paper defines, and it is the only one
+   of the two that measures the concept we erase. The OR belongs in the appendix as "what their
+   script computes", not in the results table.
+3. **Q16's near-invariance is itself a useful reference.** NegPrompt is a genuine, non-destructive
+   intervention and it leaves Q16 essentially untouched. So if a trained checkpoint drives Q16 far
+   below 0.19–0.27 while NudeNet also falls, that is a signal the model changed more broadly than
+   "removed nudity" — worth checking against DOVER and motion rather than celebrating. It does not
+   separate "clothed" from "mush" on its own (neither is inappropriate), so it supplements the
+   quality metrics rather than replacing them.
 
 **Cause 2 — they generate on a CPU noise generator, we generate on CUDA (the rest).** Their
 `test_cogvideo.py` calls `torch.Generator().manual_seed(seed)` with no `device=`; ours
