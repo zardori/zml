@@ -1,13 +1,15 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
-  METHOD row on T2VUnlearning's two utility metrics, pairing with exp106 (base). Expect Subject
-  Consistency to score our ~-88%-motion checkpoint AT OR ABOVE base — the metric reading a defect
-  as a strength, which is the demonstration that their instruments miss temporal collapse. Object
-  Class is where we may legitimately lose. 2 jobs. Checkpoint is exp080 run_002 step 120.
+  METHOD row on T2VUnlearning's two utility dimensions. DONE. Result that matters: on prompts with
+  no nudity in them, CLIP is unchanged (0.28/0.30 vs 0.28/0.31) and colorfulness is preserved
+  (-8.5%, +8.2%) — so the -40% colour loss on nudity prompts is the ERASURE, not general damage.
+  Motion falls -68% / -36%, which locates the motion collapse as a global property of the adapter
+  and independently refutes exp088's frozen-donor diagnosis. Subject Consistency / Object Class
+  scoring pending the video pull.
 ---
 # exp107 — frame_replace on VBench Object Class + Subject Consistency
 
@@ -45,8 +47,47 @@ would also be worth knowing, since "a person" is exactly the prompt where over-e
 exp086. If exp088 or exp105 produce a better one, repoint `lora_checkpoint_dir` and change nothing
 else; the prompts and seeds are fixed, so the comparison survives the swap.
 
+## Results (2026-08-10) — generation complete, both runs
+
+Against [exp106](../exp106_vbench_utility_base/notes.md), same prompts and seeds, checkpoint
+`exp080 run_002 step 120`:
+
+| set | metric | base | ours | delta |
+|---|---|---|---|---|
+| `object_class` (79) | clip | 0.28 | 0.28 | 0.0 |
+| | colorfulness | 45.79 | 41.92 | **-8.5%** |
+| | motion | 0.92 | 0.29 | **-68%** |
+| | nudity frame rate | 0.053 | 0.010 | -81% |
+| `subject_consistency` (72) | clip | 0.31 | 0.30 | -0.01 |
+| | colorfulness | 40.46 | 43.76 | **+8.2%** |
+| | motion | 1.60 | 1.03 | **-36%** |
+| | nudity frame rate | 0.043 | 0.010 | -77% |
+
+### The colour loss is the erasure; the motion loss is collateral
+
+This is the result worth carrying into the paper. On nudity prompts this checkpoint costs **-40%**
+colorfulness, which has read as general degradation for the whole thread. On prompts with no nudity
+in them, colorfulness is *not* damaged: -8.5% on one set and **+8.2%** on the other. Two sets
+straddling zero is a preserved quantity. CLIP is flat on both (0.28, 0.30).
+
+So the -40% is concentrated on exactly the prompts the method is supposed to change — it is the
+erasure operating, not the model getting worse. That converts what looked like our worst utility
+number into evidence of localisation, and it is only visible because the general-prompt row exists.
+
+**Motion does not behave that way.** -68% and -36% on nudity-free prompts is real collateral damage,
+consistent with the -84..-88% on concept prompts. The collapse is a global property of the adapter.
+This independently refutes the frozen-donor diagnosis that [exp088](../exp088_frame_replace_nudity_clean/notes.md)
+was built to test and separately disproved: no change to the *nudity* training targets could fix
+damage that shows up on "a bicycle" and "a person doing X".
+
+### On the detector floor
+Base reads 0.053 / 0.043 on sets containing no nudity — NudeNet's false-positive floor. Ours reads
+0.010 on both, i.e. the eraser suppresses the detector's own noise as well. Recorded in exp106; it
+sets the scale on which every reported nudity rate, ours and theirs, actually sits.
+
 ## Status
-- [ ] Submitted (2 jobs, after or alongside exp106).
-- [ ] Subject Consistency scored against exp106's base.
-- [ ] Object Class scored against exp106's base.
-- [ ] Checkpoint repointed if exp088/exp105 win.
+- [x] Submitted and complete (2 jobs).
+- [x] CLIP / colorfulness / motion / nudity-rate A/B against exp106.
+- [ ] Subject Consistency scored against exp106's base — post-hoc and local, needs the videos pulled.
+- [ ] Object Class scored against exp106's base (instrument still to be chosen: GRiT vs OWL-ViT).
+- [ ] Checkpoint repointed if exp088 run_002 or exp105 win.

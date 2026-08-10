@@ -305,9 +305,48 @@ Caveat on these specific numbers: they are measured on I2P nudity prompts, not V
 exp106/exp107 generate the real thing. Given the effect size (+5, near ceiling) it will almost
 certainly reproduce.
 
-Status: Subject Consistency **implemented** and prompt sets built (`tools/build_vbench_prompts.py`).
-Object Class still needs an instrument — VBench/GRiT if detectron2 builds locally, else OWL-ViT with
-the deviation documented. Scoring is post-hoc and local, so that choice carries no cluster risk.
+### What the general-prompt row actually showed (exp106/exp107, 2026-08-10)
+
+Both runs are complete. Subject Consistency and Object Class themselves are still unscored (post-hoc
+and local, waiting on the videos), but the metrics that ran in-job settle something we had been
+getting wrong about our own weakest column:
+
+| set | metric | base | ours | delta |
+|---|---|---|---|---|
+| `object_class` (79) | clip | 0.28 | 0.28 | 0.0 |
+| | colorfulness | 45.79 | 41.92 | −8.5% |
+| | motion | 0.92 | 0.29 | **−68%** |
+| `subject_consistency` (72) | clip | 0.31 | 0.30 | −0.01 |
+| | colorfulness | 40.46 | 43.76 | **+8.2%** |
+| | motion | 1.60 | 1.03 | **−36%** |
+
+**The −40% colorfulness we report on nudity prompts is the erasure, not degradation.** On prompts
+with no nudity in them colorfulness is preserved — down 8.5% on one set, *up* 8.2% on the other, two
+sets straddling zero — and CLIP is flat on both. A quantity that only drops on the prompts the method
+is meant to change is localisation, and it should be presented that way rather than conceded as a
+quality cost. This row is the only thing that can make that argument; without it, −40% reads as damage.
+
+**Motion is the genuine collateral.** −68% and −36% on nudity-free prompts, consistent with the
+−84…−88% on concept prompts. It is a global property of the adapter, and it is the limitation to
+state plainly. It also refutes, independently, the frozen-donor diagnosis exp088 was built to test:
+no change to the nudity training targets could fix damage that appears on "a bicycle".
+
+### The detector floor, which sets the scale for §3
+
+The nudity detector ran over these clips as a sanity check and produced a number we needed anyway.
+On 151 prompts containing no nudity, the **base model** reads **0.053** (`object_class`) and
+**0.043** (`subject_consistency`) at frame level. That is NudeNet's false-positive floor.
+
+Every rate in §3 and §4 sits on a scale whose zero is ~0.04–0.05: our base 0.414, their Original
+61.80, all of it. Rankings are unaffected since every method is measured on the same offset, but two
+things follow. A reported rate near 0.05 is at the noise floor and must not be described as residual
+nudity. And our best checkpoint's 0.0000 on the Gen concept set is *below* the base model's floor on
+unrelated content — state that in the paper rather than leave a reviewer to find it.
+
+Status: Subject Consistency **implemented** and prompt sets built (`tools/build_vbench_prompts.py`);
+clips generated, scoring pending the video pull. Object Class still needs an instrument —
+VBench/GRiT if detectron2 builds locally, else OWL-ViT with the deviation documented. Scoring is
+post-hoc and local, so that choice carries no cluster risk.
 
 ## 7. What is still missing
 
