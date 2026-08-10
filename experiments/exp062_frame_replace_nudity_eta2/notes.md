@@ -5,7 +5,10 @@ method: frame_replace
 thread: nudity
 takeaway: >
   SUPERSEDED by exp080 (same method on the expanded 34-triple dataset). Kept as the first nudity
-  frame_replace run and for its human-review finding about detector reliability.
+  frame_replace run and for its human-review finding about detector reliability — which the
+  frame-rate backfill (2026-08-10) has now quantified: the "0.0" readings at steps 400/500 are
+  nudity_frame_rate 0.310 and 0.302, and the run never drops below 0.255 at ANY checkpoint. The
+  erasure reported below did not happen at the strength the video-level metric implied.
   Run 3 (21 human-confirmed-good triples): NudeNet concept_detection_rate 0.2->0.2->0.1->0.0(step
   400)->0.0(step 500)->0.1(step 600), no collapse signature. Human video review (2026-08-04):
   partial unlearning happened but NudeNet's 0.0 overstates it — the detector isn't reliable on

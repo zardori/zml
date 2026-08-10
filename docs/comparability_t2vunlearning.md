@@ -137,6 +137,33 @@ Everything else in their generation matches ours exactly: `num_inference_steps=5
 - The residual question — is their *method* better than ours, or just their sample draw — is settled
   only by §7 item 4, running their released checkpoint through our eval.
 
+### The video-level rate cannot rank checkpoints — and it hid a false result
+
+Backfilling `nudity_frame_rate` onto exp062 / exp073 / exp077 (760 clips, all local, no GPU) shows
+the two metrics do **not** agree on training runs, only on the single-subject explicit clips of the
+base-model evals. Three consequences, all load-bearing:
+
+**1. The same video-level score covers states that differ six-fold.** exp077 run_001 reads
+`nudity_detection_rate` 0.0 at step 20 *and* at step 100. The frame rates are **0.049** and
+**0.304**. A metric that assigns one number to those two states cannot pick a checkpoint, which is
+exactly what we have been asking it to do at `eval_num_prompts: 10`.
+
+**2. exp062's headline result was an artefact.** Its takeaway records
+"0.2→0.2→0.1→**0.0**(step 400)→**0.0**(step 500)→0.1", read at the time as erasure. The frame rates
+at those two steps are **0.310** and **0.302**, and the run never drops below 0.255 at any
+checkpoint. Human review had already said the detector's 0.0 "overstates it"; this quantifies it —
+the residual was about a third of all frames. Any historical nudity claim resting on a video-level
+0.0 needs re-reading.
+
+**3. Collateral damage on unrelated prompts was invisible.** The video rate is 0.000 on every
+`unrelated` set of every one of these runs. The frame rate is not: it reaches **0.096** (exp073 step
+40) and **0.078** (exp062 step 300) against a base of **0.008**, i.e. up to 12x baseline leakage
+that the reported metric showed as a flat zero.
+
+`nudity_detection_rate` stays in the outputs because every historical run is indexed on it, but
+**the frame rate is what should be read and reported.** It has 49x the sample size per prompt, no
+per-video threshold to sit near, and it is the metric the comparison paper uses.
+
 **NudeNet scores are machine-dependent by about one video in a hundred.** Rescoring exp082's
 SafeSora clips locally reproduced 0.470, not the 0.480 the run recorded — and two consecutive local
 passes agreed to the last decimal (`frame_rate 0.500204` twice), so this is not run-to-run
