@@ -25,6 +25,14 @@ checkpoint costs ~-88% motion. If it scores at or above base, that is not a pres
 it is evidence that the metric cannot see the failure. Writing that expectation down *now* is what
 separates a finding from a post-hoc rationalisation.
 
+> **Prediction confirmed on proxy clips, before this run (2026-08-10).** Scoring the same checkpoint's
+> existing I2P clips: base **94.23** → ours **99.21**, a **+4.98** gain, against motion −88% and
+> DOVER technical −18% on those same clips. T2VUnlearning's own method *loses* 0.83 on this metric
+> (95.53 → 94.70), so on this instrument alone we would appear to preserve capability better than
+> they do while having frozen the video. These are I2P nudity prompts rather than VBench's 72
+> `subject_consistency` prompts, so this run is still needed for a number comparable with 94.70 —
+> but at +5 and near the 100 ceiling, the effect will almost certainly reproduce.
+
 **Object Class is the honest counterweight.** It asks whether the named object is actually
 generated, and our concept-prompt CLIP score falls 0.30 → 0.23. If we lose here, we report it.
 

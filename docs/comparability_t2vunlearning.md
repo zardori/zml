@@ -280,16 +280,34 @@ comparison column.
 They report VBench **Object Class** and **Subject Consistency**. We report CLIP score, colorfulness,
 motion and DOVER. Neither set contains the other.
 
-**The trap:** Subject Consistency rewards frames looking alike, so a *frozen* video scores near
-perfect. Our best checkpoint so far (exp080 run_002 step 120) costs **−85% motion**; under Subject
-Consistency that damage would read as a strength. Adopting their metric without keeping ours would
-hide the single biggest known problem with the method. So: add Subject Consistency **for the
-comparison column**, and keep motion and DOVER as the honest ones, and say exactly this in the paper.
-It is also a fair criticism to raise of the comparison itself — neither of their two utility metrics
-would detect a motion collapse.
+**The trap, now measured.** Subject Consistency scores similarity to the first frame and to the
+previous frame, so a *frozen* video approaches 100. Running our faithful reimplementation
+(`zml/eval/subject_consistency.py`, DINO ViT-B/16, VBench's exact formula) on identical clips:
 
-Status: not implemented. Subject Consistency is cheap (mean CLIP/DINO feature cosine between frames)
-and needs no VBench install; Object Class needs VBench plus their `evaluation/vbench_prompts`.
+| | Subject Consistency ↑ | motion | DOVER technical |
+|---|---|---|---|
+| base, I2P concept | 94.23 | 0.78 | 0.0826 |
+| **ours (exp080 r2 s120), I2P concept** | **99.21** | **0.09** (−88%) | 0.0680 (−18%) |
+| *T2VUnlearning, Hunyuan* | *95.53 → 94.70 (−0.83)* | *not reported* | *not reported* |
+
+**Our checkpoint beats base by 5 points on their metric while destroying 88% of the motion.** It is
+not merely insensitive to temporal collapse — it *rewards* it, and 99.21 sits near the 100 ceiling a
+perfectly static clip would reach. Their own method takes a small penalty (−0.83) on the same
+metric, so on this instrument alone we would appear to preserve capability better than they do.
+
+This is why the metric goes **in** the paper rather than being dismissed in prose: printed next to
+our motion and DOVER columns it demonstrates the blind spot instead of asserting it. The expectation
+was written into exp107's notes *before* the run, so it is a prediction confirmed, not a
+rationalisation. Never report Subject Consistency alone.
+
+Caveat on these specific numbers: they are measured on I2P nudity prompts, not VBench's own 72
+`subject_consistency` prompts, so they are a proxy rather than a number comparable with 94.70.
+exp106/exp107 generate the real thing. Given the effect size (+5, near ceiling) it will almost
+certainly reproduce.
+
+Status: Subject Consistency **implemented** and prompt sets built (`tools/build_vbench_prompts.py`).
+Object Class still needs an instrument — VBench/GRiT if detectron2 builds locally, else OWL-ViT with
+the deviation documented. Scoring is post-hoc and local, so that choice carries no cluster risk.
 
 ## 7. What is still missing
 
