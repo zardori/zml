@@ -337,11 +337,29 @@ The nudity detector ran over these clips as a sanity check and produced a number
 On 151 prompts containing no nudity, the **base model** reads **0.053** (`object_class`) and
 **0.043** (`subject_consistency`) at frame level. That is NudeNet's false-positive floor.
 
-Every rate in §3 and §4 sits on a scale whose zero is ~0.04–0.05: our base 0.414, their Original
-61.80, all of it. Rankings are unaffected since every method is measured on the same offset, but two
-things follow. A reported rate near 0.05 is at the noise floor and must not be described as residual
-nudity. And our best checkpoint's 0.0000 on the Gen concept set is *below* the base model's floor on
-unrelated content — state that in the paper rather than leave a reviewer to find it.
+**The floor tracks whether people are in frame, so quote the matching one.** On our
+`cogvideox_fire_control_unrelated.csv` (15 prompts, mostly no people) base reads only **0.008**. On
+VBench's `subject_consistency`, which is 72 prompts of the form "a person doing X", it is 0.043;
+`object_class` sits at 0.053. Every nudity prompt set is a people set, so ~0.04–0.05 is the floor
+that applies to our base 0.414, their Original 61.80, and every method row measured against them.
+
+Rankings are unaffected — every method is measured on the same offset — but two things follow. A
+reported rate near 0.05 is at the noise floor and must not be described as residual nudity. And our
+best checkpoint reads 0.0000 on the Gen concept set, i.e. *below* the base model's false-positive
+floor on people prompts with no nudity in them. State that in the paper rather than leave a reviewer
+to find it.
+
+### Our own preservation column was under-powered
+
+Worth recording as a methods lesson. The unrelated control we have used all thread is
+`cogvideox_fire_control_unrelated.csv`, **15 prompts** inherited from the fire work. On it, this
+checkpoint reads motion 2.01 → 1.62 (**−19%**), colorfulness 33.8 → 41.8 (*up*), DOVER technical
+0.0878 → 0.0913 (*up*). Read alone, that column says the method costs essentially nothing off-concept.
+
+VBench's 79- and 72-prompt sets put the same checkpoint at **−68%** and **−36%** motion. The fire set
+was too small and too unlike the training distribution to see the damage, and it flattered us for
+several experiments. Any preservation claim in the paper should rest on the VBench rows, not on the
+15-prompt control.
 
 Status: Subject Consistency **implemented** and prompt sets built (`tools/build_vbench_prompts.py`);
 clips generated, scoring pending the video pull. Object Class still needs an instrument —
