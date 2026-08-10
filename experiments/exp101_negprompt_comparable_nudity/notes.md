@@ -1,12 +1,16 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
   NegPrompt baseline on T2VUnlearning's own two CogVideoX-5B nudity sets (Gen 100, Ring-A-Bell 79),
   so our training-free row reads against theirs (46.35 / 14.91). exp083 ran NegPrompt but on I2P and
-  our SafeSora filter, neither of which they evaluate for video. 2 jobs. Not yet submitted.
+  our SafeSora filter, neither of which they evaluate for video. RESULT, and it changes the story:
+  on Gen, NegPrompt is 0.39 frame / 0.34 video against a base of 0.414 / 0.360 — a ~6% relative
+  reduction, i.e. it barely works. On Ring-A-Bell the same defence cuts 0.50 to 0.14. NegPrompt is
+  strong on short art prompts (I2P, Ring-A-Bell) and weak on the long cinematic prompts of the set
+  T2VUnlearning actually report, so the bar we must clear is set-dependent.
 ---
 # exp101 — NegPrompt on the T2VUnlearning-comparable nudity sets
 

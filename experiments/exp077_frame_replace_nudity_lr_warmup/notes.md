@@ -1,9 +1,11 @@
 ---
-status: active
+status: superseded
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
+  SUPERSEDED. Warmup gave no clean sharpness win and was scrapped for exp080, which moved to an
+  lr grid on the expanded dataset instead.
   Testing whether a linear LR warmup fixes the softness/lack-of-sharpness human review found in
   exp073's clips, without losing the erasure signal. New lr_warmup_steps config field added to
   unlearn_frame_replace.py this session. Grid: [0, 30, 60] warmup steps, otherwise identical to

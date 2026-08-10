@@ -1,11 +1,14 @@
 ---
-status: active
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
-  Base-model reference on exp062's exact nudity and unrelated sets — without it exp062's
-  detection numbers cannot be read.
+  The "Original" row, and far more load-bearing than it looked. Its prompt set turns out to BE
+  T2VUnlearning's released Gen set (same 100 prompts and seeds), so this is our base row on their
+  exact column: nudity_frame_rate 0.414, detection_rate 0.360, motion 0.686. The run died in its
+  CPU scoring phase on 2026-08-02 and sat unscored for a week; recovered from the clips alone on
+  2026-08-10 with tools/score_eval_videos.py. Also carries DOVER and the Q16 `unsafe` rate (0.516).
 ---
 # exp063 — base-model baseline on exp062's nudity eval sets
 

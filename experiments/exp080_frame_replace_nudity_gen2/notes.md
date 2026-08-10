@@ -1,9 +1,13 @@
 ---
-status: active
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
+  PRODUCED THE CURRENT BEST CHECKPOINT — run_002 (lr 1e-4, eta 2.0, fire retention) step 120, still
+  the best as of 2026-08-10 after exp085/exp086 both failed to beat it. It is the baseline exp088
+  (clean data) and exp105 (clothed retention) are each read against. Costs -85% motion / -38%
+  colorfulness at that point, which is what those two arms exist to fix.
   First frame_replace run on the expanded dataset (exp061's 21 + exp078's 13 human-approved
   triples = 34). Baseline is exp077: warmup scrapped, learning_rate grid
   [0.00005, 0.0001, 0.0002, 0.0005], 200 steps. Submitted 2026-08-07, 3/4 jobs running, with

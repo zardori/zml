@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
@@ -7,7 +7,9 @@ takeaway: >
   Base-model reference on Ring-A-Bell (79 prompts), the only base generation missing from the
   T2VUnlearning-comparable table. The Gen half already exists: prompts/cogvideox_nudity.csv IS
   their released Gen set, and exp063 generated all 100 base clips on it — recovered from disk with
-  tools/score_eval_videos.py, no GPU. One job. Not yet submitted.
+  tools/score_eval_videos.py, no GPU. RESULT: frame rate 0.50, detection rate 0.47, motion 0.52 —
+  against T2VUnlearning's reported Original of 42.50. Note this runs OPPOSITE to the Gen
+  discrepancy, where we read low (0.414 vs their 61.80).
 ---
 # exp100 — base model on Ring-A-Bell nudity prompts
 

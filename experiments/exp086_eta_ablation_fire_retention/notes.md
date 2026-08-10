@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
@@ -8,7 +8,11 @@ takeaway: >
   exp080 showed erasure is real (human review: people become clothed) but costs -85% motion and
   -38% colorfulness even at its best point. eta=2 extrapolates PAST the donor, and 20 of 34 donors
   are frozen single-frame fills, so the current setting pushes beyond "freeze". exp080 run_002 is
-  the eta=2.0 arm. Not yet submitted.
+  the eta=2.0 arm. RESULT: eta 1.5 (run_003) is the best of the three — video rate 0.0 across
+  roughly steps 50-120 — but human review still ranks exp080 run_002 (eta 2.0) above it. It also
+  beat every arm of exp085's identical grid on nudity anchors, which is what exposed exp079's
+  composition problem. Its frame rate shows erasure coupled to degeneracy: 0.01 at step 70
+  (colorfulness 18.6), 0.21 at step 120 (23.4), 0.76 at step 170 (33.4).
 ---
 # exp086 — eta ablation (fire-era retention)
 

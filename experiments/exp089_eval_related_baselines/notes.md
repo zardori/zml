@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
@@ -7,7 +7,10 @@ takeaway: >
   Base and NegPrompt rows on the new held-out nudity-adjacent set
   (prompts/cogvideox_nudity_control_related.csv, 36 prompts). exp082/exp083 never generated a
   related column, so without these a preservation number from our checkpoint has nothing to sit
-  beside. 72 clips total. Not yet submitted.
+  beside. 72 clips total. RESULT: base 0.06, NegPrompt 0.03 — so little dynamic range that this set
+  may not discriminate preservation at all; check before building a claim on it. Its `concept` row
+  is all zeros with total_videos null (the zero-filled-row bug, fixed after this run) — ignore that
+  row entirely.
 ---
 # exp089 — base and NegPrompt on the held-out `related` set
 

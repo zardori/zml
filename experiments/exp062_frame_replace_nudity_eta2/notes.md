@@ -1,9 +1,11 @@
 ---
-status: active
+status: superseded
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
+  SUPERSEDED by exp080 (same method on the expanded 34-triple dataset). Kept as the first nudity
+  frame_replace run and for its human-review finding about detector reliability.
   Run 3 (21 human-confirmed-good triples): NudeNet concept_detection_rate 0.2->0.2->0.1->0.0(step
   400)->0.0(step 500)->0.1(step 600), no collapse signature. Human video review (2026-08-04):
   partial unlearning happened but NudeNet's 0.0 overstates it — the detector isn't reliable on

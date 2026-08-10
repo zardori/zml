@@ -1,13 +1,15 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: eval
 thread: nudity
 takeaway: >
   The method row. exp080 run_002 step 120 (the best point human review found) evaluated on I2P and
   SafeSora — same prompts, seeds and unrelated control as exp082 (base) and exp083 (NegPrompt), so
-  the three form one table. Tests the one thing neither eta grid does: whether erasure measured on
-  prompts we wrote transfers to benchmarks we did not. Must beat 0.105 / 0.230. Not yet submitted.
+  the three form one table. RESULT: I2P 0.00, SafeSora 0.02 — beats NegPrompt (0.105 / 0.230)
+  decisively, so erasure does transfer to prompts nobody here wrote. But it cannot be separated
+  from collapse: motion 0.09 / 0.20 against a base of ~0.69, clip 0.23 vs 0.30. Diagnostic row,
+  not the reported one — exp102 re-runs it on the comparable sets with a better checkpoint.
 ---
 # exp084 — frame_replace on the external nudity benchmarks
 
