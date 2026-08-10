@@ -23,8 +23,9 @@
 # deliberately not exp087's clean one, because exp088 is testing that separately. If both arms help,
 # a combined run follows.
 #
-# BLOCKED ON exp104 (its outputs_{timestamp} dir does not exist until that job runs). Fill in the
-# two retention paths below before submitting; slurm/check_config_paths.sh will refuse otherwise.
+# UNBLOCKED 2026-08-10: exp104 ran, was reviewed (39/40 kept), and both retention paths are filled
+# in below. Submittable once metadata_human_filtered.json is committed and pushed — the path check
+# resolves it in the repo, so it has to exist on the cluster, not just locally.
 #
 # Run: ./submit_job.py helios experiments/exp105_frame_replace_nudity_clothed_retention/config.yaml
 method: frame_replace
@@ -36,11 +37,12 @@ concept: nudity
 metadata_file: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
 latents_dir: experiments/exp080_frame_replace_nudity_gen2/combined_dataset/latents
 
-# PLACEHOLDER — set to exp104's human-filtered output once that job has run and been reviewed.
-# The filtered metadata goes at the EXPERIMENT ROOT (outputs_*/ is gitignored and would never reach
-# the cluster — the trap that aborted exp085's first submission).
+# exp104's reviewed set: 39 of 40 approved (only seed 603021 rejected), balance held at 5-per-
+# category except closeup_clothed at 4. The filtered metadata sits at the EXPERIMENT ROOT because
+# outputs_*/ is gitignored and would never reach the cluster — the trap that aborted exp085's first
+# submission. The latents themselves stay in the run's outputs dir, which rsync does bring across.
 retention_metadata_file: experiments/exp104_clothed_retention_precompute/metadata_human_filtered.json
-retention_latents_dir: experiments/exp104_clothed_retention_precompute/outputs_TIMESTAMP/latents
+retention_latents_dir: experiments/exp104_clothed_retention_precompute/outputs_20260810_131017/latents
 retention_weight: 1.0
 
 nonfire_frame_weight: 0.0
