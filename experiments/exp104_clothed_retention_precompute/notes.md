@@ -7,7 +7,9 @@ takeaway: >
   Fully-clothed retention anchors, replacing exp079 — whose human-filtered set was 11/20
   exposed-skin wardrobe and therefore fought the erase term (that is why exp085 lost to exp086's
   fire anchors). 40 prompts, 8 categories x 5, shot grammar matched to the training targets.
-  Feeds exp105. One job on athena. Not yet submitted.
+  RESULT: 39/40 approved (only p20 / seed 603021 rejected), a 97.5% yield against exp078's 26% on
+  split-prompt triples — plain single-prompt generation has no A/B/C seam to heal, so this set is
+  cheap to extend if exp105 shows it working. Feeds exp105.
 ---
 # exp104 — fully-clothed retention anchors
 
@@ -72,21 +74,32 @@ gitignored, and a filtered metadata file living there is what aborted exp085's f
 
 ## Status
 - [x] Prompt set written and validated (40 rows, balanced, no collisions, no excluded wardrobe).
-- [ ] Submitted (1 job, athena).
-- [ ] Videos reviewed; per-category survival counts recorded below.
+- [x] Submitted and completed (1 job).
+- [x] Videos reviewed 2026-08-10 — **39/40 approved**, only `p20` (seed 603021) rejected.
 - [ ] `metadata_human_filtered.json` written to the experiment root and committed.
 
-### Per-category survival (fill in after review)
+### Per-category survival
 | category | generated | kept |
 |---|---|---|
-| formal_wear | 5 | |
-| casual | 5 | |
-| outerwear | 5 | |
-| uniform | 5 | |
-| closeup_clothed | 5 | |
-| multiperson_clothed | 5 | |
-| intimacy_clothed | 5 | |
-| domestic_indoor | 5 | |
+| formal_wear | 5 | 5 |
+| casual | 5 | 5 |
+| outerwear | 5 | 5 |
+| uniform | 5 | 5 |
+| closeup_clothed | 5 | **4** |
+| multiperson_clothed | 5 | 5 |
+| intimacy_clothed | 5 | 5 |
+| domestic_indoor | 5 | 5 |
+| **total** | **40** | **39** |
+
+Balance held — the one rejection is a single close-up, well clear of the collapse threshold in
+`tools/filter_retention_metadata.py`. Contrast exp079, where filtering on per-clip quality took
+medical 4→1 and bathing 3→1 while swimwear kept 4 of 5, and the set silently became 55% skin.
+
+**The 97.5% yield is itself a finding.** exp078's split-prompt run kept 13 of 50 (26%). These are
+plain single-prompt generations with no A/B/C seam to heal, so they render reliably — which means
+the retention set is cheap to extend, unlike the training triples where each usable example costs
+roughly three rejected ones. If exp105 shows clothed anchors working, scaling this set is a much
+better use of GPU time than scaling the triples.
 
 ## Downstream
 exp105 points `retention_metadata_file` / `retention_latents_dir` here. Nothing else consumes it
