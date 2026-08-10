@@ -27,6 +27,7 @@ from pathlib import Path
 import numpy as np
 
 from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
+from zml.metrics_file import update_metrics_json
 
 VIDEO_SUFFIXES = (".mp4", ".avi", ".mov")
 
@@ -63,7 +64,9 @@ def score_output_dir(output_dir: Path, device: str | None, dry_run: bool) -> Non
             continue
         metrics = json.loads(metrics_path.read_text())
 
-        updated = False
+        # Scored outside the lock, merged under it — see zml/metrics_file.py. A concurrent
+        # frame-rate pass over the same run used to lose whichever tool wrote first.
+        pending: dict[str, dict] = {}
         for set_dir in sorted(p for p in step_dir.iterdir() if p.is_dir()):
             set_name = set_dir.name
             # Only prompt-set entries carry scores; `_`-prefixed keys are provenance metadata.
@@ -82,11 +85,10 @@ def score_output_dir(output_dir: Path, device: str | None, dry_run: bool) -> Non
                 f"aesthetic {metrics[set_name].get('dover_aesthetic_mean')} -> "
                 f"{fields['dover_aesthetic_mean']}"
             )
-            metrics[set_name].update(fields)
-            updated = True
+            pending[set_name] = fields
 
-        if updated and not dry_run:
-            metrics_path.write_text(json.dumps(metrics, indent=2))
+        if pending and not dry_run:
+            update_metrics_json(metrics_path, pending)
             print(f"  {step_dir.name}: metrics.json updated")
 
 

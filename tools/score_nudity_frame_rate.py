@@ -31,6 +31,7 @@ import json
 from pathlib import Path
 
 from zml.benchmarks.check_for_nudity import VideoNudeDetector
+from zml.metrics_file import update_metrics_json
 from zml.video_files import VIDEO_EXTENSIONS
 
 # Keys this tool owns. Anything else in metrics.json is left exactly as written by the original run.
@@ -66,7 +67,9 @@ def score_output_dir(output_dir: Path, num_workers: int | None, dry_run: bool) -
             continue
         metrics = json.loads(metrics_path.read_text())
 
-        updated = False
+        # Scored outside the lock, then merged under it — see zml/metrics_file.py. Running this
+        # concurrently with score_dover.py used to silently erase the other tool's fields.
+        pending: dict[str, dict] = {}
         for set_dir in sorted(p for p in step_dir.iterdir() if p.is_dir()):
             set_name = set_dir.name
             # Only prompt-set entries carry scores; `_`-prefixed keys are provenance metadata.
@@ -89,11 +92,10 @@ def score_output_dir(output_dir: Path, num_workers: int | None, dry_run: bool) -
                 f"({fields['nudity_tagged_frames']}/{fields['nudity_total_frames']} frames), "
                 f"video_rate {fields['nudity_detection_rate']:.3f}"
             )
-            metrics[set_name].update(fields)
-            updated = True
+            pending[set_name] = fields
 
-        if updated and not dry_run:
-            metrics_path.write_text(json.dumps(metrics, indent=2))
+        if pending and not dry_run:
+            update_metrics_json(metrics_path, pending)
             print(f"  {step_dir.name}: metrics.json updated")
 
 

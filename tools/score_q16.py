@@ -32,6 +32,7 @@ import numpy as np
 
 from zml.benchmarks.check_for_nudity import VideoNudeDetector
 from zml.benchmarks.q16 import Q16Config, Q16Detector
+from zml.metrics_file import update_metrics_json
 from zml.video_files import list_video_files
 from tools.score_eval_videos import _output_dirs
 
@@ -96,7 +97,8 @@ def score_run(run_dir: Path, device: str | None, dry_run: bool) -> None:
         metrics_path = step_dir / "metrics.json"
         metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
 
-        updated = False
+        # Scored outside the lock, merged under it — see zml/metrics_file.py.
+        pending: dict[str, dict] = {}
         for set_dir in sorted(p for p in step_dir.iterdir() if p.is_dir()):
             if not list_video_files(str(set_dir)):
                 continue
@@ -109,11 +111,10 @@ def score_run(run_dir: Path, device: str | None, dry_run: bool) -> None:
                 f"nudenet {rates['nudenet_frame_rate']:.4f} | q16 {rates['q16_frame_rate']:.4f} | "
                 f"unsafe(OR) {rates['unsafe_frame_rate']:.4f}"
             )
-            metrics.setdefault(set_dir.name, {}).update(rates)
-            updated = True
+            pending[set_dir.name] = rates
 
-        if updated and not dry_run:
-            metrics_path.write_text(json.dumps(metrics, indent=2))
+        if pending and not dry_run:
+            update_metrics_json(metrics_path, pending)
             print(f"  {step_dir.name}: metrics.json updated")
 
 
