@@ -8,13 +8,19 @@
 # to construction (with nonfire_frame_weight: 0.0 those were hard-masking the erase loss onto the
 # wrong frames for a third of the data).
 #
-# ############################################################################
-# TWO FIELDS MUST BE SET BEFORE SUBMITTING - see notes.md for the decision rule
-#   erase_esd_eta              <- whichever value exp086 (and exp085) picks
-#   retention_metadata_file    <- exp041's vs exp079's, whichever exp085-vs-exp086 favours
-#   retention_latents_dir      <- must match the line above
-# They are left at exp080's values so the file is runnable, NOT because those are the answer.
-# ############################################################################
+# Both previously-blocking fields are now decided by exp085/exp086 + human review (2026-08-10):
+#
+#   erase_esd_eta -> [1.5, 2.0]. Human review kept exp080 run_002 (eta 2.0) as the best checkpoint
+#     to date, and of exp086's arms only eta 1.5 came close. Carrying both keeps a direct 2x2
+#     against runs we already have on the OLD data at the same lr and retention set
+#     (exp080 run_002 = eta 2.0, exp086 run_003 = eta 1.5), so the dataset is the only variable.
+#
+#   retention -> exp041 (fire), UNCHANGED. exp085 settled that exp079's set is not the answer: its
+#     human-filtered 20 entries are 11/20 exposed-skin wardrobe, so retention was pulling toward
+#     keeping exposed torsos while the erase term pushed away from the same features. exp104 builds
+#     a fully-clothed replacement and exp105 tests it — on the OLD data, so that arm isolates the
+#     retention variable exactly as this one isolates the data variable. Changing retention here too
+#     would confound both.
 #
 # Run: ./submit_job.py helios experiments/exp088_frame_replace_nudity_clean/config.yaml
 method: frame_replace
@@ -25,7 +31,8 @@ concept: nudity
 metadata_file: experiments/exp087_reedit_exp061_reflected/combined_dataset/metadata.json
 latents_dir: experiments/exp087_reedit_exp061_reflected/combined_dataset/latents
 
-# PLACEHOLDER - see the block above.
+# Held fixed at exp041's fire anchors so this arm is a clean read on the DATA change. exp105 varies
+# retention instead, on exp080's old data.
 retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
 retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
@@ -33,10 +40,10 @@ retention_weight: 1.0
 nonfire_frame_weight: 0.0
 erase_input_latent: original
 erase_loss_space: velocity
-# PLACEHOLDER - see the block above. Carry one neighbouring value as a check: eta<1's benefit on
-# exp085/exp086 is partly "do not overfit a frozen donor", and that benefit shrinks once the donors
-# are not frozen, so the optimum may move on this data.
-erase_esd_eta: [1.0, 2.0]
+# The two arms that worked on the old data (see the header). Both carried because eta's benefit is
+# partly "do not overfit a frozen donor", and that benefit shrinks once the donors are not frozen —
+# so the optimum may well move on this data, and one point could not show it.
+erase_esd_eta: [1.5, 2.0]
 
 # Concept only, as in exp085/exp086: this is a mechanism run and the preservation column comes from
 # the external-benchmark eval of whichever checkpoint it produces.

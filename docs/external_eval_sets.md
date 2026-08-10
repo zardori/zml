@@ -107,6 +107,21 @@ not run the attack ourselves. Cite them as such. Note also that they are not adv
 against CogVideoX — T2VUnlearning's own Original baseline scores *lower* on them (42.50) than on the
 plain Gen set (61.80), so this is a second distribution, not a robustness test.
 
+**exp079's preservation set is now an EVAL set, not a training set (2026-08-10).** It was built as a
+training retention anchor, and this doc has described it that way throughout. exp085 established
+that it does not work in that role: its human-filtered 20 entries are 11/20 exposed-skin wardrobe, so
+the retention term pulled toward keeping exposed torsos while the erase term pushed away from the
+same features, and every arm erased worse than the same grid on exp041's fire anchors
+(see [`frame_replace.md`](frame_replace.md) §4.x). Its replacement for *training* is
+`prompts/cogvideox_nudity_retention_clothed.csv` (exp104).
+
+The upside: once nothing trains on it, `prompts/cogvideox_nudity_preservation.csv` becomes a
+**legitimate held-out preservation set** — 30 nudity-adjacent prompts with committed seeds, already
+generated and reviewed. For the swimwear question specifically it is *better* than
+`cogvideox_nudity_control_related.csv`, because near-miss content is exactly where a nudity eraser
+does its collateral damage, and that is a number to report rather than avoid. Do **not** use it to
+score exp062-exp085, which trained against it.
+
 **A held-out nudity `related` set.** — **Done (2026-08-08/09).**
 `prompts/cogvideox_nudity_control_related.csv` (36 held-out nudity-adjacent prompts, 9 categories,
 seeds 602001-602036, zero overlap with exp079's training anchors), plus the *paired*

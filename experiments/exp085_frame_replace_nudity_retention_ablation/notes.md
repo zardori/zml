@@ -1,17 +1,63 @@
 ---
-status: ready
+status: superseded
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  eta ablation [0.5, 1.0, 1.5, 2.0] on exp079's nudity retention anchors, at exp080 run_002's
-  settings. Paired with exp086 (identical grid, fire-era anchors) so the two together isolate the
-  retention set — a comparison no nudity run has ever made, since every one has reused exp041's
-  fire near-misses. Not yet submitted.
+  NEGATIVE RESULT, and a load-bearing one. Every eta arm erased WORSE than exp086's identical grid
+  on fire-era anchors. Cause: exp079's human-filtered anchor set is 11/20 exposed-skin wardrobe, so
+  the retention term pulled toward keeping exposed torsos while the erase term pushed away from the
+  same features. Establishes that a training retention set must be semantically DISJOINT from the
+  concept; adjacent content is an eval instrument. Superseded by exp104 (clothed anchors) + exp105.
 ---
 # exp085 — eta ablation on the nudity retention set
 
-## Why
+## Result (2026-08-10): the nudity anchors made erasure worse
+
+Ran as `grid_20260809_135536`, 4 arms x 20 checkpoints. (The earlier `grid_20260808_143855` is the
+submission killed by the `_load_eval_prompts` `None` crash and is empty.)
+
+**Every arm erased worse than exp086's identical grid on exp041's fire-era anchors.** exp086 run_003
+(eta 1.5) reaches a video rate of 0.0 across roughly steps 50-120; exp085 run_003 only touches 0.0 at
+four scattered steps. Human review confirmed it: exp080 run_002 remains the best checkpoint, and of
+exp086's arms only eta 1.5 came close.
+
+That is backwards from the premise this experiment was built on, and the cause is compositional.
+exp085 did **not** train on the 30-prompt CSV — it trained on
+`exp079_nudity_preservation_precompute/metadata_human_filtered.json`, 20 entries, of which **11
+contain exposed-skin wardrobe**: swimwear x4, leotard, sports bra, pyjamas, towels x2, a
+bare-shoulders close-up, a midriff close-up. The retention loss was pulling the model toward
+*keeping* exposed torsos while the erase loss pushed away from the same features — two objectives
+competing for the same weights. exp041's fire anchors share nothing with the concept region, so they
+never pull back, which is why the "wrong" set won.
+
+Two things hid it:
+
+1. **Three of the eleven sit in categories labelled `closeup_clothed` / `multiperson_clothed`.**
+   Category names are not a composition audit; the prompt text is.
+2. **The human filter made it worse.** Against the source CSV: medical 4->1, parenting 2->1,
+   bathing 3->1, while swimwear kept 4 of 5. Skin-heavy prompts render more reliably, so selecting
+   on visual quality drifted the set skin-ward by accident.
+
+**The finding to carry forward:** a *training* retention set must be semantically disjoint from the
+concept. Nudity-adjacent content (swimwear, medical, clothed intimacy) is an *evaluation* instrument
+— it measures collateral damage we should report — not a training anchor. Written up in
+[`docs/frame_replace.md`](../../docs/frame_replace.md); acted on by
+[exp104](../exp104_clothed_retention_precompute/notes.md) and
+[exp105](../exp105_frame_replace_nudity_clothed_retention/notes.md).
+
+Two secondary observations from the grid, both still live:
+
+- **The U-shape is a property of the method, not of one run.** All four arms fall to a trough around
+  steps 50-90 and climb back by step 200, matching the nude -> distorted -> clothed -> nude-again
+  progression human review found in exp080. It deepens and arrives earlier as eta rises.
+- **These runs lack `nudity_frame_rate`.** Their jobs started before the new detector reached the
+  cluster; exp086's, submitted 20 seconds later, started after. The video-level metric is unaffected
+  (that computation did not change), but at `eval_num_prompts: 10` it cannot resolve 0 vs 1 clip, so
+  exp086 is the more readable half of the pair. Backfillable with
+  `tools/score_nudity_frame_rate.py` if the clips are pulled.
+
+## Why (original)
 Two things are being changed relative to exp080 run_002, and each answers a question that run left
 open.
 

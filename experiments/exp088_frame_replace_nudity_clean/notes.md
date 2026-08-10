@@ -4,9 +4,9 @@ concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  exp080's regime on exp087's re-edited dataset — the candidate for the reported checkpoint. Two
-  fields (erase_esd_eta, retention set) are placeholders until exp085/exp086 report. Blocked on
-  those, not on compute.
+  exp080's regime on exp087's re-edited dataset — isolates the DATA variable. Unblocked 2026-08-10:
+  eta [1.5, 2.0], retention held at exp041 (fire). Read against exp080 run_002 and exp086 run_003,
+  which are the same two eta points on the old data. Ready to submit, 2 jobs.
 ---
 # exp088 — frame_replace on the clean dataset
 
@@ -21,18 +21,24 @@ exp087 fixed the data without regenerating it: re-edited from the saved original
 20/21 -> 0/21, edit/safe motion ratio 0.01 -> 1.00, and 7 detector-derived concept masks corrected
 to construction. This run is exp080 again on that data.
 
-## Blocked on, and the decision rule
-Two fields are placeholders. Both are answered by grids that are running now:
+## Unblocked (2026-08-10) — what exp085/exp086 decided
 
-- **`erase_esd_eta`** <- whichever value exp086 picks (exp085 should agree; if they disagree, that
-  itself is a finding about how retention interacts with the overshoot). The config carries **two**
-  values deliberately: eta<1's benefit in exp085/exp086 is partly "do not overfit a frozen donor",
-  and that benefit shrinks once the donors are not frozen — so the optimum can move on this data and
-  should not be assumed to transfer. Two jobs is cheap insurance against re-running the grid.
-- **`retention_metadata_file` / `retention_latents_dir`** <- exp041's fire-era anchors or exp079's
-  nudity anchors, whichever exp085-vs-exp086 favours at matched eta. They must be changed together.
+- **`erase_esd_eta: [1.5, 2.0]`.** Human review of both grids kept **exp080 run_002 (eta 2.0) as the
+  best checkpoint to date**, and of exp086's three arms only eta 1.5 came close. Both values are
+  carried deliberately: eta's benefit is partly "do not overfit a frozen donor", and that benefit
+  shrinks once the donors are not frozen, so the optimum may move on this data and one point could
+  not show it. It also gives a clean 2x2 against runs we already have on the old data at matched lr
+  and retention — exp080 run_002 (eta 2.0) and exp086 run_003 (eta 1.5).
+- **Retention stays exp041 (fire), unchanged.** exp085 settled that exp079's set is not the answer,
+  and for a reason worth stating: its human-filtered 20 entries are **11/20 exposed-skin wardrobe**
+  (swimwear x4, leotard, sports bra, pyjamas, towels x2, a bare-shoulders close-up, a midriff
+  close-up), so retention was pulling toward keeping exposed torsos while the erase term pushed away
+  from the same features. exp104 builds a fully-clothed replacement; **exp105** tests it on the
+  **old** data so that arm isolates retention exactly as this one isolates data. Changing both here
+  would confound them.
 
-They sit at exp080's values so the file is runnable, **not** because those are the answer.
+**This run answers one question: does un-freezing the donors fix the motion collapse?** Nothing else
+about it differs from exp080 run_002.
 
 ## Setup
 Identical to exp080 run_002 except the dataset, the two fields above, and the eval budget: concept

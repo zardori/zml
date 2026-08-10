@@ -226,6 +226,47 @@ no-grad base forward per erase micro-step (the teacher shares the LoRA weights w
 disabled, so no second model is loaded). Swept in `exp053_frame_replace_esd_eta`, with
 `exp051` serving as the `η = 1` reference.
 
+### 4.x Choosing the retention set — it must be *disjoint* from the concept
+
+The retention branch regresses fully to its anchor latents, so those anchors are a hard statement of
+"keep producing this". That makes their **content** a design decision of the same weight as `η`, and
+getting it wrong silently cancels the erase term.
+
+**exp085 is the negative result that establishes this.** It ran the same eta grid as exp086 but on
+nudity-specific anchors (exp079) instead of fire-era ones (exp041), and **every arm erased worse**.
+The anchor set it actually trained on — exp079's `metadata_human_filtered.json`, 20 entries — is
+**11/20 exposed-skin wardrobe**: swimwear ×4, leotard, sports bra, pyjamas, towels ×2, a
+bare-shoulders close-up, a midriff close-up. The retention loss was pulling toward keeping exposed
+torsos while the erase loss pushed away from the same features. exp041's fire anchors share nothing
+with the concept region, so they never pull back — the "wrong" set won because it was the only one
+not competing.
+
+Two failure modes are worth naming because both are easy to repeat:
+
+1. **Category labels are not a composition audit.** Three of those eleven sit in categories *named*
+   `closeup_clothed` and `multiperson_clothed`. Scan the prompt text.
+2. **Human filtering can skew composition.** Against exp079's source CSV the filter took medical
+   4→1, parenting 2→1, bathing 3→1, while swimwear kept 4 of 5 — skin-heavy prompts render more
+   reliably, so selecting on visual quality drifted the set skin-ward by accident. **Filter within
+   category and preserve the balance**; regenerate a category rather than let it shrink.
+
+The rule this produces:
+
+> **A training retention set must be semantically disjoint from the concept. Concept-*adjacent*
+> content is an evaluation instrument, not a training anchor.**
+
+Swimwear, medical and clothed-intimacy prompts belong in a held-out `related` column, where
+destroying them is collateral damage we measure and report — not in the retention set, where they
+fight the objective. This generalizes: the same temptation exists on the face thread (protecting
+"the other four celebrities" while erasing one) and the object thread (PSR's nine preserved classes
+are scored, not trained toward).
+
+Disjoint is necessary but not sufficient, or exp041 would already be the answer. Retention only
+helps where the erase term does damage, so the anchors should keep the **shot grammar** of the
+training targets — the same framings, settings, subject counts and motion — while differing in the
+concept itself. That is what `prompts/cogvideox_nudity_retention_clothed.csv` (exp104) does, and
+what exp105 tests against both exp041 and exp079.
+
 ---
 
 ## 5. How it compares to ESD / UnHype
