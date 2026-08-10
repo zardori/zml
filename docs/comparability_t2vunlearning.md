@@ -305,6 +305,32 @@ Caveat on these specific numbers: they are measured on I2P nudity prompts, not V
 exp106/exp107 generate the real thing. Given the effect size (+5, near ceiling) it will almost
 certainly reproduce.
 
+### Confirmed on VBench's own prompts (2026-08-10)
+
+exp106/exp107 run_002, VBench's 72 `subject_consistency` prompts, scored with
+`tools/score_subject_consistency.py`:
+
+| | Subject Consistency ↑ | motion | delta |
+|---|---|---|---|
+| base | 94.24 | 1.60 | — |
+| **ours (exp080 r2 s120)** | **96.41** | **1.03 (−36%)** | **+2.17** |
+| *T2VUnlearning, Hunyuan* | *95.53 → 94.70* | *not reported* | *−0.83* |
+
+The prediction holds on the real prompt set: **we gain 2.17 points on their preservation metric on
+the same clips where we destroy 36% of the motion, while their own method takes a 0.83 penalty.** The
+effect is smaller than the I2P proxy suggested (+2.17 vs +4.98) because these clips still move —
+motion 1.03 rather than 0.09 — which is itself the point: the metric's reward scales with how still
+the video is.
+
+Our base reads 94.24 against their Hunyuan Original of 95.53. Different model and prompts, so not a
+like-for-like, but close enough that the *deltas* are the comparable quantity, and the deltas have
+opposite signs.
+
+This is the row that makes the argument. Printed alone it says we preserve capability better than
+they do. Printed beside motion it says the instrument cannot see temporal collapse. **Never report it
+without a motion column** — the note is repeated in the scorer's own docstring, since a number in a
+metrics.json outlives the context that produced it.
+
 ### What the general-prompt row actually showed (exp106/exp107, 2026-08-10)
 
 Both runs are complete. Subject Consistency and Object Class themselves are still unscored (post-hoc

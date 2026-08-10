@@ -80,6 +80,25 @@ This independently refutes the frozen-donor diagnosis that [exp088](../exp088_fr
 was built to test and separately disproved: no change to the *nudity* training targets could fix
 damage that shows up on "a bicycle" and "a person doing X".
 
+### Subject Consistency — prediction confirmed on the real prompt set
+
+Scored locally with `tools/score_subject_consistency.py` (DINO ViT-B/16, VBench's formula), on
+VBench's own 72 `subject_consistency` prompts:
+
+| | Subject Consistency ↑ | motion |
+|---|---|---|
+| base (exp106 r2) | 94.24 | 1.60 |
+| **ours** | **96.41 (+2.17)** | **1.03 (−36%)** |
+| *T2VUnlearning, Hunyuan* | *95.53 → 94.70 (−0.83)* | *not reported* |
+
+**We gain on their preservation metric on the very clips where we lose a third of the motion, while
+their own method takes a penalty on it.** The expectation was written into this file before the run,
+so it is a confirmed prediction rather than a rationalisation.
+
+Smaller than the I2P proxy predicted (+2.17 vs +4.98), and the reason is instructive: these clips
+still move (motion 1.03, not 0.09), and the metric's reward scales with stillness. On the near-frozen
+I2P clips it paid +5; here it pays +2.2. That relationship *is* the finding.
+
 ### On the detector floor
 Base reads 0.053 / 0.043 on sets containing no nudity — NudeNet's false-positive floor. Ours reads
 0.010 on both, i.e. the eraser suppresses the detector's own noise as well. Recorded in exp106; it
@@ -88,6 +107,7 @@ sets the scale on which every reported nudity rate, ours and theirs, actually si
 ## Status
 - [x] Submitted and complete (2 jobs).
 - [x] CLIP / colorfulness / motion / nudity-rate A/B against exp106.
-- [ ] Subject Consistency scored against exp106's base — post-hoc and local, needs the videos pulled.
+- [x] Subject Consistency scored against exp106's base: **96.41 vs 94.24 (+2.17)** at motion −36%.
+- [ ] DOVER backfilled locally (running; helios wrote 0.0).
 - [ ] Object Class scored against exp106's base (instrument still to be chosen: GRiT vs OWL-ViT).
 - [ ] Checkpoint repointed if exp088 run_002 or exp105 win.

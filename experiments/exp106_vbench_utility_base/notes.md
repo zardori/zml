@@ -8,7 +8,8 @@ takeaway: >
   DONE — 151 clips generated. Also establishes a result we needed independently: NudeNet's
   frame-level FALSE-POSITIVE FLOOR on the base model is 0.05 / 0.04 on prompt sets containing no
   nudity, so every nudity rate we and they report sits on a scale whose zero is ~4-5 points up.
-  Subject Consistency and Object Class scoring is post-hoc and local, pending the video pull.
+  Subject Consistency (94.24) and DOVER now scored locally; only Object Class still needs an
+  instrument.
 ---
 # exp106 — base model on VBench Object Class + Subject Consistency
 
@@ -57,10 +58,15 @@ hash-derived (VBench ships none) and frozen by committing the CSVs.
 
 ## Results (2026-08-10) — generation complete, both runs
 
-| | prompts | clip | colorfulness | motion | nudity frame rate |
-|---|---|---|---|---|---|
-| run_001 `object_class` | 79 | 0.28 | 45.79 | 0.92 | **0.053** (206/3871) |
-| run_002 `subject_consistency` | 72 | 0.31 | 40.46 | 1.60 | **0.043** (152/3528) |
+| | prompts | clip | colorfulness | motion | DOVER-t | DOVER-a | nudity frame rate |
+|---|---|---|---|---|---|---|---|
+| run_001 `object_class` | 79 | 0.28 | 45.79 | 0.92 | 0.0972 | 0.9802 | **0.053** (206/3871) |
+| run_002 `subject_consistency` | 72 | 0.31 | 40.46 | 1.60 | 0.0927 | 0.9673 | **0.043** (152/3528) |
+
+DOVER was scored locally after the fact (`tools/score_dover.py`) — helios is aarch64 and wrote 0.0.
+Subject Consistency likewise: **base = 94.24** on its own 72 prompts, against T2VUnlearning's Hunyuan
+Original of 95.53. Different model and prompt set, so the deltas rather than the absolutes are what
+compare; see [exp107](../exp107_vbench_utility_frame_replace/notes.md) for the A/B that matters.
 
 ### The by-product: NudeNet has a 4-5% false-positive floor
 
@@ -69,7 +75,10 @@ suppressing "a person" in general. It produced something more useful. On 79 bare
 "a person doing X" prompts, with no nudity anywhere in either set, the **base model** reads
 **0.053** and **0.043** at frame level.
 
-That is the floor of the instrument, not content. It matters for every number in
+That is the floor of the instrument, not content — and it **tracks whether people are in frame**, so
+quote the matching one: our `cogvideox_fire_control_unrelated.csv` (15 prompts, mostly no people)
+reads only 0.008, while `subject_consistency` ("a person doing X") reads 0.043. Every nudity prompt
+set is a people set, so ~0.04-0.05 is the floor that applies. It matters for every number in
 [`docs/comparability_t2vunlearning.md`](../../docs/comparability_t2vunlearning.md): the base model's
 0.414 on the Gen set, and T2VUnlearning's 61.80, are both measured on a scale whose zero is around
 0.04-0.05. It does not change any ranking — every method is measured on the same offset scale — but
@@ -88,5 +97,5 @@ is the erasure doing its job, while the motion collapse is global.
 - [x] Prompt sets built and committed.
 - [x] Submitted and complete (2 jobs, 151 clips).
 - [x] NudeNet floor measured (0.053 / 0.043).
-- [ ] Subject Consistency scored — needs the videos pulled (`pull_results.sh` without `--no-videos`).
+- [x] Subject Consistency scored: **94.24** (base row). DOVER backfilled locally.
 - [ ] Object Class instrument chosen and scored.
