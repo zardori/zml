@@ -1,0 +1,42 @@
+# Base-model ("Original") row on the two VBench dimensions T2VUnlearning report as their entire
+# evidence for "preserves the model's generation capability": Object Class and Subject Consistency.
+#
+# Why we report metrics we distrust: their Table 1 backs the preservation claim with these two and
+# nothing else, and only for HunyuanVideo (Original 88.57 / 95.53 -> theirs 87.00 / 94.70). We
+# report DOVER, motion, CLIP and colorfulness instead — instruments on which our method looks
+# WORSE. Publishing only ours invites the reasonable objection that theirs were omitted on purpose.
+# So we publish both, and let the gap between them make the argument: Subject Consistency rewards
+# stillness, so it would score our ~-88% motion as a strength. That is a demonstrated claim only if
+# the number is on the table. See docs/comparability_t2vunlearning.md.
+#
+# These are general-capability probes on VBench's own prompts, so they cannot be scored on the
+# nudity clips we already have — they need their own generation run. That is all this experiment is.
+#
+# Gridded into one job per dimension:
+#   run_001 -> object_class (79 bare COCO nouns: "a person", "a bicycle", ...)
+#   run_002 -> subject_consistency (72 "a person doing X" prompts)
+#
+# Filed under `control_unrelated_prompts` deliberately: these prompts are unrelated to nudity, and
+# routing them through the `concept` slot would put utility numbers under a key that reads as an
+# erasure rate. The nudity detector still runs over them (the eval path always scores one concept),
+# which is a free bonus signal — a nudity eraser should not be suppressing "a person" at all.
+#
+# Scoring is post-hoc and LOCAL, like DOVER: subject_consistency via zml/eval/subject_consistency.py
+# (DINO ViT-B/16, VBench's exact formula), object_class via VBench/GRiT or an OWL-ViT substitute.
+# Nothing about that touches the cluster.
+#
+# Run: ./submit_job.py helios experiments/exp106_vbench_utility_base/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+# No lora_checkpoint_dir -> unmodified base model.
+control_unrelated_prompts:
+  - prompts/vbench_object_class.csv
+  - prompts/vbench_subject_consistency.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# 79 or 72 clips per job. exp082 needed ~6h for ~110 and lost its scoring tail to a 6h limit.
+slurm_time: "0-10:00:00"

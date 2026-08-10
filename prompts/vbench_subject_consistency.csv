@@ -1,0 +1,73 @@
+prompt,seed,concept,concept_type,source,vbench_dimension
+a person swimming in ocean,424391,utility,vbench,vbench-subject-consistency,subject_consistency
+a person giving a presentation to a room full of colleagues,4115,utility,vbench,vbench-subject-consistency,subject_consistency
+a person washing the dishes,73275,utility,vbench,vbench-subject-consistency,subject_consistency
+a person eating a burger,137716,utility,vbench,vbench-subject-consistency,subject_consistency
+a person walking in the snowstorm,4835,utility,vbench,vbench-subject-consistency,subject_consistency
+a person drinking coffee in a cafe,463802,utility,vbench,vbench-subject-consistency,subject_consistency
+a person playing guitar,967890,utility,vbench,vbench-subject-consistency,subject_consistency
+a bicycle leaning against a tree,167152,utility,vbench,vbench-subject-consistency,subject_consistency
+a bicycle gliding through a snowy field,752461,utility,vbench,vbench-subject-consistency,subject_consistency
+a bicycle slowing down to stop,380175,utility,vbench,vbench-subject-consistency,subject_consistency
+a bicycle accelerating to gain speed,376213,utility,vbench,vbench-subject-consistency,subject_consistency
+a car stuck in traffic during rush hour,193513,utility,vbench,vbench-subject-consistency,subject_consistency
+a car turning a corner,293115,utility,vbench,vbench-subject-consistency,subject_consistency
+a car slowing down to stop,836449,utility,vbench,vbench-subject-consistency,subject_consistency
+a car accelerating to gain speed,689922,utility,vbench,vbench-subject-consistency,subject_consistency
+a motorcycle cruising along a coastal highway,818309,utility,vbench,vbench-subject-consistency,subject_consistency
+a motorcycle turning a corner,699820,utility,vbench,vbench-subject-consistency,subject_consistency
+a motorcycle slowing down to stop,900903,utility,vbench,vbench-subject-consistency,subject_consistency
+a motorcycle gliding through a snowy field,980766,utility,vbench,vbench-subject-consistency,subject_consistency
+a motorcycle accelerating to gain speed,641645,utility,vbench,vbench-subject-consistency,subject_consistency
+an airplane soaring through a clear blue sky,279323,utility,vbench,vbench-subject-consistency,subject_consistency
+an airplane taking off,778474,utility,vbench,vbench-subject-consistency,subject_consistency
+an airplane landing smoothly on a runway,252601,utility,vbench,vbench-subject-consistency,subject_consistency
+an airplane accelerating to gain speed,344015,utility,vbench,vbench-subject-consistency,subject_consistency
+a bus turning a corner,144639,utility,vbench,vbench-subject-consistency,subject_consistency
+a bus stuck in traffic during rush hour,982802,utility,vbench,vbench-subject-consistency,subject_consistency
+a bus accelerating to gain speed,598540,utility,vbench,vbench-subject-consistency,subject_consistency
+a train speeding down the tracks,709455,utility,vbench,vbench-subject-consistency,subject_consistency
+a train crossing over a tall bridge,215816,utility,vbench,vbench-subject-consistency,subject_consistency
+a train accelerating to gain speed,667019,utility,vbench,vbench-subject-consistency,subject_consistency
+a truck turning a corner,234663,utility,vbench,vbench-subject-consistency,subject_consistency
+a truck anchored in a tranquil bay,215696,utility,vbench,vbench-subject-consistency,subject_consistency
+a truck stuck in traffic during rush hour,699945,utility,vbench,vbench-subject-consistency,subject_consistency
+a truck slowing down to stop,935573,utility,vbench,vbench-subject-consistency,subject_consistency
+a truck accelerating to gain speed,392013,utility,vbench,vbench-subject-consistency,subject_consistency
+a boat sailing smoothly on a calm lake,191145,utility,vbench,vbench-subject-consistency,subject_consistency
+a boat slowing down to stop,472378,utility,vbench,vbench-subject-consistency,subject_consistency
+a boat accelerating to gain speed,188472,utility,vbench,vbench-subject-consistency,subject_consistency
+a bird soaring gracefully in the sky,272480,utility,vbench,vbench-subject-consistency,subject_consistency
+a bird building a nest from twigs and leaves,727260,utility,vbench,vbench-subject-consistency,subject_consistency
+a bird flying over a snowy forest,227439,utility,vbench,vbench-subject-consistency,subject_consistency
+a cat grooming itself meticulously with its tongue,892774,utility,vbench,vbench-subject-consistency,subject_consistency
+a cat playing in park,632772,utility,vbench,vbench-subject-consistency,subject_consistency
+a cat drinking water,491423,utility,vbench,vbench-subject-consistency,subject_consistency
+a cat running happily,129183,utility,vbench,vbench-subject-consistency,subject_consistency
+a dog enjoying a peaceful walk,458598,utility,vbench,vbench-subject-consistency,subject_consistency
+a dog playing in park,849419,utility,vbench,vbench-subject-consistency,subject_consistency
+a dog drinking water,988301,utility,vbench,vbench-subject-consistency,subject_consistency
+a dog running happily,730816,utility,vbench,vbench-subject-consistency,subject_consistency
+a horse bending down to drink water from a river,774100,utility,vbench,vbench-subject-consistency,subject_consistency
+a horse galloping across an open field,161019,utility,vbench,vbench-subject-consistency,subject_consistency
+a horse taking a peaceful walk,232560,utility,vbench,vbench-subject-consistency,subject_consistency
+a horse running to join a herd of its kind,204448,utility,vbench,vbench-subject-consistency,subject_consistency
+a sheep bending down to drink water from a river,481261,utility,vbench,vbench-subject-consistency,subject_consistency
+a sheep taking a peaceful walk,809036,utility,vbench,vbench-subject-consistency,subject_consistency
+a sheep running to join a herd of its kind,303014,utility,vbench,vbench-subject-consistency,subject_consistency
+a cow bending down to drink water from a river,786807,utility,vbench,vbench-subject-consistency,subject_consistency
+a cow chewing cud while resting in a tranquil barn,727420,utility,vbench,vbench-subject-consistency,subject_consistency
+a cow running to join a herd of its kind,815777,utility,vbench,vbench-subject-consistency,subject_consistency
+an elephant spraying itself with water using its trunk to cool down,723830,utility,vbench,vbench-subject-consistency,subject_consistency
+an elephant taking a peaceful walk,423004,utility,vbench,vbench-subject-consistency,subject_consistency
+an elephant running to join a herd of its kind,782655,utility,vbench,vbench-subject-consistency,subject_consistency
+a bear catching a salmon in its powerful jaws,892482,utility,vbench,vbench-subject-consistency,subject_consistency
+a bear sniffing the air for scents of food,980154,utility,vbench,vbench-subject-consistency,subject_consistency
+a bear climbing a tree,725192,utility,vbench,vbench-subject-consistency,subject_consistency
+a bear hunting for prey,392348,utility,vbench,vbench-subject-consistency,subject_consistency
+a zebra bending down to drink water from a river,475209,utility,vbench,vbench-subject-consistency,subject_consistency
+a zebra running to join a herd of its kind,87544,utility,vbench,vbench-subject-consistency,subject_consistency
+a zebra taking a peaceful walk,942870,utility,vbench,vbench-subject-consistency,subject_consistency
+a giraffe bending down to drink water from a river,638484,utility,vbench,vbench-subject-consistency,subject_consistency
+a giraffe taking a peaceful walk,38927,utility,vbench,vbench-subject-consistency,subject_consistency
+a giraffe running to join a herd of its kind,391931,utility,vbench,vbench-subject-consistency,subject_consistency

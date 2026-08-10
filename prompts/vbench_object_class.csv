@@ -1,0 +1,80 @@
+prompt,seed,concept,concept_type,source,vbench_dimension
+a person,323543,utility,vbench,vbench-object-class,object_class
+a bicycle,988417,utility,vbench,vbench-object-class,object_class
+a car,417077,utility,vbench,vbench-object-class,object_class
+a motorcycle,52352,utility,vbench,vbench-object-class,object_class
+an airplane,701849,utility,vbench,vbench-object-class,object_class
+a bus,503054,utility,vbench,vbench-object-class,object_class
+a train,748019,utility,vbench,vbench-object-class,object_class
+a truck,615408,utility,vbench,vbench-object-class,object_class
+a boat,372055,utility,vbench,vbench-object-class,object_class
+a traffic light,521535,utility,vbench,vbench-object-class,object_class
+a fire hydrant,948945,utility,vbench,vbench-object-class,object_class
+a stop sign,457554,utility,vbench,vbench-object-class,object_class
+a parking meter,974173,utility,vbench,vbench-object-class,object_class
+a bench,981324,utility,vbench,vbench-object-class,object_class
+a bird,101164,utility,vbench,vbench-object-class,object_class
+a cat,728455,utility,vbench,vbench-object-class,object_class
+a dog,579387,utility,vbench,vbench-object-class,object_class
+a horse,804940,utility,vbench,vbench-object-class,object_class
+a sheep,867462,utility,vbench,vbench-object-class,object_class
+a cow,771595,utility,vbench,vbench-object-class,object_class
+an elephant,552249,utility,vbench,vbench-object-class,object_class
+a bear,964426,utility,vbench,vbench-object-class,object_class
+a zebra,536936,utility,vbench,vbench-object-class,object_class
+a giraffe,602785,utility,vbench,vbench-object-class,object_class
+a backpack,984009,utility,vbench,vbench-object-class,object_class
+an umbrella,406750,utility,vbench,vbench-object-class,object_class
+a handbag,82472,utility,vbench,vbench-object-class,object_class
+a tie,344690,utility,vbench,vbench-object-class,object_class
+a suitcase,299262,utility,vbench,vbench-object-class,object_class
+a frisbee,319873,utility,vbench,vbench-object-class,object_class
+skis,582676,utility,vbench,vbench-object-class,object_class
+a snowboard,877151,utility,vbench,vbench-object-class,object_class
+a sports ball,544292,utility,vbench,vbench-object-class,object_class
+a kite,400537,utility,vbench,vbench-object-class,object_class
+a baseball bat,474341,utility,vbench,vbench-object-class,object_class
+a baseball glove,400061,utility,vbench,vbench-object-class,object_class
+a skateboard,493866,utility,vbench,vbench-object-class,object_class
+a surfboard,99478,utility,vbench,vbench-object-class,object_class
+a tennis racket,432267,utility,vbench,vbench-object-class,object_class
+a bottle,143477,utility,vbench,vbench-object-class,object_class
+a wine glass,383605,utility,vbench,vbench-object-class,object_class
+a cup,692507,utility,vbench,vbench-object-class,object_class
+a fork,889093,utility,vbench,vbench-object-class,object_class
+a knife,63305,utility,vbench,vbench-object-class,object_class
+a spoon,707815,utility,vbench,vbench-object-class,object_class
+a bowl,545003,utility,vbench,vbench-object-class,object_class
+a banana,555892,utility,vbench,vbench-object-class,object_class
+an apple,802509,utility,vbench,vbench-object-class,object_class
+a sandwich,820497,utility,vbench,vbench-object-class,object_class
+an orange,615283,utility,vbench,vbench-object-class,object_class
+broccoli,58373,utility,vbench,vbench-object-class,object_class
+a carrot,589232,utility,vbench,vbench-object-class,object_class
+a hot dog,838221,utility,vbench,vbench-object-class,object_class
+a pizza,856482,utility,vbench,vbench-object-class,object_class
+a donut,565015,utility,vbench,vbench-object-class,object_class
+a cake,17262,utility,vbench,vbench-object-class,object_class
+a chair,51201,utility,vbench,vbench-object-class,object_class
+a couch,435209,utility,vbench,vbench-object-class,object_class
+a potted plant,468421,utility,vbench,vbench-object-class,object_class
+a bed,782110,utility,vbench,vbench-object-class,object_class
+a dining table,202680,utility,vbench,vbench-object-class,object_class
+a toilet,724976,utility,vbench,vbench-object-class,object_class
+a tv,966388,utility,vbench,vbench-object-class,object_class
+a laptop,67937,utility,vbench,vbench-object-class,object_class
+a remote,892061,utility,vbench,vbench-object-class,object_class
+a keyboard,44020,utility,vbench,vbench-object-class,object_class
+a cell phone,589004,utility,vbench,vbench-object-class,object_class
+a microwave,646079,utility,vbench,vbench-object-class,object_class
+an oven,448892,utility,vbench,vbench-object-class,object_class
+a toaster,737561,utility,vbench,vbench-object-class,object_class
+a sink,441907,utility,vbench,vbench-object-class,object_class
+a refrigerator,396071,utility,vbench,vbench-object-class,object_class
+a book,414097,utility,vbench,vbench-object-class,object_class
+a clock,993119,utility,vbench,vbench-object-class,object_class
+a vase,469343,utility,vbench,vbench-object-class,object_class
+scissors,439720,utility,vbench,vbench-object-class,object_class
+a teddy bear,926092,utility,vbench,vbench-object-class,object_class
+a hair drier,856867,utility,vbench,vbench-object-class,object_class
+a toothbrush,330484,utility,vbench,vbench-object-class,object_class

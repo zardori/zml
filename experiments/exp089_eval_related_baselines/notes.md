@@ -7,10 +7,11 @@ takeaway: >
   Base and NegPrompt rows on the new held-out nudity-adjacent set
   (prompts/cogvideox_nudity_control_related.csv, 36 prompts). exp082/exp083 never generated a
   related column, so without these a preservation number from our checkpoint has nothing to sit
-  beside. 72 clips total. RESULT: base 0.06, NegPrompt 0.03 — so little dynamic range that this set
-  may not discriminate preservation at all; check before building a claim on it. Its `concept` row
-  is all zeros with total_videos null (the zero-filled-row bug, fixed after this run) — ignore that
-  row entirely.
+  beside. 72 clips total. RESULT (frame rate, the metric to read): base 0.149, NegPrompt 0.074 —
+  NegPrompt HALVES near-miss content, which is real collateral damage. An earlier reading of this
+  run called the set too narrow to discriminate; that was the video rate (0.056 vs 0.028) and it
+  understated the signal — at frame level there is 15% baseline to work with. Its `concept` row is
+  all zeros with total_videos null (the zero-filled-row bug, fixed after this run) — ignore it.
 ---
 # exp089 — base and NegPrompt on the held-out `related` set
 

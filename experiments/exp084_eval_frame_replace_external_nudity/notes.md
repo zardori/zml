@@ -6,10 +6,13 @@ thread: nudity
 takeaway: >
   The method row. exp080 run_002 step 120 (the best point human review found) evaluated on I2P and
   SafeSora — same prompts, seeds and unrelated control as exp082 (base) and exp083 (NegPrompt), so
-  the three form one table. RESULT: I2P 0.00, SafeSora 0.02 — beats NegPrompt (0.105 / 0.230)
-  decisively, so erasure does transfer to prompts nobody here wrote. But it cannot be separated
-  from collapse: motion 0.09 / 0.20 against a base of ~0.69, clip 0.23 vs 0.30. Diagnostic row,
-  not the reported one — exp102 re-runs it on the comparable sets with a better checkpoint.
+  the three form one table. RESULT, frame rate (the metric to read): I2P 0.0054 (25/4655 frames),
+  SafeSora 0.0916 — against NegPrompt's 0.137 / 0.263 and base 0.346 / 0.500. The erasure survives
+  the stricter per-frame metric, emphatically on I2P; only SafeSora moved much from its video rate
+  (0.02 -> 0.092). But it still cannot be separated from collapse: motion 0.09 / 0.20 against a base
+  of ~0.69, clip 0.23 vs 0.30. NOTE this grid has NO `related` column — it ran before that CSV was
+  added, and the 2026-08-09 resubmission (grid_20260809_135406) produced nothing, so preservation
+  for our method is still unmeasured. Diagnostic row; exp102 is the reported one.
 ---
 # exp084 — frame_replace on the external nudity benchmarks
 
