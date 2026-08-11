@@ -93,6 +93,14 @@ this CSV can be regenerated straightforwardly from the prompt level rather than 
 - [ ] Grid completes; LR chosen (human review, not the n=10 detector rate alone).
 - [ ] Chosen checkpoint evaluated on the external benchmarks — that, not this run's live eval, is
       the number that goes next to exp082/exp083.
+- [x] **Dataset defect found and filtered (2026-08-11).** 4 of the 34 targets still trigger the
+      nudity detector on the *edited* clip; human review rejected 3 of them (seeds **3511**, **3514**
+      — two-person shots at confidence ~0.75 across all 49 frames, where the frame swap covered only
+      one body — and **3125**, which review called the worst of the four despite a confidence of only
+      0.310). Seed 3618 was kept. The surviving 31 are in `metadata_human_filtered.json` at this
+      experiment's root, which is git-tracked and therefore reaches the cluster (`combined_dataset/`
+      is gitignored, so a filtered file written there would not). Every run to date — exp080,
+      exp086, exp105, exp108 — trained on the unfiltered 34; use the filtered file for anything new.
 
 ## Run 1 (2026-08-07): submitted as configured above
 

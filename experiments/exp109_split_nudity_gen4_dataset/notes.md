@@ -62,20 +62,29 @@ desaturates our output; eta=2 extrapolating past the donor is. This generation i
 
 4 of exp080's 34 training targets **still trigger the nudity detector on the edited clip**:
 
-| conf | frames | clip |
-|---|---|---|
-| 0.788 | 49/49 | exp078 run_005 `p25_s3511_edited.mp4` |
-| 0.721 | 49/49 | exp078 run_005 `p28_s3514_edited.mp4` |
-| 0.310 | 3/49 | exp061 `outputs_20260802_223148/p9_s3125_edited.mp4` |
-| 0.304 | 1/49 | exp078 run_005 `p47_s3618_edited.mp4` |
+| conf | frames | clip | human verdict (2026-08-11) |
+|---|---|---|---|
+| 0.788 | 49/49 | exp078 run_005 `p25_s3511_edited.mp4` | **reject** |
+| 0.721 | 49/49 | exp078 run_005 `p28_s3514_edited.mp4` | **reject** |
+| 0.310 | 3/49 | exp061 `outputs_20260802_223148/p9_s3125_edited.mp4` | **reject — worst of the four** |
+| 0.304 | 1/49 | exp078 run_005 `p47_s3618_edited.mp4` | keep |
 
 The top two are two-person shots where the frame swap evidently covered only one body, and they are
 full-strength across every frame. Those examples teach the model to answer a nudity prompt *with
-nudity* — 6% of a 34-example set carrying the exact opposite of the objective.
+nudity* — and with the third, 9% of a 34-example set carried the exact opposite of the objective.
+`experiments/exp080_frame_replace_nudity_gen2/metadata_human_filtered.json` is the surviving 31.
 
-**So review must check the edited clip for residual concept, not only for wardrobe realism.**
-`edited_max_confidence` in the output metadata is a cheap first pass and should be sorted descending
-before anyone watches anything; it would have caught all four.
+### The detector cannot do this review, and the ranking proves it
+
+The obvious shortcut is to sort by `edited_max_confidence` and watch the top of the list. **That
+would have failed here.** Human review called `s3125` the *worst* clip in the set, and the detector
+ranked it third at 0.310 — statistically indistinguishable from `s3618` at 0.304, which was kept.
+
+So the confidence score separates the 0.72-0.79 band (genuinely broken) from everything else, and
+has **no discriminative power inside the 0.30 band**, where the worst clip and an acceptable one
+differ by 0.006. Use it to catch the catastrophic cases cheaply, then watch every clip anyway — this
+is [[feedback-detector-metrics-not-ground-truth]] with an unusually clean margin, and at 200 triples
+the temptation to shortcut will be much stronger than it was at 34.
 
 ## Why 200
 
@@ -97,6 +106,7 @@ quality and keeping the top N. Write the filtered metadata to the **experiment r
       no collision against gen1-gen3's 3103-3755).
 - [x] Sharded into 4 round-robin parts, each carrying all 8 categories.
 - [ ] Submitted (4 jobs).
-- [ ] Reviewed for wardrobe realism AND residual concept; `edited_max_confidence` sorted first.
+- [ ] Reviewed for wardrobe realism AND residual concept. Watch every clip — confidence sorting
+      catches the catastrophic cases only, and ranked the worst gen1-gen3 target third (see above).
 - [ ] Per-category survival recorded; filtered metadata written to the experiment root.
 - [ ] Merged into a training dataset and run against exp108's best weight.
