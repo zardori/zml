@@ -1,0 +1,67 @@
+# Fourth-generation nudity dataset — realistic wardrobe, 200 triples to select from.
+#
+# Human review of the gen1-gen3 training targets (2026-08-11) found the clothing in the *edited*
+# clips reads wrong in two ways: implausibly baggy, or close enough to skin tone to pass as bare.
+# Both trace to prompt design, not to generation luck. Every gen1-gen3 B prompt was written to
+# satisfy "no bare skin visible", and the cheapest way to satisfy that constraint is a shapeless
+# sack — so the set asks for a "long floor-length robe", a "heavy wool overcoat and thick trousers",
+# a "zipped-up parka", a "thick turtleneck sweater". gen3 additionally used "wrapped in white
+# towels" and "matching black leotards", the exact skin-adjacent wardrobe exp104 banned from the
+# retention set. We optimised coverage and got un-realism as the by-product; the same shape of
+# mistake as exp079's retention set, where a proxy constraint quietly set the composition.
+#
+# prompts/split_nudity_gen4.csv (built by tools/build_split_nudity_gen4_prompts.py) names garments
+# positively and specifically, drops the "no bare skin visible" phrasing entirely, keeps outerwear
+# fitted, varies colour, and hard-bans robes/parkas/towels/leotards/swimwear/sleepwear at build time.
+# 200 triples, 8 wardrobe categories x 25, seeds 3801-4000 (gen1-gen3 occupy 3103-3755).
+#
+# WHY 200 AND NOT 50: this set is built to be *selected from*, not used wholesale. exp078 kept 13 of
+# 50 (26%) after review. At that rate 200 yields ~50 usable triples, which is the first time the
+# training set would not be the binding constraint — exp080 trained on 34.
+#
+# A SECOND DEFECT THIS FIXES. 4 of exp080's 34 targets still trigger the nudity detector on the
+# EDITED clip, 2 of them at confidence ~0.75 across all 49 frames (seeds 3511, 3514 — both
+# two-person shots where the frame swap evidently covered only one body). Those examples teach the
+# model to answer a nudity prompt with nudity. Review of this set must check the edited clip for
+# residual concept, not only for wardrobe realism; `edited_max_confidence` in the output metadata
+# gives a cheap first pass, but it missed nothing here only because nobody looked.
+#
+# SHARDED, NOT ONE JOB: frame_replace_split_precompute.py takes a single csv_path with no
+# offset/limit, and exp078 spent ~6.25h on 50 triples — 200 in one job would be ~25h. submit_job.py
+# grid-searches any list-valued field, so listing the four shards runs them as four parallel jobs.
+# Shards are round-robin, so each carries all 8 categories and a failed shard does not delete a
+# whole wardrobe category from the set.
+#
+# split_step_frac: 0.85, the single value exp074/exp076 picked and exp078 confirmed. NOT swept —
+# exp078 already spent a 5-value grid on that question for close-up/multi-person framing, and this
+# generation changes wardrobe vocabulary, not split geometry. One variable.
+#
+# Run: ./submit_job.py helios experiments/exp109_split_nudity_gen4_dataset/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# Four round-robin shards of prompts/split_nudity_gen4.csv, 50 triples each -> 4 parallel jobs.
+csv_path:
+  - prompts/split_nudity_gen4_part1.csv
+  - prompts/split_nudity_gen4_part2.csv
+  - prompts/split_nudity_gen4_part3.csv
+  - prompts/split_nudity_gen4_part4.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs — same policy as exp061/exp078.
+split_latent_frame: 7
+concept_region: random   # mix concept-first / concept-second across the dataset
+split_jitter: 2          # boundary jitter (+/-2 latent frames), seeded per clip
+split_step_frac: 0.85    # exp074/exp076's pick, confirmed on exp078's framings; not re-swept
+
+frame_nudity_threshold: 0.3
+min_donor_frames: 2
+boundary_margin: 2
+concept: nudity
+save_videos: true        # required — wardrobe realism is a human-review call, not a metric
+
+# exp078: ~6.25h for 50 triples at near-100% yield. Same per-shard load, with margin.
+slurm_time: "0-9:00:00"
