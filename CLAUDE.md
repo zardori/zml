@@ -61,6 +61,7 @@ zml/
     ├── split_prompt.md          # manufacturing partial-concept clips (A/B/C triples)
     ├── comparison_targets.md    # which concepts other T2V unlearning papers erase, and our order
     ├── imagenet_objects.md      # the ESR/PSR object-erasure protocol and our two-class pilot
+    ├── face_identity.md         # celebrity ID-similarity protocol, 2-identity pilot (Obama, Merkel)
     ├── unhype.md                # UnHype: CLIP-guided hypernetwork unlearning (the paper method)
     ├── unhype_video_attempts.md # porting UnHype to CogVideoX (exp016-exp031)
     ├── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
@@ -163,7 +164,11 @@ A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame det
    reference) is **done and passed the gate**; datasets exp066–exp068 are next. ESR/PSR is reported
    under two ranking conventions (1000-way and restricted to the ten classes) because the papers do
    not state theirs. Write-up: **`docs/imagenet_objects.md`**.
-3. Keep improving the core method (retention/collateral, eta regime, localization).
+3. **Third concept: face/celebrity identity** — ID-similarity protocol implemented (ArcFace + YuNet,
+   `mode: face`), 2-identity pilot (Obama, Merkel) staged as exp090–exp098. Nothing submitted yet;
+   exp090 (base-model reference, all 5 identities) is the hard gate everything else waits on.
+   Write-up: **`docs/face_identity.md`**.
+4. Keep improving the core method (retention/collateral, eta regime, localization).
 
 Which concepts other T2V unlearning papers erase, with what detectors and prompt sets, and why we
 pick them in this order: **`docs/comparison_targets.md`**.

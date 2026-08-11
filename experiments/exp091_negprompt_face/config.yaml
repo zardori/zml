@@ -10,7 +10,7 @@ mode: face
 
 model_id: THUDM/CogVideoX-5b
 prompts_csv: prompts/face_cogvideox.csv
-erased_identity: ["Barack Obama", "Angela Merkel"]   # confirm against exp090 before submitting
+erased_identity: ["Barack Obama", "Queen Elizabeth II"]   # exp090-confirmed pilot pair (was Obama+Merkel)
 negative_prompt: auto
 
 eval_inference_steps: 50
