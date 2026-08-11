@@ -97,18 +97,26 @@ the shape is unchanged. Note the isolated zeros at 110/120 sitting between 0.26 
 (490 frames) a single zero is not a regime, and reading those two as one cost an incorrect conclusion
 before the tail arrived.
 
-## Results — run_002 (clean data, eta 2.0), through step 130
+## Results — run_002 (clean data, eta 2.0), complete
 
-Still running. This arm looks materially different from r1:
+| step | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 | 140 | 160 | 180 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| rate | 0.13 | **0.00** | **0.00** | **0.00** | 0.01 | 0.01 | 0.10 | 0.10 | **0.00** | 0.21 | 0.24 | 0.20 | **0.00** |
+| colour | 20.0 | 15.9 | 14.6 | 15.2 | 18.1 | 16.2 | 18.0 | 23.2 | 19.5 | 24.5 | 30.0 | 33.3 | 33.2 |
+| motion | 0.18 | 0.12 | 0.14 | 0.09 | 0.12 | 0.11 | 0.10 | 0.08 | 0.06 | 0.08 | 0.09 | 0.04 | 0.03 |
 
-| step | 50 | 60 | 70 | 80 | 90 | 100 | 110 | 120 | 130 |
-|---|---|---|---|---|---|---|---|---|---|
-| rate | 0.13 | **0.00** | **0.00** | **0.00** | 0.01 | 0.01 | 0.10 | 0.10 | **0.00** |
-| colour | 20.0 | 15.9 | 14.6 | 15.2 | 18.1 | 16.2 | 18.0 | 23.2 | 19.5 |
+Five consecutive checkpoints at <=0.01 (steps 60-100) — the one thing on this dataset that is wider
+than a single lucky step, and worth something because picking from a plateau is less
+selection-on-test than picking a transient. **The step-130 zero did not hold**: 140 rebounds to 0.21
+and the arm follows the same U as everything else.
 
-Five consecutive checkpoints at <=0.01 (steps 60-100), and **still 0.0000 at step 130** where exp088
-r1 had rebounded to 0.20 and exp080 r2 reached 0.49 by 140. That width is the interesting claim — a
-checkpoint chosen from a five-wide plateau is not selection-on-test in the way a single lucky step is.
+The step-200 point (rate 0.0000 at colour **33.19**) is the highest-colour zero anyone has produced,
+but motion there is **0.03** — 4% of base — and it sits next to 0.09 at step 190, so it is a
+transient of exactly the kind that has misled this thread twice. Do not report it without review.
+
+Against the incumbent at matched erasure, this arm loses: exp080 r2 s120 gives rate 0.0000 at colour
+21.9 / motion 0.11, while this run's basin (s60-100) sits at colour 14.6-18.1 and its clip score
+drifts 0.29 -> 0.26 by step 130. Same erasure, less colour, weaker text conditioning.
 
 Two honesty checks on it. exp080 run_002 was evaluated every **20** steps, so on the four shared
 steps the record is 60 (0.00 vs 0.10), 80 (0.00 vs 0.00), 100 (0.01 vs 0.10), 120 (0.10 vs **0.00**)
@@ -126,6 +134,11 @@ set that pins "human, clothed, *moving*" is the mechanism most likely to hold it
 anchors contain no people to pin. If exp105 also leaves motion at ~0.1, the collapse is intrinsic to
 eta-extrapolated v-prediction erasure and belongs in the paper as a stated limitation rather than an
 open bug.
+
+> **Answered 2026-08-11: not intrinsic.** [exp105](../exp105_frame_replace_nudity_clothed_retention/notes.md)
+> holds 2-3x this run's motion over the whole back half (0.35 vs 0.07 at step 130), so retention
+> *can* protect it — the limitation sentence above should not be written. exp105 blocks erasure
+> instead, so the trade is now a `retention_weight` question rather than a wall.
 
 ## Status
 - [x] exp087's dataset built and verified (motion ratio 1.00, 0 frozen).
