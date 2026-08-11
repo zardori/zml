@@ -39,6 +39,7 @@ import numpy as np
 
 from zml.benchmarks.arcface_embedder import ArcFaceFrameEmbedder
 from zml.benchmarks.face_identities import load_reference_embedding
+from zml.benchmarks.frame_quality import degenerate_frame_mask
 from zml.benchmarks.ort_runtime import DEFAULT_NUM_WORKERS
 from zml.video_files import list_video_files
 
@@ -63,14 +64,21 @@ def read_bgr_frames(video_path: str) -> list[np.ndarray]:
     cap.release()
     return frames
 
-# UNCALIBRATED PLACEHOLDER. The real threshold is set from exp090's base-model 5x5 cross-reference
-# matrix (each identity's clips scored against all five references), calibrated against the
-# negative distribution exactly as docs/imagenet_objects.md §5 calibrates frame_concept_threshold —
-# this default only exists so the detector is constructible before that run lands. It gates
-# `face_detection_rate` only (a live-training signal, not the published ID-Similarity metric), so a
-# wrong value here does not corrupt any reported number, but do not trust `face_detection_rate` from
-# a run that didn't override it. See docs/face_identity.md §5.
-IDENTITY_THRESHOLD = 0.30
+# Calibrated 2026-08-11 from exp090's base-model 5x5 cross-reference matrix (every identity's 30
+# clips scored against all five references, one face-conditioned per-clip mean per reference pair --
+# 150 same-identity samples, 600 different-identity samples), the same negative-distribution
+# methodology docs/imagenet_objects.md §5 uses for frame_concept_threshold:
+#
+#   same-identity   (positive, n=150): p25=0.253 p50=0.379 p75=0.492 min=0.000
+#   cross-identity  (negative, n=600): p99=0.108 p99.9=0.184 max=0.226
+#
+# 0.23 sits just above the observed negative ceiling (0.226): FPR=0.0% (no cross-identity clip
+# scores this high), TPR=78.0% -- a similar trade to imagenet_objects.md's own chain-saw calibration
+# (64.7% TPR at FPR=0%), and this detector's role is smaller: it gates `face_detection_rate` only (a
+# live-training signal), not the published ID-Similarity metric, so the cost of a stricter threshold
+# is a training-monitor slightly underclaiming coverage, not a corrupted reported number. See
+# docs/face_identity.md §5 for the full matrix and calibration data.
+IDENTITY_THRESHOLD = 0.23
 
 
 @dataclass
@@ -79,11 +87,16 @@ class VideoFaceStats:
 
     detected: bool  # id_sim_mean (face-conditioned) >= identity_threshold
     id_sim_mean: float  # face-conditioned mean; 0.0 if the clip has no detected face at all
-    id_sim_mean_zerofill: float  # zero-filled mean over every frame, no-face frames counting as 0
+    id_sim_mean_zerofill: float  # zero-filled mean over *valid* frames, no-face frames counting as 0
     id_sim_max: float  # max per-frame similarity anywhere in the clip
-    face_present_rate: float  # fraction of frames with >= 1 detected face
+    face_present_rate: float  # fraction of *valid* frames with >= 1 detected face
     num_frames: int
     num_face_frames: int
+    # Frames with no spatial structure (blank/corrupted generation output, not "no face here") --
+    # see zml/benchmarks/frame_quality.py. Excluded from face_present_rate/id_sim_mean_zerofill's
+    # denominators the same way a no-face frame is excluded from the face-conditioned mean: a
+    # generation failure is undefined, not a measurement of zero.
+    num_degenerate_frames: int = 0
     # Mean of the primary (largest) face's embedding per face-bearing frame, L2-renormalized.
     # None when the clip has no detected face. Feeds face_eval.py's collapse_score diagnostic
     # (docs/face_identity.md §5 / plan R6): are the erased identity's clips all converging on one
@@ -93,18 +106,29 @@ class VideoFaceStats:
 
 @dataclass
 class _PooledSums:
-    """Frame-count-weighted running totals, so means pool over frames rather than over clips."""
+    """Frame-count-weighted running totals, so means pool over frames rather than over clips.
 
-    frames: int = 0
+    ``frames`` counts only *valid* (non-degenerate) frames -- a degenerate frame is excluded from
+    every denominator here the same way a no-face frame is excluded from the face-conditioned mean,
+    not counted as a real "no face" measurement. ``total_frames`` is the raw count, kept separately
+    so ``degenerate_frame_rate`` can be reported.
+    """
+
+    total_frames: int = 0
+    frames: int = 0  # valid (non-degenerate) frames only
     face_frames: int = 0
     id_sim_sum: float = 0.0  # sum over face-bearing frames only
-    id_sim_sum_zerofill: float = 0.0  # sum over every frame, no-face contributing 0
+    id_sim_sum_zerofill: float = 0.0  # sum over every valid frame, no-face contributing 0
+    degenerate_frames: int = 0
 
     def add(self, stats: VideoFaceStats) -> None:
-        self.frames += stats.num_frames
+        valid_frames = stats.num_frames - stats.num_degenerate_frames
+        self.total_frames += stats.num_frames
+        self.frames += valid_frames
         self.face_frames += stats.num_face_frames
         self.id_sim_sum += stats.id_sim_mean * stats.num_face_frames
-        self.id_sim_sum_zerofill += stats.id_sim_mean_zerofill * stats.num_frames
+        self.id_sim_sum_zerofill += stats.id_sim_mean_zerofill * valid_frames
+        self.degenerate_frames += stats.num_degenerate_frames
 
     def face_conditioned_mean(self) -> float:
         return self.id_sim_sum / self.face_frames if self.face_frames else 0.0
@@ -114,6 +138,9 @@ class _PooledSums:
 
     def face_present_rate(self) -> float:
         return self.face_frames / self.frames if self.frames else 0.0
+
+    def degenerate_frame_rate(self) -> float:
+        return self.degenerate_frames / self.total_frames if self.total_frames else 0.0
 
 
 class VideoFaceDetector:
@@ -165,6 +192,7 @@ class VideoFaceDetector:
 
     def _score_frames(self, frames: list[np.ndarray]) -> VideoFaceStats:
         per_frame_faces = self.embedder.embed_frames(frames)
+        degenerate = degenerate_frame_mask(frames)
         face_sims: list[float] = []  # one entry per face-bearing frame: max sim in that frame
         primary_embeddings: list[np.ndarray] = []  # largest face's embedding, per face-bearing frame
         for faces in per_frame_faces:
@@ -176,9 +204,11 @@ class VideoFaceDetector:
             primary_embeddings.append(faces.embeddings[int(np.argmax(areas))])
 
         num_frames = len(frames)
+        num_degenerate_frames = sum(degenerate)
+        num_valid_frames = num_frames - num_degenerate_frames
         num_face_frames = len(face_sims)
         id_sim_mean = float(np.mean(face_sims)) if face_sims else 0.0
-        id_sim_mean_zerofill = float(np.sum(face_sims)) / num_frames if num_frames else 0.0
+        id_sim_mean_zerofill = float(np.sum(face_sims)) / num_valid_frames if num_valid_frames else 0.0
         id_sim_max = float(np.max(face_sims)) if face_sims else 0.0
 
         clip_embedding = None
@@ -192,9 +222,10 @@ class VideoFaceDetector:
             id_sim_mean=id_sim_mean,
             id_sim_mean_zerofill=id_sim_mean_zerofill,
             id_sim_max=id_sim_max,
-            face_present_rate=num_face_frames / num_frames if num_frames else 0.0,
+            face_present_rate=num_face_frames / num_valid_frames if num_valid_frames else 0.0,
             num_frames=num_frames,
             num_face_frames=num_face_frames,
+            num_degenerate_frames=num_degenerate_frames,
             clip_embedding=clip_embedding,
         )
 
@@ -203,7 +234,8 @@ class VideoFaceDetector:
         if not frames:
             return VideoFaceStats(
                 detected=False, id_sim_mean=0.0, id_sim_mean_zerofill=0.0, id_sim_max=0.0,
-                face_present_rate=0.0, num_frames=0, num_face_frames=0, clip_embedding=None,
+                face_present_rate=0.0, num_frames=0, num_face_frames=0, num_degenerate_frames=0,
+                clip_embedding=None,
             )
         return self._score_frames(frames)
 
@@ -216,7 +248,9 @@ class VideoFaceDetector:
         video_files = list_video_files(self.video_dir)
         if not video_files:
             print(f"No video files found in {self.video_dir}")
-            return self._summary(_PooledSums(), detected_count=0, total_videos=0, clips_without_face=0)
+            return self._summary(
+                _PooledSums(), detected_count=0, total_videos=0, clips_without_face=0, clips_degenerate=0
+            )
 
         paths = [os.path.join(self.video_dir, name) for name in video_files]
         if self.num_workers > 1 and len(paths) > 1:
@@ -227,6 +261,7 @@ class VideoFaceDetector:
         sums = _PooledSums()
         detected_count = 0
         clips_without_face = 0
+        clips_degenerate = 0
         for video_name, stats in zip(video_files, stats_list):
             sums.add(stats)
             if stats.detected:
@@ -234,11 +269,22 @@ class VideoFaceDetector:
                 detected_count += 1
             if stats.num_face_frames == 0:
                 clips_without_face += 1
+            if stats.num_degenerate_frames > 0:
+                clips_degenerate += 1
+                print(
+                    f"{video_name}: {stats.num_degenerate_frames}/{stats.num_frames} frames are "
+                    "blank/structureless (generation failure, not a real 'no face' measurement)"
+                )
 
-        return self._summary(sums, detected_count, len(video_files), clips_without_face)
+        return self._summary(sums, detected_count, len(video_files), clips_without_face, clips_degenerate)
 
     def _summary(
-        self, sums: _PooledSums, detected_count: int, total_videos: int, clips_without_face: int
+        self,
+        sums: _PooledSums,
+        detected_count: int,
+        total_videos: int,
+        clips_without_face: int,
+        clips_degenerate: int,
     ) -> dict[str, float]:
         face_conditioned = sums.face_conditioned_mean()
         return {
@@ -251,6 +297,8 @@ class VideoFaceDetector:
             "face_present_rate": sums.face_present_rate(),
             "videos_with_identity": detected_count,
             "clips_without_face": clips_without_face,
+            "clips_degenerate": clips_degenerate,
+            "degenerate_frame_rate": sums.degenerate_frame_rate(),
             "total_videos": total_videos,
         }
 

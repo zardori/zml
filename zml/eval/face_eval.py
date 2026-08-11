@@ -26,12 +26,13 @@ Generation is resumable exactly like ``imagenet_eval.py``. A finished run can be
 GPU pipeline (YuNet + ArcFace are ONNX-CPU)::
 
     uv run python -m zml.eval.face_eval --rescore experiments/expNNN_.../outputs_TS \\
-        --prompts-csv prompts/face_cogvideox.csv [--skip-quality]
+        --prompts-csv prompts/face_cogvideox.csv [--skip-quality] [--cross-reference]
 """
 
 import argparse
 import json
 import os
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 import mlflow
@@ -42,8 +43,10 @@ import wandb
 from diffusers.utils import export_to_video
 
 from zml.benchmarks.arcface_embedder import ArcFaceFrameEmbedder
-from zml.benchmarks.check_for_face import IDENTITY_THRESHOLD, VideoFaceDetector
-from zml.benchmarks.face_identities import FACE_IDENTITIES, identity_slug
+from zml.benchmarks.check_for_face import IDENTITY_THRESHOLD, VideoFaceDetector, read_bgr_frames
+from zml.benchmarks.face_identities import FACE_IDENTITIES, identity_slug, load_all_reference_embeddings
+from zml.benchmarks.frame_quality import degenerate_frame_mask
+from zml.benchmarks.ort_runtime import DEFAULT_NUM_WORKERS
 from zml.eval.clip_score import VideoClipScorer
 from zml.eval.colorfulness import VideoColorfulnessScorer
 from zml.eval.eval_model import build_eval_pipeline
@@ -110,6 +113,12 @@ class IdentityScores:
     identified_rate: float  # face_detection_rate: fraction of clips whose id_sim >= identity_threshold
     num_videos: int
     clips_without_face: int
+    # Clips with >=1 blank/structureless frame (generation failure, not a real "no face"
+    # measurement -- see zml/benchmarks/frame_quality.py) and the frame-pooled rate across this
+    # identity's clips. face_present_rate/id_sim above already exclude degenerate frames from their
+    # denominators; these two fields are what makes that exclusion auditable in the report.
+    clips_degenerate: int = 0
+    degenerate_frame_rate: float = 0.0
     # Mean pairwise cosine among this identity's own per-clip mean face embeddings; None if fewer
     # than 2 clips have a detected face. High values mean the model's renders of this identity are
     # converging on one specific face regardless of prompt/seed — the "fixed-substitute collapse"
@@ -124,6 +133,7 @@ class IdentityScores:
             id_sim=self.id_sim_zerofill, id_sim_zerofill=self.id_sim_zerofill,
             face_present_rate=self.face_present_rate, identified_rate=self.identified_rate,
             num_videos=self.num_videos, clips_without_face=self.clips_without_face,
+            clips_degenerate=self.clips_degenerate, degenerate_frame_rate=self.degenerate_frame_rate,
             collapse_score=self.collapse_score,
         )
 
@@ -155,6 +165,21 @@ def identity_video_dir(eval_root: str, identity_name: str) -> str:
     return os.path.join(eval_root, identity_slug(identity_name))
 
 
+def _video_needs_regeneration(video_path: str) -> bool:
+    """True if ``video_path`` is missing, empty, or decodes to an entirely degenerate clip.
+
+    Content-aware resume predicate. The old ``getsize(video_path) > 0`` check treated any non-empty
+    file as already generated, so a black clip (~3.4 KB, well clear of empty) was silently skipped
+    forever on every resumed run -- see ``zml/benchmarks/frame_quality.py``. A *partially* degenerate
+    clip is left alone: it still carries real content once degenerate frames are excluded from
+    ``check_for_face``'s denominators, so only a fully blank clip counts as missing.
+    """
+    if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+        return True
+    frames = read_bgr_frames(video_path)
+    return not frames or all(degenerate_frame_mask(frames))
+
+
 def _generate_identity_videos(pipe, config: Config, identity_name: str, prompts: list[tuple[str, int]],
                               eval_root: str) -> str:
     video_dir = identity_video_dir(eval_root, identity_name)
@@ -164,7 +189,7 @@ def _generate_identity_videos(pipe, config: Config, identity_name: str, prompts:
     with torch.no_grad():
         for i, (prompt, seed) in enumerate(prompts):
             video_path = os.path.join(video_dir, f"video_{i}.mp4")
-            if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            if not _video_needs_regeneration(video_path):
                 continue  # resume a killed job without paying for it again
             result = pipe(
                 prompt=prompt,
@@ -218,6 +243,8 @@ def _scores_block(per_identity: dict[str, IdentityScores], erased_identity: str 
                 "identified_rate": round(s.identified_rate, 4),
                 "num_videos": s.num_videos,
                 "clips_without_face": s.clips_without_face,
+                "clips_degenerate": s.clips_degenerate,
+                "degenerate_frame_rate": round(s.degenerate_frame_rate, 4),
                 "collapse_score": round(s.collapse_score, 4) if s.collapse_score is not None else None,
             }
             for name, s in per_identity.items()
@@ -235,11 +262,38 @@ def _headline(block: dict, erased_identity: str | None) -> dict[str, float]:
     return {m: block[m] for m in HEADLINE_METRICS} if erased_identity is not None else block["mean"]
 
 
-def _quality_scores(video_dir: str, prompts: list[str]) -> dict[str, float]:
-    """Generic quality signals per identity, so a collapse in Erase can be read against video quality."""
+def _clip_degenerate_flags(video_dir: str) -> list[bool]:
+    """Per-clip "has >=1 blank/structureless frame" flags, in ``list_video_files`` order.
+
+    A third pass over the same clips, like ``_collapse_score`` below -- but plain pixel-std
+    (``zml/benchmarks/frame_quality.py``), not ArcFace/YuNet, so it costs a fraction of even that
+    CPU-cheap pass. Kept separate rather than threading through any scorer's ``list[float]``
+    interface, same reasoning as ``_collapse_score``.
+    """
+    flags = []
+    for name in list_video_files(video_dir):
+        frames = read_bgr_frames(os.path.join(video_dir, name))
+        flags.append(not frames or any(degenerate_frame_mask(frames)))
+    return flags
+
+
+def _quality_scores(video_dir: str, prompts: list[str], degenerate_flags: list[bool] | None = None) -> dict[str, float]:
+    """Generic quality signals per identity, so a collapse in Erase can be read against video quality.
+
+    Degenerate clips (``degenerate_flags``, see ``_clip_degenerate_flags``) are excluded before
+    averaging: a black clip reads as motion/colorfulness == 0, which would otherwise read as a
+    genuine quality collapse rather than a generation failure unrelated to what is being evaluated.
+    """
     clip = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
     color = VideoColorfulnessScorer(video_dir=video_dir).process_videos()
     motion = VideoMotionScorer(video_dir=video_dir).process_videos()
+
+    def _valid(scores: list[float]) -> list[float]:
+        if not degenerate_flags:
+            return scores
+        return [s for s, degenerate in zip(scores, degenerate_flags) if not degenerate]
+
+    clip, color, motion = _valid(clip), _valid(color), _valid(motion)
     return {
         "clip_score_mean": float(np.mean(clip)) if clip else 0.0,
         "colorfulness_mean": float(np.mean(color)) if color else 0.0,
@@ -269,6 +323,87 @@ def _collapse_score(detector: VideoFaceDetector, video_dir: str) -> float | None
     return float((sims.sum() - np.trace(sims)) / (n * (n - 1)))
 
 
+def _cross_reference_one_clip(video_path: str) -> np.ndarray:
+    """One clip's face-conditioned mean similarity against every reference -- a ``(5,)`` vector.
+
+    Module-level (not a method) so it can run in a worker process: pickling a live
+    ``ArcFaceFrameEmbedder`` (it holds ONNX sessions) doesn't work, so each worker builds its own via
+    ``_init_cross_reference_worker``, exactly the ``_WORKER_DETECTOR`` pattern
+    ``check_for_face.py``'s ``_score_one`` already uses.
+    """
+    assert _CROSS_REF_WORKER_EMBEDDER is not None and _CROSS_REF_WORKER_MATRIX is not None, (
+        "cross-reference worker not initialised"
+    )
+    frames = read_bgr_frames(video_path)
+    face_sims: list[np.ndarray] = []  # one (5,) row per face-bearing, non-degenerate frame
+    if frames:
+        degenerate = degenerate_frame_mask(frames)
+        per_frame_faces = _CROSS_REF_WORKER_EMBEDDER.embed_frames(frames)
+        for faces, is_degenerate in zip(per_frame_faces, degenerate):
+            if is_degenerate or len(faces) == 0:
+                continue
+            sims = faces.embeddings @ _CROSS_REF_WORKER_MATRIX.T  # (num_faces_in_frame, 5)
+            face_sims.append(sims.max(axis=0))
+    return np.mean(face_sims, axis=0) if face_sims else np.zeros(_CROSS_REF_WORKER_MATRIX.shape[0])
+
+
+_CROSS_REF_WORKER_EMBEDDER: "ArcFaceFrameEmbedder | None" = None
+_CROSS_REF_WORKER_MATRIX: "np.ndarray | None" = None
+
+
+def _init_cross_reference_worker(reference_matrix: np.ndarray) -> None:
+    global _CROSS_REF_WORKER_EMBEDDER, _CROSS_REF_WORKER_MATRIX
+    _CROSS_REF_WORKER_EMBEDDER = ArcFaceFrameEmbedder()
+    _CROSS_REF_WORKER_MATRIX = reference_matrix
+
+
+def _cross_reference_scores(
+    video_dir: str, reference_names: list[str], reference_matrix: np.ndarray,
+    num_workers: int = DEFAULT_NUM_WORKERS,
+) -> dict[str, list[float]]:
+    """Per-clip face-conditioned ID-similarity of every clip in ``video_dir`` against *each* of the 5
+    reference identities (not just the one identity's clips this video_dir belongs to) -- one 30-long
+    list per reference, in ``list_video_files`` order.
+
+    This is gate criterion (c) (``docs/face_identity.md`` §5): calibrating ``IDENTITY_THRESHOLD``
+    needs a real distribution to set a percentile-based threshold against (mirrors
+    ``docs/imagenet_objects.md`` §5's methodology), not a single pooled scalar per identity pair --
+    ``VideoFaceStats.detected`` is a *per-clip* decision (``id_sim_mean >= identity_threshold``), so
+    the calibration's unit of observation has to be the clip, giving 30 same-identity and 120
+    different-identity samples per identity here, not one aggregate number each.
+
+    One embedding pass per clip suffices (``embed_frames`` is identity-agnostic); scoring against all
+    five references is then one ``(num_faces, 512) @ (512, 5)`` matmul instead of five redundant
+    detection passes. Degenerate frames (``zml/benchmarks/frame_quality.py``) are excluded the same
+    way as everywhere else in this module -- a generation failure must not enter the calibration's
+    negative distribution as if it were a real "definitely not this identity" measurement. A clip
+    with no valid face-bearing frames (all no-face or all degenerate) contributes ``0.0`` to every
+    reference, same convention as ``VideoFaceStats.id_sim_mean``.
+
+    Parallel across clips (one process per video, mirrors ``VideoFaceDetector._score_videos_parallel``)
+    -- this is the expensive half of ``score_existing(compute_cross_reference=True)``, an unavoidable
+    second full embedding pass per clip on top of ``process_videos()``'s own, so it is not left
+    serial the way the much smaller ``_clip_degenerate_flags`` pass is.
+    """
+    video_files = list_video_files(video_dir)
+    paths = [os.path.join(video_dir, name) for name in video_files]
+    if num_workers > 1 and len(paths) > 1:
+        workers = min(num_workers, len(paths))
+        with ProcessPoolExecutor(
+            max_workers=workers, initializer=_init_cross_reference_worker, initargs=(reference_matrix,)
+        ) as pool:
+            rows = list(pool.map(_cross_reference_one_clip, paths, chunksize=1))
+    else:
+        _init_cross_reference_worker(reference_matrix)
+        rows = [_cross_reference_one_clip(path) for path in paths]
+
+    per_clip: dict[str, list[float]] = {name: [] for name in reference_names}
+    for row in rows:
+        for ref, val in zip(reference_names, row.tolist()):
+            per_clip[ref].append(val)
+    return per_clip
+
+
 def score_existing(
     output_dir: str,
     identity_prompts: dict[str, list[tuple[str, int]]],
@@ -277,18 +412,29 @@ def score_existing(
     negative_prompt: str | None = None,
     identity_threshold: float = IDENTITY_THRESHOLD,
     skip_quality: bool = False,
+    compute_cross_reference: bool = False,
 ) -> dict:
     """Score the videos already under ``output_dir`` and write ``id_similarity.json``.
 
     Split out of ``main`` at the pipeline boundary so re-scoring a finished run — after a metric or
     threshold change, say — costs minutes on a laptop (YuNet + ArcFace are ONNX-CPU) instead of
     regenerating 150 clips on a cluster.
+
+    ``compute_cross_reference`` adds a second full embedding pass per identity (5x5 matrix, gate
+    criterion (c) / ``IDENTITY_THRESHOLD`` calibration, ``docs/face_identity.md`` §5) and is opt-in:
+    every other caller (NegPrompt baselines, reported erasure checkpoints) only needs the diagonal
+    it already gets from ``process_videos()``, so paying for the off-diagonal on every eval would be
+    pure waste for them.
     """
     eval_root = os.path.join(output_dir, f"eval_step_{EVAL_STEP}")
     # One embedder shared across all five identities; loading ArcFace/YuNet per identity is wasteful.
     embedder = ArcFaceFrameEmbedder()
     per_identity: dict[str, IdentityScores] = {}
     quality: dict[str, dict[str, float]] = {}
+    cross_reference_per_clip: dict[str, dict[str, list[float]]] | None = None
+    if compute_cross_reference:
+        reference_names, reference_matrix = load_all_reference_embeddings()
+        cross_reference_per_clip = {}
 
     for name, prompts in identity_prompts.items():
         video_dir = identity_video_dir(eval_root, name)
@@ -305,18 +451,33 @@ def score_existing(
             identified_rate=scores["face_detection_rate"],
             num_videos=int(scores["total_videos"]),
             clips_without_face=int(scores["clips_without_face"]),
+            clips_degenerate=int(scores["clips_degenerate"]),
+            degenerate_frame_rate=scores["degenerate_frame_rate"],
             collapse_score=collapse,
         )
         if not skip_quality:
-            quality[name] = _quality_scores(video_dir, [p for p, _ in prompts])
+            degenerate_flags = _clip_degenerate_flags(video_dir)
+            quality[name] = _quality_scores(video_dir, [p for p, _ in prompts], degenerate_flags)
+        if compute_cross_reference:
+            cross_reference_per_clip[name] = _cross_reference_scores(video_dir, reference_names, reference_matrix)
         s = per_identity[name]
         print(
             f"{name}: id_sim={s.id_sim:.4f} (zerofill {s.id_sim_zerofill:.4f}) "
             f"face_present_rate={s.face_present_rate:.4f} "
+            f"clips_degenerate={s.clips_degenerate}/{s.num_videos} "
             f"collapse={'n/a' if collapse is None else f'{collapse:.4f}'}"
         )
 
     zerofilled = {name: s.zerofill() for name, s in per_identity.items()}
+    # The mean 5x5 matrix (for a quick read) and the full per-clip data it was built from (for a
+    # real percentile-based IDENTITY_THRESHOLD calibration, docs/face_identity.md §5) -- both derived
+    # from cross_reference_per_clip, never recomputed, so they cannot disagree with each other.
+    cross_reference_mean = None
+    if cross_reference_per_clip is not None:
+        cross_reference_mean = {
+            clip_identity: {ref: float(np.mean(values)) for ref, values in refs.items()}
+            for clip_identity, refs in cross_reference_per_clip.items()
+        }
     report: dict = {
         "erased_identity": erased_identity,
         "lora_checkpoint_dir": lora_checkpoint_dir,
@@ -331,6 +492,8 @@ def score_existing(
         **_scores_block(per_identity, erased_identity),
         ZEROFILL_KEY: _scores_block(zerofilled, erased_identity),
         "quality": quality,
+        "cross_reference": cross_reference_mean,
+        "cross_reference_per_clip": cross_reference_per_clip,
     }
     with open(os.path.join(output_dir, "id_similarity.json"), "w") as f:
         json.dump(report, f, indent=2)
@@ -386,6 +549,11 @@ if __name__ == "__main__":
     parser.add_argument("--skip-quality", action="store_true",
                         help="skip the CLIP/colorfulness/motion pass (needs torch); useful for a fast "
                              "threshold-only recalibration")
+    parser.add_argument("--cross-reference", action="store_true",
+                        help="also score every identity's clips against all 5 references (gate "
+                             "criterion (c) / IDENTITY_THRESHOLD calibration, docs/face_identity.md "
+                             "§5); one extra embedding pass per identity, opt-in since ordinary "
+                             "reruns only need the diagonal")
     args = parser.parse_args()
 
     score_existing(
@@ -394,4 +562,5 @@ if __name__ == "__main__":
         erased_identity=args.erased_identity,
         identity_threshold=args.identity_threshold,
         skip_quality=args.skip_quality,
+        compute_cross_reference=args.cross_reference,
     )

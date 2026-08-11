@@ -34,7 +34,8 @@ import torch
 import wandb
 from diffusers.utils import export_to_video
 
-from zml.benchmarks.check_for_object import VideoObjectDetector
+from zml.benchmarks.check_for_object import VideoObjectDetector, read_bgr_frames
+from zml.benchmarks.frame_quality import degenerate_frame_mask
 from zml.benchmarks.imagenet_classes import IMAGENETTE_CLASSES, IMAGENETTE_INDICES, class_slug
 from zml.benchmarks.imagenet_classifier import ImageNetFrameClassifier
 from zml.eval.clip_score import VideoClipScorer
@@ -135,6 +136,19 @@ def class_video_dir(eval_root: str, class_name: str) -> str:
     return os.path.join(eval_root, class_slug(class_name))
 
 
+def _video_needs_regeneration(video_path: str) -> bool:
+    """True if ``video_path`` is missing, empty, or decodes to an entirely degenerate clip.
+
+    Content-aware resume predicate, mirrors ``face_eval._video_needs_regeneration``. The old
+    ``getsize(video_path) > 0`` check treated any non-empty file as already generated, so a blank
+    clip (see ``zml/benchmarks/frame_quality.py``) was silently skipped forever on every resumed run.
+    """
+    if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+        return True
+    frames = read_bgr_frames(video_path)
+    return not frames or all(degenerate_frame_mask(frames))
+
+
 def _generate_class_videos(pipe, config: Config, class_name: str, prompts: list[tuple[str, int]],
                            eval_root: str) -> str:
     video_dir = class_video_dir(eval_root, class_name)
@@ -144,7 +158,7 @@ def _generate_class_videos(pipe, config: Config, class_name: str, prompts: list[
     with torch.no_grad():
         for i, (prompt, seed) in enumerate(prompts):
             video_path = os.path.join(video_dir, f"video_{i}.mp4")
-            if os.path.exists(video_path) and os.path.getsize(video_path) > 0:
+            if not _video_needs_regeneration(video_path):
                 continue  # resume a killed job without paying for it again
             result = pipe(
                 prompt=prompt,

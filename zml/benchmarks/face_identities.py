@@ -118,6 +118,20 @@ def load_reference_embedding(name: str) -> np.ndarray:
     return vec
 
 
+def load_all_reference_embeddings() -> tuple[list[str], np.ndarray]:
+    """Every identity's reference embedding, stacked -- ``(names, (5, 512) matrix)``, ``FACE_IDENTITIES``
+    order (matches the paper's Table 3 column order).
+
+    For scoring one clip against all five references at once (the 5x5 cross-reference matrix,
+    ``docs/face_identity.md`` §5) rather than looking each identity up individually: a clip's
+    embeddings only need to go through ``ArcFaceFrameEmbedder.embed_frames`` once, then
+    ``embeddings @ matrix.T`` scores every reference in one matmul.
+    """
+    names = list(FACE_IDENTITIES)
+    matrix = np.stack([load_reference_embedding(name) for name in names])
+    return names, matrix
+
+
 def sha256_of_file(path: str) -> str:
     """sha256 of a local file's bytes, for cross-checking against a manifest's recorded model hash."""
     digest = hashlib.sha256()

@@ -87,7 +87,7 @@ independent numbers (the per-identity Originals), not ten.
 | Erasure method | theirs, η = 5.0 | frame_replace, η = 2 (matching exp080's regime) | Different method; η is not the same parameter |
 | Retention anchor | one randomly-chosen remaining identity (unpublished draw) | all four remaining identities + a 10-prompt generic-face set | Reproducible and less noisy; a stronger constraint, so a good Preserve number here is not drop-in comparable to theirs |
 | Baselines | none for faces | Original + **NegPrompt** + ours | Their Table 3 has no baseline column at all |
-| Coverage | 5 identities | **2-identity pilot** (Obama + Merkel expected, pending exp090); the base row covers all 5 regardless | Repo rule: no grid before the method is proven |
+| Coverage | 5 identities | **2-identity pilot** (**Obama + Queen Elizabeth II**, confirmed by exp090; superseded the pre-run guess of Obama + Merkel — see §6); the base row covers all 5 regardless | Repo rule: no grid before the method is proven |
 
 ### 3.1 The no-face convention
 
@@ -111,9 +111,42 @@ report **two conventions, always both**:
   contributes 0 to the mean. Monotone in "identity signal removed," so ungameable, but conflates "no
   face" with "wrong face."
 
-**Hard reporting rule**: no Erase or Preserve number is citable without `face_present_rate` for the
-same set. A low Erase ID-sim alongside a collapsed face-presence rate is degradation, not erasure —
-and the same signal on the *preserved* identities is a fail regardless of what their ID-sim reads.
+**Hard reporting rule**: no Erase or Preserve number is citable without `face_present_rate` **and
+`clips_degenerate`** for the same set (§3.2). A low Erase ID-sim alongside a collapsed face-presence
+rate is degradation, not erasure — and the same signal on the *preserved* identities is a fail
+regardless of what their ID-sim reads.
+
+### 3.2 Degenerate frames — a generation failure is not a "no-face" measurement
+
+Distinct from §3.1: a no-face frame means the model rendered something and no face is in it. A
+**degenerate** frame means the model rendered nothing at all — CogVideoX occasionally emits a
+solid-black or otherwise structureless clip (a bf16/VAE-tiling numerical failure, not a caught
+exception: generation succeeds, the mp4 is written normally, nothing in the pipeline notices).
+Found via exp090: 11 of 150 base-model clips had at least one degenerate frame (7 fully black),
+distributed unevenly across identities (Angela Merkel 4, Donald Trump 4, Joe Biden 2, Queen
+Elizabeth II 1) — enough to bias `face_present_rate` and the pilot-identity comparison if silently
+averaged in as real measurements.
+
+`zml/benchmarks/frame_quality.is_degenerate_frame` flags a frame by pixel-intensity standard
+deviation, **not** brightness — many legitimate frames are very dark without being blank (one
+exp090 clip, prompt "...dimly lit...", has mean luma 17.6 with the subject clearly visible; its
+minimum per-frame std, 10.73, sits comfortably clear of the calibrated threshold, `DEGENERATE_FRAME_STD
+= 5.0`). Degenerate frames are excluded from `face_present_rate` and the zero-filled convention's
+denominator the same way a no-face frame is excluded from the face-conditioned mean — undefined, not
+zero — and from the `quality` block's colorfulness/motion means, which would otherwise read a
+generation failure as a genuine quality collapse. `id_similarity.json`'s `per_identity` block reports
+`clips_degenerate` and `degenerate_frame_rate` per identity so this is auditable, not silent.
+
+**Known limitation**: one exp090 clip (`queen_elizabeth_ii/video_17`) is corrupted differently — two
+flat colour bands, not a single constant value — so it has high pixel std despite carrying no real
+content and is not caught. No cheap per-frame statistic separates that case from a legitimately busy
+frame without risking false positives on real clips; it is a human-review / DOVER catch, not a gap
+worth chasing with the detector (same policy [`imagenet_objects.md`](imagenet_objects.md) §3.1
+follows for the ranking-convention ambiguity).
+
+The resume predicate in `face_eval.py`/`imagenet_eval.py` (`_video_needs_regeneration`) is
+content-aware for exactly this reason: the old `getsize() > 0` check treated a ~3.4 KB black clip as
+already generated and would have skipped it forever on every resumed run.
 
 ## 4. Implementation
 
@@ -278,12 +311,24 @@ prompt and confirming the script aborts.
 
 ## 5. Knobs and their failure modes
 
-- **`identity_threshold`** (`check_for_face.IDENTITY_THRESHOLD`, currently an explicit
-  **uncalibrated placeholder**, 0.30) — gates `face_detection_rate` only, never the published
-  Erase/Preserve metric. Calibrate from exp090's 5×5 cross-reference matrix (every identity's clips
-  scored against all five references, not just their own) against the negative distribution, exactly
-  as [`imagenet_objects.md`](imagenet_objects.md) §5 calibrates `frame_concept_threshold`. Do not
-  trust `face_detection_rate` from any run before this is set for real.
+- **`identity_threshold`** (`check_for_face.IDENTITY_THRESHOLD`) — gates `face_detection_rate` only,
+  never the published Erase/Preserve metric. **Calibrated 2026-08-11, 0.23** (was an explicit
+  uncalibrated placeholder, 0.30), from exp090's 5×5 cross-reference matrix — every identity's 30
+  clips scored against all five references (`zml.eval.face_eval._cross_reference_scores`, one
+  face-conditioned per-clip mean per reference pair, degenerate frames excluded the same way as
+  everywhere else), giving 150 same-identity and 600 different-identity samples:
+
+  | | same-identity (n=150) | different-identity (n=600) |
+  |---|---|---|
+  | p25 / p50 / p75 | 0.253 / 0.379 / 0.492 | — |
+  | p99 / p99.9 / max | — | 0.108 / 0.184 / 0.226 |
+
+  `0.23` sits just above the observed negative ceiling (0.226): **FPR = 0.0%, TPR = 78.0%** — a
+  similar trade to [`imagenet_objects.md`](imagenet_objects.md) §5's own chain-saw calibration
+  (64.7% TPR at FPR = 0%). Full per-identity/per-reference matrix and the raw per-clip data are in
+  `experiments/exp090_eval_base_face/outputs_20260808_180400/id_similarity.json`'s
+  `cross_reference` / `cross_reference_per_clip` keys. `face_detection_rate` is trustworthy as a
+  live-training signal as of this calibration.
 - **`det_threshold` / `min_face_px`** (`ArcFaceFrameEmbedder`) — both trade `face_present_rate`
   against embedding reliability, and both move every downstream number. The reference-embedding
   builder (§4.2) deliberately uses a much lower `min_face_px` (8, vs. the video-frame default 48):
@@ -313,18 +358,22 @@ prompt and confirming the script aborts.
 
 | exp | what | status |
 |---|---|---|
-| exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate + `identity_threshold` source | ready, not yet submitted |
-| exp091 | NegPrompt baseline, 2 pilot identities | ready, blocked on exp090 |
-| exp092 / exp093 | split-prompt + whole-clip datasets, Obama / Merkel | ready, blocked on exp090 |
-| exp094 | preservation anchors (5×3 identity + 10 generic) | ready, not yet submitted |
+| exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate | **done**, gate (a)/(b) pass — see `experiments/exp090_eval_base_face/notes.md`. Gate (c) (5×5 matrix) and `identity_threshold` calibration still open, §5. |
+| exp091 | NegPrompt baseline, 2 pilot identities | ready, retargeted to Obama + Elizabeth |
+| exp092 | split-prompt + whole-clip dataset, Obama | ready, unaffected by the pilot-identity correction |
+| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess; `experiments/exp093_split_face_merkel_dataset/` renamed to `exp093_split_face_elizabeth_dataset/`, `prompts/split_face_queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
+| exp094 | preservation anchors (5×3 identity + 10 generic) | ready, unaffected — already covers all 5 identities |
 | exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | ready, blocked on exp092/exp094 |
-| exp096 | frame_replace erasure of Merkel, `target_variant` fixed to exp095's winner | ready, blocked on exp093/exp094/exp095 |
-| exp097 / exp098 | reported ID-Similarity for the two checkpoints | ready, blocked on exp095/exp096 |
+| exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner | ready (renamed from `exp096_frame_replace_merkel/`), blocked on exp093/exp094/exp095 |
+| exp097 / exp098 | reported ID-Similarity for the two checkpoints | ready (exp098 renamed from `exp098_eval_frame_replace_merkel/`), blocked on exp095/exp096 |
 
-Nothing in this axis has been submitted yet; exp090 is the hard gate everything else waits on (§2,
-§5). Reference embeddings, eval prompt fetch, model weight fetch, the detector/embedder, and the
-anti-cheat check are all built and locally verified end-to-end (CPU-only, no GPU needed) — see the
-plan's verification log for the specific checks run.
+exp090 has run and passed its gate; exp091/093/096/098 have been retargeted from the pre-run Obama +
+Merkel guess to the confirmed Obama + Queen Elizabeth II pair. `prompts/split_face_angela_merkel.csv`
+and `prompts/face_identities/angela_merkel.csv` are untouched — Merkel remains a valid protocol
+identity in every 5-identity eval/preservation set, just no longer a pilot erase target. Reference
+embeddings, eval prompt fetch, model weight fetch, the detector/embedder, and the anti-cheat check are
+all built and locally verified end-to-end (CPU-only, no GPU needed) — see the plan's verification log
+for the specific checks run.
 
 ## 7. Cost of the remaining three identities
 

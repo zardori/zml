@@ -4,8 +4,8 @@ concept: face
 method: eval
 thread: face_identity
 takeaway: >
-  NegPrompt baseline for the 2 pilot identities — the training-free bar our method has to beat.
-  Blocked on exp090 (identity choice + gate). Not yet submitted.
+  NegPrompt baseline for the 2 pilot identities (Obama + Queen Elizabeth II, confirmed by exp090) —
+  the training-free bar our method has to beat. Not yet submitted.
 ---
 # exp091 — NegPrompt baseline (face identity)
 
@@ -22,9 +22,11 @@ exactly one difference: `negative_prompt: auto`, which resolves to each grid arm
 — the model is told not to render that person's name, for every one of that identity's own 30
 prompts. No training, no LoRA.
 
-`erased_identity: ["Barack Obama", "Angela Merkel"]` grids into two jobs, one per pilot identity.
-**Confirm these two match exp090's actual pilot-identity decision before submitting** — the value
-here is a placeholder pending that run.
+`erased_identity: ["Barack Obama", "Queen Elizabeth II"]` grids into two jobs, one per pilot identity
+— exp090's actual gate numbers (not the pre-run Obama + Merkel guess) picked this pair: Obama is the
+highest-id_sim identity, Merkel the lowest (and the most degenerate-clip-affected — see exp090's
+notes.md), so Elizabeth (next-highest, and demographically distinct from Obama) is the corrected
+second pilot identity.
 
 ## What to watch
 - **Erase vs Preserve, not Erase alone.** `zml.eval.face_eval.score_existing` still scores all 5
@@ -44,7 +46,7 @@ here is a placeholder pending that run.
 The number our frame_replace checkpoints (exp095–exp098) must beat.
 
 ## Status
-- [ ] exp090 complete; pilot identities confirmed and `erased_identity` updated if different from
-      the Obama/Merkel placeholder.
+- [x] exp090 complete; pilot identities confirmed as Obama + Queen Elizabeth II (`erased_identity`
+      updated from the Obama/Merkel placeholder).
 - [ ] Submitted.
 - [ ] Compared against exp090 on Erase, Preserve, and quality — not Erase alone.

@@ -5,7 +5,7 @@ method: frame_replace_split/precompute
 thread: face_identity
 takeaway: >
   Split-prompt frame_replace dataset for Barack Obama, 30 triples (seeds 7401-7430), with the
-  whole-clip target variant emitted alongside. Blocked on exp090's pilot-identity confirmation.
+  whole-clip target variant emitted alongside. Confirmed as the first pilot identity by exp090.
   Not yet submitted.
 ---
 # exp092 — split-prompt frame_replace dataset for Barack Obama
@@ -66,7 +66,7 @@ Feeds exp095 (`target_variant: [split, wholeclip]` grid) — fill its `metadata_
 with this run's `outputs_{timestamp}`.
 
 ## Status
-- [ ] exp090 confirms Obama as a pilot identity (expected, pending that run).
+- [x] exp090 confirms Obama as a pilot identity (highest base-model id_sim of all five).
 - [ ] Submitted.
 - [ ] Dataset reviewed — splice quality and whole-clip quality, separately (see What to watch).
 - [ ] `split_step_frac` sweep decided: keep 0.5, or sweep 0.4/0.5/0.6.
