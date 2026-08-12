@@ -8,8 +8,10 @@ takeaway: >
   clothing implausibly baggy or skin-toned — traced to B prompts written to satisfy "no bare skin
   visible", which selects for shapeless coverage. 200 triples (8 wardrobe categories x 25, seeds
   3801-4000) named positively and specifically, bulk and skin-adjacent wardrobe banned at build
-  time. Sized to be selected from: at exp078's 26% review yield this gives ~50 usable triples
-  against exp080's 34. 4 sharded jobs. Feeds a successor to exp108.
+  time. DONE: 100 of 200 kept (50%), against exp078's 26% — the realism rewrite nearly doubled
+  yield, and 100 targets is 3.2x exp080's filtered 31. Category survival 36-64%, mild enough that no
+  gen5 rebalance is warranted. Detector confidence stayed uncorrelated with review. Feeds the two
+  training runs that follow exp108.
 ---
 # exp109 — gen4 nudity dataset, realistic wardrobe
 
@@ -101,12 +103,66 @@ means regenerate, not proceed. exp079 became 55% skin precisely by ranking the w
 quality and keeping the top N. Write the filtered metadata to the **experiment root**, never under
 `outputs_*/`, which is gitignored and would never reach the cluster.
 
+## Results (2026-08-11) — 100 of 200 kept
+
+| run | shard | kept |
+|---|---|---|
+| run_001 | part1 | 28/50 (56%) |
+| run_002 | part2 | 25/50 (50%) |
+| run_003 | part3 | 20/50 (40%) |
+| run_004 | part4 | 27/50 (54%) |
+| **total** | | **100/200 (50%)** |
+
+**50% against exp078's 26%** — the realistic-wardrobe prompts nearly doubled the yield, and 100
+usable triples is 3.2x the 31 that survive in exp080's filtered dataset. For the first time the
+training set is not the binding constraint.
+
+Per-run filtered metadata sits at this experiment's root as `metadata_human_filtered_run00N.json`
+(git-tracked; the `grid_*/run_*/outputs/` originals are gitignored and would never reach the cluster
+— note `tools/filter_retention_metadata.py`'s default output path assumes the single-run
+`outputs_*/` layout and lands *inside* the ignored tree for grid runs, so `--output` must be passed
+explicitly here).
+
+### Category survival — mild, and not worth acting on
+
+| category | kept/gen | rate |
+|---|---|---|
+| formal_wear | 16/25 | 64% |
+| outerwear | 15/25 | 60% |
+| traditional | 14/25 | 56% |
+| knitwear | 12/25 | 48% |
+| workwear | 12/25 | 48% |
+| summer_light | 12/25 | 48% |
+| casual | 10/25 | 40% |
+| uniform | 9/25 | 36% |
+
+Structured garments (formal_wear, outerwear) hold the top two in all four runs, so there is a real
+effect — a tailored suit edits in more cleanly than a t-shirt. But the spread is only 36-64%, nothing
+collapsed, and the bottom of the ranking is unstable: after three runs casual looked like a clear
+outlier at 32% and run_004 returned 4/6 for it, ending at 40% with uniform lowest. **No rebalanced
+gen5 is warranted**, and the earlier "plain clothing is hardest" reading was over-claimed on n=19.
+
+### The detector remains unusable on these targets
+
+Across the four runs a large share of *accepted* clips trip `edited_max_confidence >= 0.2`, many at
+49/49 frames — the same signature that marked exp080's genuinely broken targets. Human review
+confirmed the gen4 ones are fine. The likeliest mechanism is that gen4 deliberately asks for
+**fitted** clothing (bulk was banned by design), and fitted fabric on a close-up torso gives NudeNet
+contours to fire on. Consequence: the score is *less* usable on gen4 than on gen1-gen3, and target
+screening stays fully manual. Third independent confirmation of
+[[feedback-detector-metrics-not-ground-truth]] in two days.
+
+The `MIN_OVERALL_KEEP_FRACTION` guard in `tools/filter_retention_metadata.py` refused run_003 at 40%.
+That threshold is calibrated for retention sets (exp104 yielded 97.5%), where a low keep rate means
+the prompts are wrong; split-prompt triples fail far more often by construction. Overridden with
+`--allow-skew` for run_003 only — a threshold mis-fit, not a signal about the review.
+
 ## Status
 - [x] Prompt set built, verified (200 rows, 8x25 balanced, no banned wardrobe, seeds 3801-4000 with
       no collision against gen1-gen3's 3103-3755).
 - [x] Sharded into 4 round-robin parts, each carrying all 8 categories.
-- [ ] Submitted (4 jobs).
-- [ ] Reviewed for wardrobe realism AND residual concept. Watch every clip — confidence sorting
-      catches the catastrophic cases only, and ranked the worst gen1-gen3 target third (see above).
-- [ ] Per-category survival recorded; filtered metadata written to the experiment root.
-- [ ] Merged into a training dataset and run against exp108's best weight.
+- [x] Submitted and complete (4 jobs).
+- [x] Reviewed clip by clip for wardrobe realism and residual concept; 100/200 kept.
+- [x] Per-category survival recorded; filtered metadata at the experiment root.
+- [ ] Merged into a training dataset (needs the cluster — latents live in four `run_*/outputs/latents`).
+- [ ] Trained against exp108's best `retention_weight`, gen4-only and gen4+exp080-filtered.
