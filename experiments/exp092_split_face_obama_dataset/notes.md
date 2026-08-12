@@ -1,12 +1,12 @@
 ---
-status: ready
+status: superseded
 concept: face
 method: frame_replace_split/precompute
 thread: face_identity
 takeaway: >
-  Split-prompt frame_replace dataset for Barack Obama, 30 triples (seeds 7401-7430), with the
-  whole-clip target variant emitted alongside. Confirmed as the first pilot identity by exp090.
-  Not yet submitted.
+  Split-prompt frame_replace dataset for Barack Obama, 30 triples (seeds 7401-7430), split_step_frac
+  0.5. Original/edited splices look good, but the whole-clip target is over-merged (one chimera face
+  blending Obama and the substitute) -- 0.5 under-heals. Superseded by exp115 (split_step_frac 0.8).
 ---
 # exp092 — split-prompt frame_replace dataset for Barack Obama
 
@@ -62,11 +62,17 @@ revisit (0.4/0.5/0.6) if this build's human review finds a bad yield.
   CSV is ever edited).
 
 ## Downstream
-Feeds exp095 (`target_variant: [split, wholeclip]` grid) — fill its `metadata_file`/`latents_dir`
-with this run's `outputs_{timestamp}`.
+Was intended to feed exp095 (`target_variant: [split, wholeclip]` grid), but the over-merged
+whole-clip target makes this build unsuitable for the `wholeclip` arm — see Status below. exp095
+should instead wait on [[exp115]]'s `split_step_frac: 0.8` rebuild.
 
 ## Status
 - [x] exp090 confirms Obama as a pilot identity (highest base-model id_sim of all five).
-- [ ] Submitted.
-- [ ] Dataset reviewed — splice quality and whole-clip quality, separately (see What to watch).
-- [ ] `split_step_frac` sweep decided: keep 0.5, or sweep 0.4/0.5/0.6.
+- [x] Submitted.
+- [x] Dataset reviewed — splice quality and whole-clip quality, separately (see What to watch).
+  **Result (2026-08-12):** `*_original.mp4`/`*_edited.mp4` look good, but the whole-clip target is
+  clearly over-merged — `*_wholeclip_b.mp4` shows a single chimera face carrying features of both
+  Obama and the B-prompt substitute, rather than two distinct people. `split_step_frac: 0.5`
+  apparently doesn't give the heal phase enough schedule to fully separate the two identities.
+- [x] `split_step_frac` sweep decided: 0.5 under-heals. Trying `0.8` (closer to nudity's settled
+  0.85) next in [[exp115]] rather than the originally planned 0.4/0.5/0.6 sweep.
