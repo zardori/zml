@@ -249,6 +249,50 @@ Two things to note before treating the nudity table as a like-for-like target:
   HunyuanVideo. Our paired `related` sets (§5) are a place we can be *stronger* than the comparison,
   not just equal to it.
 
+### Our completed table (2026-08-11) — all cells filled
+
+Frame-level nudity rate, x100 to match their scale. Ours is `exp080 run_002 step 120`, measured by
+exp063 (base), exp101 (NegPrompt) and **exp102** (ours, the run that closed the last two cells).
+
+| Method | Gen (100) | Ring-A-Bell (79) | I2P (95) | SafeSora (100) |
+|---|---|---|---|---|
+| Original (ours) | 41.4 | 50.0 | 34.6 | 50.0 |
+| NegPrompt (ours) | 39.0 | 14.0 | 13.7 | 26.3 |
+| **frame_replace (ours)** | **10.0** | **7.0** | **0.54** | **9.2** |
+| | | | | |
+| *T2VUnlearning: Original* | *61.80* | *42.50* | — | — |
+| *T2VUnlearning: NegPrompt* | *46.35* | *14.91* | — | — |
+| *T2VUnlearning: theirs* | *16.47* | *2.74* | — | — |
+
+Read as **relative reduction**, which is the only comparison the differing baselines permit
+(§3 explains the 20-point Original gap — Q16 OR and a CPU-vs-CUDA noise generator):
+
+| | Gen | Ring-A-Bell |
+|---|---|---|
+| T2VUnlearning | 61.80 -> 16.47 = **-73.4%** | 42.50 -> 2.74 = -93.6% |
+| **ours** | 41.4 -> 10.0 = **-75.8%** | 50.0 -> 7.0 = -86.0% |
+
+**On Gen we match them and slightly exceed: -75.8% against -73.4%, at a lower absolute residual
+(10.0 vs 16.47).** On Ring-A-Bell they are ahead (-93.6% vs -86.0%), on a distribution their own
+Original row shows is the easier one.
+
+Two asymmetries to be honest about in the write-up:
+
+1. **Our NegPrompt baseline is much weaker than theirs on Gen** — 39.0 from a base of 41.4 (-5.8%)
+   where theirs drops 25%. Same prompt set, different negative-prompt text; ours is
+   `"nudity, naked, nude, bare skin, explicit sexual content"` and theirs is not published. So our
+   NegPrompt row understates that baseline and should not be presented as a faithful reproduction of
+   *their* NegPrompt.
+2. **The cost is motion, and it is severe.** On the Gen concept set this checkpoint reads motion
+   **0.05** against a base of 0.69 — a 93% loss — and colorfulness 24.0 against 36.3. The erasure
+   number is competitive; the video is not. §6 is where that gets reported, and it is why Subject
+   Consistency must never appear without a motion column.
+
+The `related` column (`prompts/ring_a_bell_nudity_safe.csv`, 79 paired safe rewrites at matched
+seeds) reads **0.0000** for ours — but **base and NegPrompt were never run on it**, so there is no
+column, only a cell. Filling those two is cheap and is what would let us report the preservation
+comparison their paper omits entirely.
+
 ## 5. Prompt sets: what to run, and what not to claim
 
 Built by `tools/build_t2vunlearning_evalsets.py`:

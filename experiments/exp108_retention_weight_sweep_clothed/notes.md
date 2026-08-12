@@ -1,13 +1,15 @@
 ---
-status: ready
+status: active
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  Sweeps `retention_weight` [0.25, 0.5] on exp104's clothed anchors at eta 2.0, everything else
-  identical to exp105 run_002. exp105 measured the endpoints — fire anchors erase but kill motion,
-  clothed anchors at weight 1.0 hold motion but never erase — and nothing between them has been
-  tried. Asks whether a weight exists that erases while keeping the motion protection. 2 jobs.
+  NULL RESULT. There is no middle. Lowering clothed-retention weight restores erasure and hands back
+  exactly the motion protection it bought: at rate <=0.02, w0.5 reads motion 0.14 and fire retention
+  reads 0.14 — the same point. In the late window w1.0 (exp105) dominates both lower weights on
+  every axis at once (rate 0.290 vs 0.280/0.483, motion 0.162 vs 0.047/0.093, colour 32.9 vs 25.7),
+  so the sweep found nothing better than either endpoint. Clothed retention does not beat fire
+  retention at any weight; this is why exp110 uses fire.
 ---
 # exp108 — how much clothed retention?
 
@@ -75,8 +77,55 @@ reported method row, and [exp102](../exp102_eval_frame_replace_comparable_nudity
 [exp107](../exp107_vbench_utility_frame_replace/notes.md) get repointed at it — both are one-field
 changes, so the comparisons survive the swap.
 
+## Results (2026-08-11) — null, through step 180
+
+### There is no middle: the knob moves both things together
+
+At the first checkpoint reaching rate <=0.02 — the only fair way to compare, since the arms erase at
+different steps:
+
+| | first rate <=0.02 | motion there | colour |
+|---|---|---|---|
+| w0.25 | step 60 | 0.10 | 15.4 |
+| w0.5 | step 60 | **0.14** | 17.1 |
+| w1.0 (exp105 r2) | never | — | — |
+| **fire (exp080 r2)** | step 80 | **0.14** | 14.6 |
+
+w0.5's best point and fire retention's best point are **the same point**. Lowering the weight buys
+back erasure by giving up precisely the motion protection that made clothed anchors interesting.
+The hypothesis in the header — that some intermediate weight holds both — is false.
+
+### The late window says the same thing, more strongly
+
+Aggregated over steps 160-200 (base rate 0.41, motion 0.686, colour 36.3):
+
+| | rate | motion | colour |
+|---|---|---|---|
+| w0.25 | 0.280 +/-0.122 | 0.047 | 25.7 |
+| w0.5 | 0.483 +/-0.208 | 0.093 | 25.7 |
+| **w1.0 (exp105 r2)** | **0.290 +/-0.076** | **0.162** | **32.9** |
+| fire (exp080 r2) | 0.323 +/-0.035 | 0.060 | 31.7 |
+
+**w1.0 dominates both swept weights on every axis simultaneously** — equal-or-better rate, 1.7-3.4x
+the motion, and 7 points more colour. The sweep did not find a point between the endpoints; it found
+that both endpoints beat everything between them. w0.5 is also unstable, overshooting to 0.71 at
+step 180 — worse than the base model.
+
+### What survives
+
+exp105's distinctive operating point — *quality restored, nudity durably reduced ~30%* — is specific
+to **full-weight** clothed retention and does not appear at 0.25 or 0.5. It remains a real second
+operating point worth reporting as a Pareto pair, and it remains one that does not erase.
+
+## Consequence
+[exp110](../exp110_frame_replace_nudity_gen4/notes.md) uses **fire retention**, not clothed. Pairing
+the gen4 dataset with clothed anchors would have changed two things for no gain, and this run is why
+that decision is safe rather than a guess.
+
 ## Status
-- [ ] Submitted (2 jobs).
-- [ ] Rate-vs-motion frontier plotted against exp105 r2 and exp080 r2.
-- [ ] Late-phase (160-200) aggregate compared with exp105 r2's 0.290 +/- 0.076.
-- [ ] Human review of the best checkpoint.
+- [x] Submitted (2 jobs).
+- [x] Rate-vs-motion frontier read against exp105 r2 and exp080 r2 — **no improvement at any weight**.
+- [x] Late-phase (160-200) aggregate compared with exp105 r2's 0.290 +/- 0.076 — w1.0 dominates.
+- [ ] Runs finish (step 180/200 at time of writing); nothing expected to change.
+- [ ] DOVER scored locally if the arms are ever revisited (videos not pulled — no reason to).
+- ~~Human review of the best checkpoint~~ — no checkpoint here is worth reviewing.
