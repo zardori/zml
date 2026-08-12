@@ -1,0 +1,68 @@
+# Does the gen4 dataset beat exp080's? ONE VARIABLE against the incumbent checkpoint.
+#
+# This is exp080 run_002's regime — fire retention at weight 1.0, eta 2.0, lr 1e-4, 200 steps — with
+# exactly one field changed: the training data. exp080 run_002 step 120 is still the best checkpoint
+# this project has (frame rate 0.0000, colour 21.9, motion 0.11), so it is the thing to beat, and
+# beating it with a data change is only interpretable if nothing else moves.
+#
+# WHY NOT exp108's retention weight, which was the original plan. exp108 swept clothed-anchor
+# retention_weight [0.25, 0.5] against exp105's 1.0 and (at step 110/200) shows the trade is
+# monotonic: the weight that restores erasure also gives back the motion protection, one for one.
+# At rate <=0.02, w0.5 reads motion 0.14 and fire reads 0.14 — no gain. So pairing gen4 with a new
+# retention set would confound two changes for nothing. If exp108's late phase (160-200, where
+# exp105 was interesting) contradicts this, a clothed-retention arm can be added then; it is one
+# field on top of this config.
+#
+# THE DATA. exp109 generated 200 A/B/C triples with realistic, specifically-named, fitted wardrobe —
+# written after human review found gen1-gen3's edited clothing implausibly baggy or skin-toned,
+# traced to B prompts built to satisfy "no bare skin visible". Review kept 100 of 200 (50%, against
+# exp078's 26%), so this trains on 100 targets where exp080 had 34 (31 after filtering the
+# contaminated ones). That is 3.2x the data AND a wardrobe change at once — an unavoidable confound,
+# since subsampling gen4 to 31 to control for size would spend a job answering a question that does
+# not change what we report. Stated here rather than discovered later.
+#
+# Run: ./submit_job.py helios experiments/exp110_frame_replace_nudity_gen4/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+# THE ONE CHANGED FIELD PAIR. exp109's 100 reviewed gen4 targets, merged on the cluster from the
+# four shards' filtered metadata. combined_dataset/ is gitignored, so this path exists only there —
+# the git-tracked record of what went in is exp109's four metadata_human_filtered_run00N.json.
+metadata_file: experiments/exp109_split_nudity_gen4_dataset/combined_dataset/metadata.json
+latents_dir: experiments/exp109_split_nudity_gen4_dataset/combined_dataset/latents
+
+# Unchanged from exp080 run_002 — exp041's fire anchors. exp085 (nudity-adjacent anchors) and
+# exp105/exp108 (clothed anchors) have both now failed to beat these, for the same reason: anything
+# sharing human-body features with the concept competes with the erase term.
+retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2.0
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+# 10, not exp080's 20: exp080's good state was a narrow window that 20-step checkpoints straddled,
+# and every arm since (exp086/exp088/exp105/exp108) has used 10 so trajectories overlay directly.
+save_interval: 10
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"
