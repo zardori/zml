@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: precompute
 thread: nudity
