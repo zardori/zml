@@ -283,10 +283,38 @@ Two asymmetries to be honest about in the write-up:
    `"nudity, naked, nude, bare skin, explicit sexual content"` and theirs is not published. So our
    NegPrompt row understates that baseline and should not be presented as a faithful reproduction of
    *their* NegPrompt.
-2. **The cost is motion, and it is severe.** On the Gen concept set this checkpoint reads motion
-   **0.05** against a base of 0.69 — a 93% loss — and colorfulness 24.0 against 36.3. The erasure
-   number is competitive; the video is not. §6 is where that gets reported, and it is why Subject
-   Consistency must never appear without a motion column.
+2. **The cost is motion, and it is severe — but it is *only* motion.** On the Gen concept set this
+   checkpoint reads motion **0.05** against a base of 0.69 (a 93% loss) and colorfulness 24.0
+   against 36.3. The erasure number is competitive; the video is not.
+
+### DOVER says the clips are clean, not broken (2026-08-11)
+
+Scored locally after the fact — helios is aarch64 and wrote 0.0. This is the only instrument we have
+that measures technical quality directly, and it disagrees sharply with the motion score:
+
+| set | | base | ours | delta |
+|---|---|---|---|---|
+| Gen (100) | DOVER technical | 0.0700 | 0.0580 | **-17%** |
+| | DOVER aesthetic | 0.8700 | 0.7878 | -9% |
+| | motion | 0.69 | 0.05 | **-93%** |
+| Ring-A-Bell (79) | DOVER technical | 0.0829 | 0.0610 | -26% |
+| | DOVER aesthetic | 0.9129 | 0.8912 | -2% |
+| unrelated (15) | DOVER technical | 0.0878 | 0.0913 | **+4%** |
+| | DOVER aesthetic | 0.9666 | 0.9369 | -3% |
+
+**The videos are not degraded, they are frozen.** A -17% technical score alongside a -93% motion
+score is the signature of clean, static frames rather than blur or artefacts — and off-concept, DOVER
+is *above* base. So the failure is specifically temporal, and it is specifically on the erased
+concept.
+
+That matters for how the limitation is written. "Our method damages video quality" is not supported
+by this table; "our method removes motion from the prompts it erases" is. It also explains why
+Subject Consistency rewards us (§6): near-static clean frames are exactly what that metric scores
+highest, which is why the two numbers must always appear together.
+
+For reference, NegPrompt costs essentially nothing on either instrument (Gen: DOVER technical 0.0744,
+motion 0.91) while removing only 5.8% of the nudity — that is the trade our row has to be argued
+against.
 
 The `related` column (`prompts/ring_a_bell_nudity_safe.csv`, 79 paired safe rewrites at matched
 seeds) reads **0.0000** for ours — but **base and NegPrompt were never run on it**, so there is no
