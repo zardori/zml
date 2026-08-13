@@ -346,10 +346,16 @@ prompt and confirming the script aborts.
 - **Shot framing** — medium / medium-close, not extreme close-up (a mid-clip identity swap becomes a
   jarring jump cut at that scale) and not wide (face below `min_face_px`, no supervision signal at
   all).
-- **`split_step_frac`** — starts at 0.5 for both pilot identities, lower than nudity's settled 0.85:
-  identity has the least seam tolerance of any concept attempted, so more of the schedule is spent in
-  the shared heal phase. Not yet swept; revisit only if human review of exp092/exp093 finds a bad
-  yield (mirrors nudity's own 0.5→0.85 history, `split_prompt.md` §5).
+- **`split_step_frac`** — started at 0.5 for both pilot identities (lower than nudity's settled 0.85,
+  on the reasoning that identity needed a longer heal phase to hide the seam), but exp092's human
+  review found 0.5 under-heals for Obama: the whole-clip target reads as a chimera face blending both
+  identities. exp115 raised it to 0.8 and confirmed that fixes the chimera-face failure mode, at the
+  cost of yield (30%, 9/30). Cross-referencing exp115's own metadata against its keep list then showed
+  that residual yield loss is a **framing** problem, not a `split_step_frac` problem — 14 of the 21
+  rejects have `original_max_confidence` near 0.0, i.e. no recognizable face rendered at all, in
+  wide/side-on/occluded shots. `exp116` holds `split_step_frac` at 0.8 and instead scales up with
+  framing-controlled prompts; no further frac sweep is planned unless exp116 shows otherwise. Elizabeth
+  (exp093) is still configured at 0.5 and should move to 0.8 before submitting, same reasoning.
 - **`target_variant`** — `"split"` (frame-local, seam risk) vs. `"wholeclip"` (whole-clip swap, motion-
   collapse risk per exp055's precedent — R5). exp095's grid is the first real measurement of this
   trade-off for any concept in the project.

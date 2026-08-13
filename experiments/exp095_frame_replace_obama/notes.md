@@ -6,7 +6,7 @@ thread: face_identity
 takeaway: >
   First frame_replace erasure of a face identity (Barack Obama), copying exp080's best nudity
   regime field-for-field. Grid target_variant [split, wholeclip] — the A/B this run exists to
-  answer. Blocked on exp092/exp094. Not yet submitted.
+  answer. Blocked on exp116 (dataset scale-up + merge with exp115) and exp094. Not yet submitted.
 ---
 # exp095 — frame_replace erasure of Barack Obama
 
@@ -30,14 +30,17 @@ copy, gridded into two jobs by `submit_job.py`. `split` is the temporally-splice
 mechanism nudity/objects use); `wholeclip` (`docs/face_identity.md` R4/R5) trains toward prompt A's
 own plain clip → prompt B's same-seed plain clip instead, avoiding the mid-clip splice seam entirely
 at the cost of being a whole-clip rewrite rather than a frame-local edit (which exp055 showed can do
-broader motion damage). Both consume the same `exp092` dataset (`emit_whole_clip_target: true`
-built both target types from one generation pass) — no extra precompute for this grid.
+broader motion damage). Both consume the merged exp115+exp116 dataset (`emit_whole_clip_target: true`
+built both target types from one generation pass in each) — no extra precompute for this grid.
 
-- Dataset: exp092 (split-prompt + whole-clip manufactured targets for Obama).
+- Dataset: exp116's `combined_dataset/` — exp115's 9 human-kept triples merged with exp116's
+  scale-up keeps via `zml/precompute/merge_frame_replace_datasets.py`. Supersedes the original
+  exp092 pointer (exp092 itself superseded by exp115; exp115 alone was too thin at 9/30).
 - Retention: exp094's anchors minus Obama's own (`retention_exclude`).
 
-**Before submitting**, replace the `outputs_TIMESTAMP` placeholders with the real
-`outputs_{timestamp}` directories from exp092 and exp094.
+**Before submitting**, confirm `experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/`
+exists (built per exp116/notes.md's Downstream steps) and replace the exp094 `outputs_TIMESTAMP`
+placeholder with the real `outputs_{timestamp}` directory.
 
 ## What to watch
 Live eval writes `summary.json` every `save_interval`; read that first, same as every other

@@ -4,15 +4,19 @@
 # A/B this run exists to answer: for a concept this seam-visible, does the temporally-spliced target
 # or the whole-clip target erase better / preserve better? See docs/face_identity.md R4/R5.
 #
-# FILL IN the exp092/exp094 outputs_{timestamp} once those datasets are built and reviewed.
+# exp092 (30 triples, split_step_frac 0.5) was superseded by exp115 (0.8, fixes the chimera-face
+# whole-clip target) -- but exp115 only yielded 9/30 on human review. exp116 scales that up (reseed
+# + framing-controlled prompts) and merges its keeps with exp115's 9 into one combined_dataset/ via
+# zml/precompute/merge_frame_replace_datasets.py. FILL IN the exp116 combined_dataset path (and the
+# exp094 outputs_{timestamp}) once that merge is done.
 # Run: ./submit_job.py helios experiments/exp095_frame_replace_obama/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: face               # live eval scores with ArcFace ID-similarity
 concept_target: "Barack Obama"
 
-metadata_file: experiments/exp092_split_face_obama_dataset/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/exp092_split_face_obama_dataset/outputs_TIMESTAMP/latents
+metadata_file: experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/metadata.json
+latents_dir: experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/latents
 target_variant: [split, wholeclip]
 
 # Retention: the other four identities + the 10 generic-face anchors. retention_exclude drops

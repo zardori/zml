@@ -65,3 +65,7 @@ shared heal phase heals the seam better and generalizes worse per-triple.
 - [x] Dataset reviewed — splice quality and whole-clip quality, separately (see Results above).
 - [x] Compare wholeclip identity separation against exp092's 0.5 build — 0.8 fixes the chimera-face
       problem; exp092 is superseded (see its notes.md).
+
+9/30 is too thin for exp095's training run on its own. `exp116_split_face_obama_dataset_scaleup`
+scales this dataset up (re-seed + framing-controlled prompts, same `split_step_frac: 0.8`) and
+merges its keeps with this experiment's 9 into a combined dataset for exp095.
