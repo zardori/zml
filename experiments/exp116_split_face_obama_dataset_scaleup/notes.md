@@ -1,15 +1,18 @@
 ---
-status: ready
+status: done
 concept: face
 method: frame_replace_split/precompute
 thread: face_identity
 takeaway: >
   Scale-up of exp115's 9-triple Obama dataset toward exp095's ~30-target need. exp115's own
-  metadata shows the 30% yield is a framing problem, not a split_step_frac problem (14/21 rejects
-  have original_max_confidence ~0.0 -- no recognizable Obama rendered at all, in wide/side-on/
-  occluded framings), so this keeps split_step_frac at 0.8 and instead re-seeds the existing 30
-  prompts plus adds 60 new medium/close frontal-framed prompts (3x30 CSVs, seeds 7801-7890). Not
-  yet submitted.
+  metadata shows the 30% yield is a framing problem, not a split_step_frac problem, so this keeps
+  split_step_frac at 0.8 and tests the hypothesis with 3 CSVs: a re-seed of the existing 30
+  prompts (isolates seed variance) plus 60 new medium/close frontal-framed prompts. DONE: confirmed
+  -- reseed reproduces exp115's exact 30% baseline (9/30, same prompts, different seeds), while the
+  two framing-controlled CSVs nearly double it (15/30 = 50%, 19/30 = 63%). 43/90 kept here, 52
+  total combined with exp115's 9 -- comfortably above the ~30 target. Filtered sets at
+  `metadata_human_filtered_run00{1,2,3}.json`. Still open: merge into `combined_dataset/` and
+  repoint exp095 (needs the cluster login node; latents never left helios).
 ---
 # exp116 — scale-up of the Obama split-prompt frame_replace dataset
 
@@ -73,20 +76,56 @@ the screen tool flags as survivors. Also worth tracking per-CSV yield separately
 closeup1 vs. closeup2) to see whether the framing rewrite actually moved the needle over a same-
 prompt re-seed.
 
+## Results (2026-08-14) — 43/90 kept (48%), reseed reproduces exp115, framing roughly doubles yield
+
+Submitted as a 3-way grid (`grid_20260813_173003`), one job per CSV, 30/30/30 rows, 0 skips in any
+run. Reviewed all 90 triples clip by clip (splice quality + whole-clip identity separation, same
+protocol as exp115).
+
+| run | CSV | kept | yield |
+|---|---|---|---|
+| run_001 | `split_face_barack_obama_reseed.csv` (existing 30 prompts, new seeds) | 9/30 | 30% |
+| run_002 | `split_face_barack_obama_closeup1.csv` (new, framing-controlled) | 15/30 | 50% |
+| run_003 | `split_face_barack_obama_closeup2.csv` (new, framing-controlled) | 19/30 | 63% |
+
+Kept seeds:
+- run_001: 7801, 7806, 7807, 7809, 7810, 7813, 7817, 7820, 7825
+- run_002: 7831, 7832, 7833, 7834, 7836, 7837, 7838, 7839, 7840, 7843, 7848, 7850, 7854, 7858, 7860
+- run_003: 7861, 7863, 7864, 7866, 7867, 7868, 7869, 7870, 7871, 7872, 7875, 7876, 7877, 7879, 7880,
+  7881, 7882, 7884, 7886
+
+Filtered metadata at `metadata_human_filtered_run00{1,2,3}.json` (experiment root, git-tracked),
+written with `tools/filter_retention_metadata.py --allow-skew` (same override reason as exp115 and
+exp109: the 50% guard is calibrated for retention sets, not split-prompt triples).
+
+**The reseed-vs-framing comparison confirms the framing hypothesis directly**: run_001 (the exact
+same 30 prompts as exp115/exp092, only the seeds differ) lands on **exactly** exp115's 30% baseline
+-- seed variance alone buys nothing. The two framing-controlled CSVs (medium/close, frontal,
+no-occlusion) land at 50% and 63%, 1.7-2.1x the baseline. Writing for framing is a real, repeatable
+lever on yield for this concept, not noise.
+
+**Screen-tool calibration note**: `tools/screen_split_face_dataset.py`'s exp115-tuned thresholds
+(0.30/0.30) had zero false rejections on exp115 but produced 6 false rejections here out of 43 human
+keeps (~14%) -- 1/9 in run_001, 2/15 in run_002, 3/19 in run_003 -- all in triples that scored just
+under 0.30 but still passed human review. Consistent with its own docstring (a triage, not a
+verdict): useful for cutting obvious no-face rejects, but not a substitute for watching borderline
+clips. Not retuning the threshold on this run's data to avoid fitting it to two datasets at once;
+revisit if a third Obama batch or the Elizabeth build (exp093) shows the same pattern.
+
 ## Downstream
-1. Filter each of the 3 runs with `tools/filter_retention_metadata.py --allow-skew --output
-   metadata_human_filtered_run00N.json` (per-run output path, same reason as exp109: the default
-   path collides across grid runs).
-2. Merge all 4 filtered sets (exp115's 9 + this run's 3) with
+1. ~~Filter each of the 3 runs~~ — done above.
+2. Merge all 4 filtered sets (exp115's 9 + this run's 43) with
    `zml/precompute/merge_frame_replace_datasets.py` into `combined_dataset/` (prior art: exp080
-   merged exp061 + exp078 the same way).
+   merged exp061 + exp078 the same way). **Must run on the helios login node** — the `.pt` latents
+   never left the cluster (`pull_results.sh` excludes them by default).
 3. Repoint `exp095_frame_replace_obama/config.yaml`'s `metadata_file`/`latents_dir` at
-   `combined_dataset/` (currently still holds exp092 `outputs_TIMESTAMP` placeholders).
-4. Update `docs/face_identity.md` §5's `split_step_frac` bullet, stale since exp115 (still says
-   "starts at 0.5 for both pilot identities").
+   `combined_dataset/` — already done pointing at the eventual path; needs the directory to exist.
+4. `docs/face_identity.md` §5's `split_step_frac` bullet updated to reflect exp115/exp116.
 
 ## Status
-- [ ] Submitted.
-- [ ] Dataset reviewed per-run — screen-tool survivors watched, splice + whole-clip quality.
-- [ ] Per-CSV yield compared (reseed vs. closeup1 vs. closeup2).
-- [ ] Merged with exp115 into `combined_dataset/`; exp095 repointed.
+- [x] Submitted.
+- [x] Dataset reviewed per-run — screen-tool survivors watched, splice + whole-clip quality (see
+      Results above).
+- [x] Per-CSV yield compared (reseed 30% vs. closeup1 50% vs. closeup2 63%) — framing hypothesis
+      confirmed.
+- [ ] Merged with exp115 into `combined_dataset/`; exp095 repointed (needs cluster login node).

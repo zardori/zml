@@ -353,9 +353,11 @@ prompt and confirming the script aborts.
   cost of yield (30%, 9/30). Cross-referencing exp115's own metadata against its keep list then showed
   that residual yield loss is a **framing** problem, not a `split_step_frac` problem — 14 of the 21
   rejects have `original_max_confidence` near 0.0, i.e. no recognizable face rendered at all, in
-  wide/side-on/occluded shots. `exp116` holds `split_step_frac` at 0.8 and instead scales up with
-  framing-controlled prompts; no further frac sweep is planned unless exp116 shows otherwise. Elizabeth
-  (exp093) is still configured at 0.5 and should move to 0.8 before submitting, same reasoning.
+  wide/side-on/occluded shots. `exp116` held `split_step_frac` at 0.8 and tested that directly: a
+  re-seed of the same 30 prompts reproduced exp115's 30% baseline exactly (seed variance alone buys
+  nothing), while two new CSVs written for medium/close frontal framing landed at 50% and 63% — the
+  framing hypothesis is confirmed, no frac sweep needed. Elizabeth (exp093) is still configured at 0.5
+  and should move to 0.8 (and use framing-controlled prompts) before submitting, same reasoning.
 - **`target_variant`** — `"split"` (frame-local, seam risk) vs. `"wholeclip"` (whole-clip swap, motion-
   collapse risk per exp055's precedent — R5). exp095's grid is the first real measurement of this
   trade-off for any concept in the project.
