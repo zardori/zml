@@ -8,11 +8,18 @@ The fix is a search path. A repo-relative input that is missing in the running u
 looked up under the other members' repo roots, taken from the ``ZML_PEER_ROOTS`` env var
 (colon-separated, exported by ``slurm/*.sh``). The local repo is always tried first, so nothing
 changes when the data is present locally, and outputs still go only to the running user's repo.
+
+Type hints here use ``typing.List``/``Dict``/``Set`` rather than the ``list[...]``/``dict[...]``
+PEP 585 syntax used elsewhere in this project: this module is also imported by
+``merge_dataset.sh``'s remote invocation of ``merge_frame_replace_datasets.py``, which runs on a
+cluster login node's stock Python (3.6 on helios) rather than the repo's uv-managed 3.12 venv --
+the venv itself is unusable there too, since its wheels are built for the GPU compute nodes'
+architecture (aarch64 on helios), not the login node's (x86_64).
 """
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Set
 
 PEER_ROOTS_ENV = "ZML_PEER_ROOTS"
 
@@ -23,7 +30,7 @@ DATA_PREFIXES = ("experiments/", "prompts/", "outputs/", "datasets/")
 
 # Peer roots already reported as unreadable, so one locked-down repo warns once per process
 # instead of once per config key.
-_warned_roots: set[Path] = set()
+_warned_roots: Set[Path] = set()
 
 
 def _exists_under(root: Path, path: str) -> bool:
@@ -43,7 +50,7 @@ def _exists_under(root: Path, path: str) -> bool:
         return False
 
 
-def peer_roots() -> list[Path]:
+def peer_roots() -> List[Path]:
     """Repo roots of the other project members, in search order (empty off-cluster)."""
     raw = os.environ.get(PEER_ROOTS_ENV, "")
     local_root = Path.cwd().resolve()
@@ -71,7 +78,7 @@ def resolve_input_path(path: str) -> str:
     return path
 
 
-def resolve_config_paths(params: dict[str, Any]) -> dict[str, Any]:
+def resolve_config_paths(params: Dict[str, Any]) -> Dict[str, Any]:
     """Redirect repo-relative data paths in a loaded config to a peer's copy when missing locally.
 
     Applied by the thin entrypoints right after the YAML is read, so every method benefits without

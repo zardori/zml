@@ -16,19 +16,20 @@ soon as its dataset came from a merge.
 No GPU needed — this is pure file I/O, so it can run locally (after pulling the source latents with
 ``pull_results.sh --include-weights``) or directly on a cluster login node. ``merge_dataset.sh``
 (repo root) is the local entrypoint that does the latter over ssh, since ``combined_dataset/`` is
-gitignored and has to be built where it will be read from. It invokes this module via the repo's
-own ``.venv/bin/python3`` rather than ``uv run`` or the bare ``python3`` on PATH — login nodes have
-neither ``uv`` nor a system Python new enough for this codebase (``pyproject.toml`` requires
-``>=3.12``), but ``.venv/bin/python3`` (created by any prior ``uv run`` on a compute node, e.g. this
-dataset's own precompute jobs) is a plain interpreter binary that needs neither.
+gitignored and has to be built where it will be read from. It invokes this module with the login
+node's own stock ``python3`` rather than ``uv run`` or the repo's ``.venv``: login nodes have no
+``uv``, and the ``.venv`` (built by ``uv run`` on a compute node) has wheels for the GPU nodes'
+architecture, which need not match the login node's (helios: aarch64 GH200 vs. x86_64 login node)
+— it may not even be executable there. This module and ``zml.paths`` are stdlib-only and avoid the
+PEP 585 ``list[...]``/``dict[...]`` annotation syntax for the same reason: helios' login node ships
+Python 3.6, which predates it.
 
 A source's ``metadata_file``/``latents_dir`` is resolved through ``zml.paths.resolve_input_path``,
 the same peer-root fallback every training entrypoint uses — so this can merge sources that live in
 a different project member's repo, as long as ``ZML_PEER_ROOTS`` is set (``slurm/peer_roots.sh``).
 
-Run standalone, e.g. (``uv run python`` locally where a modern interpreter is on PATH, or
-``.venv/bin/python3`` on a cluster login node -- see above):
-    uv run python -m zml.precompute.merge_frame_replace_datasets \\
+Run standalone, e.g.:
+    python3 -m zml.precompute.merge_frame_replace_datasets \\
         --source experiments/exp061_split_nudity_dataset/metadata_human_filtered.json \\
                  experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
         --source experiments/exp078_.../grid_.../run_005/outputs/metadata_human_filtered.json \\
@@ -39,6 +40,7 @@ Run standalone, e.g. (``uv run python`` locally where a modern interpreter is on
 import argparse
 import json
 import os
+from typing import Dict, List, Tuple
 
 from zml.paths import resolve_input_path
 
@@ -67,11 +69,11 @@ def _relink_paths(d: dict, prefix: str, latents_dir: str, latents_out: str) -> N
         d[key] = new_name
 
 
-def merge(sources: list[tuple[str, str]], output_dir: str) -> None:
+def merge(sources: List[Tuple[str, str]], output_dir: str) -> None:
     latents_out = os.path.join(output_dir, "latents")
     os.makedirs(latents_out, exist_ok=True)
 
-    combined: list[dict] = []
+    combined: List[Dict] = []
     for source_idx, (metadata_file, latents_dir) in enumerate(sources):
         metadata_file = resolve_input_path(metadata_file)
         latents_dir = resolve_input_path(latents_dir)
