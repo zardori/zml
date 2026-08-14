@@ -5,9 +5,11 @@ method: eval
 thread: nudity
 takeaway: >
   Base + NegPrompt on `prompts/ring_a_bell_nudity_safe.csv` (79 safe rewrites at matched seeds).
-  exp102 measured OUR checkpoint at 0.0000 there, but with no baselines it is a cell rather than a
-  column and cannot be reported. T2VUnlearning publishes no nudity preservation column at all, so
-  this is a place to be strictly more complete than the comparison. 2 jobs.
+  DONE, and it produced the finding the rate column alone would have hidden: our 0.0000 sits below
+  base's 0.130 floor, BUT motion falls 0.37 -> 0.04 (-89%) on prompts containing no nudity. Combined
+  with exp107 this gives a monotonic gradient of motion damage against semantic distance from the
+  concept — -93% concept, -89% related, -68% / -36% VBench, -19% fire-unrelated. The edit is graded,
+  not confined, and the 15-prompt unrelated set flatters it by ~5x.
 ---
 # exp111 — baselines on the safe (related) set
 
