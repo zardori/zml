@@ -79,12 +79,18 @@ if git rev-parse '@{u}' >/dev/null 2>&1; then
     fi
 fi
 
-# Build the remote command with every argument individually quoted. Plain python3, not `uv run` --
-# merge_frame_replace_datasets.py and zml/paths.py are stdlib-only (no torch/diffusers import
-# anywhere in the zml/zml.precompute package __init__ chain), and login nodes don't have uv.
+# Build the remote command with every argument individually quoted. Uses the repo's own
+# .venv/bin/python3 (created by a prior `uv run` on a compute node -- e.g. this dataset's own
+# precompute jobs already ran one) rather than `uv run` or the bare `python3` on PATH: the login
+# node has neither uv nor a Python new enough for this codebase (system python3 there is 3.6,
+# pyproject.toml requires >=3.12), but .venv/bin/python3 is a plain interpreter binary that needs
+# neither.
 remote_cmd="cd $(printf '%q' "$REMOTE_DIR") && git pull"
+remote_cmd+=" && if [ ! -x .venv/bin/python3 ]; then"
+remote_cmd+="      echo 'ERROR: .venv/bin/python3 not found -- run any job on a compute node first (uv run creates it), or install uv on the login node.' >&2; exit 1;"
+remote_cmd+="    fi"
 remote_cmd+=" && ZML_CLUSTER=$(printf '%q' "$CLUSTER") source slurm/peer_roots.sh"
-remote_cmd+=" && python3 -m zml.precompute.merge_frame_replace_datasets"
+remote_cmd+=" && .venv/bin/python3 -m zml.precompute.merge_frame_replace_datasets"
 for ((i = 0; i < ${#SOURCE_ARGS[@]}; i++)); do
     remote_cmd+=" $(printf '%q' "${SOURCE_ARGS[$i]}")"
 done
