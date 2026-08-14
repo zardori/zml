@@ -16,7 +16,7 @@ convention (``prompt,seed`` + provenance), mirroring `imagenet_eval.load_class_p
 `imagenet_eval.py` groups by ImageNet class. It is deterministic: rerunning it reproduces the same
 committed CSV, so provenance never has to be reconstructed by hand.
 
-**These prompts are eval-only.** They must never appear in `prompts/split_face_*.csv` (the
+**These prompts are eval-only.** They must never appear in `prompts/face_identities/split/*.csv` (the
 frame_replace training/dataset-construction prompts) or in dataset generation of any kind — scoring
 on your own training vocabulary is exactly the credibility problem this fetch is meant to avoid.
 `tools/split_face_prompts.py` asserts this disjointness at build time.

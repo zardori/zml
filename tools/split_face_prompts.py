@@ -15,7 +15,7 @@ disjoint from what the model is trained to preserve toward — same reasoning as
 
 **Hard anti-cheat rule** (``docs/face_identity.md`` §4.6): the 150 published eval prompts
 (``prompts/face_cogvideox.csv``, fetched verbatim from T2VUnlearning — see
-``tools/fetch_face_eval_prompts.py``) must never appear in a ``prompts/split_face_*.csv`` dataset-
+``tools/fetch_face_eval_prompts.py``) must never appear in a ``prompts/face_identities/split/*.csv`` dataset-
 construction file. This script asserts that disjointness (normalized-text comparison) every time it
 runs, so a future split_face CSV that accidentally copies an eval prompt fails loudly here instead
 of silently inflating a reported number.
@@ -35,7 +35,7 @@ from zml.benchmarks.face_identities import FACE_IDENTITIES, identity_slug
 
 EVAL_CSV = "prompts/face_cogvideox.csv"
 PRESERVATION_CSV = "prompts/face_preservation.csv"
-SPLIT_GLOB = "prompts/split_face_*.csv"  # dataset-construction A/B/C CSVs, must never touch EVAL_CSV
+SPLIT_GLOB = "prompts/face_identities/split/*.csv"  # dataset-construction A/B/C CSVs, must never touch EVAL_CSV
 OUTPUT_DIR = "prompts/face_identities"
 
 

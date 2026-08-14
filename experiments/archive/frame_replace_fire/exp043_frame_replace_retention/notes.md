@@ -29,7 +29,7 @@ to the base model's own output. The expectation: concept fire (and the new conti
    `./submit_job.py athena experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/config.yaml`
 2. **Preservation precompute** (exp041): generate base-model clips for
    `prompts/cogvideox_fire_preservation.csv` and save their raw latents.
-   `./submit_job.py athena experiments/exp041_preservation_precompute/config.yaml`
+   `./submit_job.py athena experiments/shared/exp041_preservation_precompute/config.yaml`
 3. Fill this config's `metadata_file` / `latents_dir` (from exp042) and
    `retention_metadata_file` / `retention_latents_dir` (from exp041) with each run's
    `outputs_{timestamp}` dir (replace the `outputs_TIMESTAMP` placeholders).

@@ -1,7 +1,7 @@
 """Resolution of config input paths across the project members' cluster repos.
 
 Every member runs jobs from their own repo copy on cluster scratch, so a config field like
-``metadata_file: experiments/exp061_.../outputs_.../metadata.json`` only resolves for whoever
+``metadata_file: experiments/nudity/exp061_.../outputs_.../metadata.json`` only resolves for whoever
 actually ran exp061 — anyone else gets a missing file, even though the dirs are group-readable.
 
 The fix is a search path. A repo-relative input that is missing in the running user's repo is

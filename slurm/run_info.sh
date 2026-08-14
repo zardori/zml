@@ -84,9 +84,12 @@ ZML_RUN_CLUSTER="${ZML_CLUSTER:-}"
 ZML_RUN_START_EPOCH="$(date +%s)"
 ZML_RUN_STARTED_AT="$(date -Iseconds)"
 ZML_RUN_GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null)"
-# TimeLimit is the only place the sbatch --time actually lives at runtime; there is no env var for it.
+# SLURM exposes no env var for the wall clock, so ask `scontrol` — but it is not reachable from
+# helios' compute nodes (every helios run_info.json so far has time_limit null), so fall back to the
+# value submit_job.py exports from the config's `slurm_time`.
 ZML_RUN_TIME_LIMIT="$(scontrol show job "${SLURM_JOB_ID:-}" -o 2>/dev/null \
     | tr ' ' '\n' | sed -n 's/^TimeLimit=//p')"
+ZML_RUN_TIME_LIMIT="${ZML_RUN_TIME_LIMIT:-${ZML_TIME_LIMIT:-}}"
 export ZML_RUN_CLUSTER ZML_RUN_START_EPOCH ZML_RUN_STARTED_AT ZML_RUN_GIT_SHA ZML_RUN_TIME_LIMIT
 
 zml_write_run_info running ""

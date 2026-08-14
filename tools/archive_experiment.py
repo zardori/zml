@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Retire an experiment into ``experiments/archive/<thread>/``.
+"""Retire an experiment from ``experiments/<thread>/`` into ``experiments/archive/<thread>/``.
 
-Moving an experiment is not just a rename: 26 configs and the report-table tools reference
-experiment folders by repo-relative path, and every member has their own copy of the untracked
-``outputs_*`` artifacts on cluster scratch. This script does all four parts together --
-tracked files, local artifacts, references, and ``tools/migrate_experiments.sh`` (the move
-every *other* member has to replay) -- because doing three of them is worse than doing none.
+This is the *policy* half of retiring: which experiments may move, and what would break if they
+did. The mechanics -- rewriting the references, carrying the untracked ``outputs_*``/``logs_*``
+across, and stacking the move onto ``tools/migrate_experiments.sh`` for the other members --
+live in ``experiment_moves.py`` and are shared with ``regroup_experiments.py``.
 
     tools/archive_experiment.py expNNN [expNNN ...]           # dry run, prints what it would do
     tools/archive_experiment.py expNNN [expNNN ...] --apply
 
-The thread comes from each experiment's ``notes.md`` frontmatter (``thread:``), so the folder
-it lands in and the group it renders under in ``INDEX.md`` can never disagree.
+The thread comes from each experiment's ``notes.md`` frontmatter (``thread:``), so the folder it
+lands in and the group it renders under in ``INDEX.md`` can never disagree. Archiving is
+therefore a move *sideways* -- ``experiments/imagenet/expNNN`` to
+``experiments/archive/imagenet/expNNN`` -- and only the live/retired axis changes.
 
 Refuses to move an experiment that is still live (``status`` ``ready`` or ``active``), or one
 that any live config still references -- that reference would keep the archive alive as a
@@ -22,290 +23,29 @@ Policy and the cluster half of the migration: ``docs/experiment_registry.md``.
 from __future__ import annotations
 
 import argparse
-import re
-import shutil
-import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path
 
-from experiments_index import EXPERIMENTS_DIR, LIVE_STATUSES, REPO_ROOT, discover, Experiment
+from experiment_moves import (
+    Move,
+    apply_moves,
+    find_references,
+    print_migration_footer,
+    reference_files,
+    report_plan,
+)
+from experiments_index import EXPERIMENTS_DIR, LIVE_STATUSES, discover, Experiment
 
 ARCHIVE_ROOT = "archive"
-MIGRATION_SCRIPT = REPO_ROOT / "tools" / "migrate_experiments.sh"
-MIGRATE_LINE = re.compile(r'^\s*migrate "([^"]+)" "([^"]+)"\s*$', re.MULTILINE)
-
-# Untracked run artifacts that live inside an experiment folder and must travel with it.
-ARTIFACT_GLOBS = ("outputs_*", "logs_*", "grid", "grid_*", "eval_outputs*")
-
-# Files that may contain a reference to an experiment path.
-REFERENCE_GLOBS = ("**/*.yaml", "**/*.yml", "**/*.md", "**/*.py", "**/*.sh")
-REFERENCE_SKIP_DIRS = {".git", ".venv", "mlruns", "wandb", "legacy", "__pycache__", "hf_cache"}
-
-
-@dataclass(frozen=True)
-class Move:
-    name: str  # expNNN_name
-    thread: str
-    old_rel: str  # experiments/expNNN_name
-    new_rel: str  # experiments/archive/<thread>/expNNN_name
 
 
 def build_move(exp: Experiment) -> Move:
-    new_rel = f"experiments/{ARCHIVE_ROOT}/{exp.thread}/{exp.name}"
-    return Move(exp.name, exp.thread, f"experiments/{exp.rel_dir}", new_rel)
-
-
-def reference_files() -> list[Path]:
-    seen: set[Path] = set()
-    for pattern in REFERENCE_GLOBS:
-        for path in REPO_ROOT.glob(pattern):
-            if path.is_file() and not (REFERENCE_SKIP_DIRS & set(path.relative_to(REPO_ROOT).parts)):
-                seen.add(path)
-    return sorted(seen)
-
-
-def find_references(moves: list[Move], files: list[Path]) -> dict[Path, list[Move]]:
-    """Map each file to the moves whose old path it mentions."""
-    hits: dict[Path, list[Move]] = {}
-    for path in files:
-        try:
-            text = path.read_text()
-        except UnicodeDecodeError:
-            continue
-        matched = [m for m in moves if m.old_rel in text]
-        if matched:
-            hits[path] = matched
-    return hits
-
-
-def rewrite_references(hits: dict[Path, list[Move]]) -> None:
-    """Rewrite ``experiments/expNNN_name`` -> its archive path, everywhere it appears.
-
-    The bare substring is deliberate: it also catches the absolute cluster paths some eval
-    configs carry (``/net/.../zml/experiments/expNNN_.../``), which a repo-relative-only
-    match would silently leave behind.
-    """
-    for path, moves in hits.items():
-        text = path.read_text()
-        for move in moves:
-            text = text.replace(move.old_rel, move.new_rel)
-        path.write_text(text)
-
-
-def move_experiment(move: Move) -> None:
-    old_dir, new_dir = REPO_ROOT / move.old_rel, REPO_ROOT / move.new_rel
-    new_dir.mkdir(parents=True, exist_ok=True)
-
-    tracked = subprocess.run(
-        ["git", "ls-files", "-z", move.old_rel],
-        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
-    ).stdout.split("\0")
-    for rel in filter(None, tracked):
-        dest = new_dir / Path(rel).name
-        subprocess.run(["git", "mv", rel, str(dest.relative_to(REPO_ROOT))], cwd=REPO_ROOT, check=True)
-
-    for pattern in ARTIFACT_GLOBS:
-        for artifact in old_dir.glob(pattern):
-            shutil.move(str(artifact), str(new_dir / artifact.name))
-
-    leftovers = list(old_dir.iterdir())
-    if leftovers:
-        print(f"  ! {move.old_rel} still holds {[p.name for p in leftovers]} — moving them too")
-        for leftover in leftovers:
-            shutil.move(str(leftover), str(new_dir / leftover.name))
-    old_dir.rmdir()
-
-
-MIGRATION_TEMPLATE = """#!/usr/bin/env bash
-# Generated by tools/archive_experiment.py — do not edit by hand, re-run the tool instead.
-#
-# Archiving moves an experiment under experiments/archive/<thread>/. `git pull` carries the
-# tracked config.yaml/notes.md there; the untracked outputs_*/logs_* stay behind at the old
-# path. This script moves those — in the local checkout and in your own repo root on each
-# cluster (cluster.conf), which are the trees you can write to. Other members run it for
-# theirs.
-#
-# Run it locally and it does the whole job: each cluster root is `git pull`ed over ssh and
-# migrated in the same command, so nothing has to be typed on a cluster by hand.
-#
-# It carries *every* migration ever emitted and re-checks all of them on each run, so it is
-# both idempotent and complete: running it after any `git pull` is always safe and always
-# enough, no matter how many archiving rounds you skipped.
-#
-#   tools/migrate_experiments.sh                   # local checkout + every cluster
-#   tools/migrate_experiments.sh --local           # local checkout only
-#   tools/migrate_experiments.sh --cluster helios  # one cluster only
-set -euo pipefail
-
-CLUSTERS=(athena helios)
-
-moved=0
-stale=0
-
-migrate() {
-    local old="$1" new="$2"
-    [ -d "$old" ] || return 0
-    # The tracked half of the move must already be in this checkout; otherwise a later
-    # `git pull` would land config.yaml/notes.md on top of artifacts we moved ahead of it.
-    if [ -z "$(git ls-files -- "$new" 2>/dev/null)" ]; then
-        echo "  ! $new not in this checkout — 'git pull' here, then re-run ($old left alone)"
-        stale=$((stale + 1))
-        return 0
-    fi
-    mkdir -p "$new"
-    local entry base
-    while IFS= read -r -d '' entry; do
-        base="$(basename "$entry")"
-        if [ -d "$entry" ] && [ -d "$new/$base" ]; then
-            # Both paths hold a run of the same name. Happens in a local checkout that
-            # rsynced a peer's pre-archive copy on top of its own archived one: merge
-            # rather than fail, the two are copies of the same run.
-            rsync -a --remove-source-files "$entry/" "$new/$base/"
-            find "$entry" -depth -type d -empty -delete
-        else
-            mv "$entry" "$new/"
-        fi
-    done < <(find "$old" -mindepth 1 -maxdepth 1 -print0)
-    if ! rmdir "$old" 2>/dev/null; then
-        echo "  ! $old not empty after merging into $new — left in place"
-        return 0
-    fi
-    echo "  moved $old -> $new"
-    moved=$((moved + 1))
-}
-
-migrate_all() {
-__MIGRATIONS__
-}
-
-# Runs against $PWD, which must be a repo root: locally, or on a cluster over ssh.
-migrate_here() {
-    if [ ! -d experiments ] || ! git rev-parse --git-dir >/dev/null 2>&1; then
-        echo "  ! $(pwd) is not a zml checkout" >&2
-        return 1
-    fi
-    moved=0
-    stale=0
-    migrate_all
-    echo "  $(pwd): ${moved} moved, ${stale} waiting on git pull"
-    [ "$stale" -eq 0 ]
-}
-
-migrate_cluster() {
-    local cluster="$1" host dir
-    case "$cluster" in
-        athena) host="${ATHENA_HOST:-}"; dir="${ATHENA_REMOTE_DIR:-}" ;;
-        helios) host="${HELIOS_HOST:-}"; dir="${HELIOS_REMOTE_DIR:-}" ;;
-        *) echo "  ! unknown cluster '${cluster}'" >&2; return 1 ;;
-    esac
-    if [ -z "$host" ] || [ -z "$dir" ]; then
-        echo "  ! cluster.conf defines no host/dir for ${cluster}" >&2
-        return 1
-    fi
-    echo "== ${cluster}: ${host}:${dir}"
-    # `git pull` first (as submit_job.py does), so the tracked half of every move is in place
-    # before we move artifacts on top of it. Piped over stdin, so the cluster checkout needs
-    # no copy of this script — it always runs the version you have locally.
-    ssh "$host" "cd '${dir}' && git pull --quiet && bash -s -- --here" < "$SELF"
-}
-
-# The clusters pull from the remote, so anything still sitting in the local checkout will not
-# reach them; warn before that turns into a half-migrated tree.
-warn_unpushed() {
-    local warnings=()
-    [ -z "$(git status --porcelain)" ] || warnings+=("uncommitted changes")
-    if git rev-parse '@{u}' >/dev/null 2>&1; then
-        local ahead
-        ahead="$(git rev-list '@{u}..HEAD' --count)"
-        [ "$ahead" -eq 0 ] || warnings+=("${ahead} unpushed commit(s)")
-    fi
-    [ ${#warnings[@]} -gt 0 ] || return 0
-
-    local IFS=", "
-    echo "Warning: you have ${warnings[*]}."
-    echo "The clusters pull from the remote, so a migration you have not pushed will not run there."
-    local reply
-    read -r -p "Continue anyway? [y/N] " reply
-    case "$reply" in
-        y|Y) ;;
-        *) echo "Aborted."; exit 1 ;;
-    esac
-}
-
-usage() {
-    cat >&2 <<'EOF'
-Usage: tools/migrate_experiments.sh [--local | --cluster CLUSTER]
-  (no flags)          local checkout + every cluster in cluster.conf
-  --local             local checkout only
-  --cluster CLUSTER   one cluster only (athena or helios)
-EOF
-    exit 1
-}
-
-TARGETS=()
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --here)    migrate_here; exit $? ;;  # internal: migrate $PWD, no ssh
-        --local)   TARGETS=(local) ;;
-        --cluster) TARGETS=("${2:-}"); shift ;;
-        *)         usage ;;
-    esac
-    shift
-done
-[ ${#TARGETS[@]} -gt 0 ] || TARGETS=(local "${CLUSTERS[@]}")
-
-SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-cd "$(dirname "$SELF")/.."
-
-if [ "${TARGETS[*]}" != "local" ]; then
-    if [ ! -f cluster.conf ]; then
-        echo "Error: cluster.conf not found — copy cluster.conf.example, or pass --local." >&2
-        exit 1
-    fi
-    # shellcheck source=../cluster.conf.example
-    source cluster.conf
-    warn_unpushed
-fi
-
-failed=0
-for target in "${TARGETS[@]}"; do
-    if [ "$target" = local ]; then
-        echo "== local: $(pwd)"
-        migrate_here || failed=1
-    else
-        migrate_cluster "$target" || failed=1
-    fi
-done
-
-[ "$failed" -eq 0 ] || echo "Some trees are not migrated yet — see above." >&2
-exit "$failed"
-"""
-
-
-def recorded_moves() -> list[tuple[str, str]]:
-    """The (old, new) pairs already stacked in the migration script."""
-    if not MIGRATION_SCRIPT.exists():
-        return []
-    return MIGRATE_LINE.findall(MIGRATION_SCRIPT.read_text())
-
-
-def write_migration_script(moves: list[Move]) -> int:
-    """Stack this round's moves onto the migration script; return how many were new.
-
-    The script is regenerated in full rather than appended to, but it keeps every pair it
-    already held: nobody migrates six cluster repo roots plus three local checkouts in one
-    sitting, so a member who skipped three archiving rounds must still be able to catch up
-    with one run of the current script. Order is preserved so that a folder archived twice
-    migrates through the same chain of paths it took here.
-    """
-    known = recorded_moves()
-    added = [(m.old_rel, m.new_rel) for m in moves if (m.old_rel, m.new_rel) not in known]
-    lines = ["    :"] + [f'    migrate "{old}" "{new}"' for old, new in known + added]
-
-    MIGRATION_SCRIPT.write_text(MIGRATION_TEMPLATE.replace("__MIGRATIONS__", "\n".join(lines)))
-    MIGRATION_SCRIPT.chmod(0o755)
-    return len(added)
+    """Retire in place under ``archive/``, keeping the thread grouping the live tree already has."""
+    return Move(
+        name=exp.name,
+        thread=exp.thread,
+        old_rel=f"experiments/{exp.rel_dir}",
+        new_rel=f"experiments/{ARCHIVE_ROOT}/{exp.thread}/{exp.name}",
+    )
 
 
 def resolve(exp_ids: list[str], experiments: list[Experiment]) -> tuple[list[Experiment], list[str]]:
@@ -356,6 +96,8 @@ def main() -> int:
     blocking = []
     for exp in staying:
         config = EXPERIMENTS_DIR / exp.rel_dir / "config.yaml"
+        if not config.exists():
+            continue  # a tool-driven experiment with no submitted job, e.g. exp087
         text = config.read_text()
         for move in moves:
             if move.old_rel in text:
@@ -367,30 +109,13 @@ def main() -> int:
         return 1
 
     hits = find_references(moves, reference_files())
-
-    print(f"{'Applying' if args.apply else 'Dry run —'} {len(moves)} move(s):")
-    for move in moves:
-        print(f"  {move.old_rel} -> {move.new_rel}")
-    print(f"Reference rewrites in {len(hits)} file(s):")
-    for path in sorted(hits):
-        print(f"  {path.relative_to(REPO_ROOT)} ({len(hits[path])} ref group(s))")
+    report_plan(moves, hits, args.apply)
 
     if not args.apply:
         print("\nRe-run with --apply to perform the move.")
         return 0
 
-    # Rewrite first: some referencing files live *inside* a moving experiment (grid run
-    # configs, sibling notes), so their paths in `hits` go stale the moment we move anything.
-    rewrite_references(hits)
-    for move in moves:
-        move_experiment(move)
-    added = write_migration_script(moves)
-
-    script = MIGRATION_SCRIPT.relative_to(REPO_ROOT)
-    print(f"\nStacked {added} move(s) onto {script} ({len(recorded_moves())} total).")
-    print("Each member runs it once, after `git pull`, to bring their own checkout and their")
-    print("cluster repo roots to the new layout — their untracked outputs_*/logs_* included.")
-    print("Next: uv run tools/experiments_index.py && uv run tools/experiments_index.py --check")
+    print_migration_footer(apply_moves(moves, hits))
     return 0
 
 

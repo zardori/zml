@@ -171,26 +171,27 @@ def validate(rel_dir: Path, data: dict) -> list[str]:
     thread = data.get("thread")
     if thread is not None and thread not in THREAD_DOCS:
         problems.append(f"{where}: unknown thread '{thread}' (add it to THREAD_DOCS first)")
-    if archived:
-        if thread != rel_dir.parts[1]:
-            problems.append(f"{where}: thread '{thread}' does not match its archive folder '{rel_dir.parts[1]}'")
-        # A finished-and-retired run is legitimately `done`; only a live status is contradictory.
-        if status in LIVE_STATUSES:
-            problems.append(f"{where}: archived but status is '{status}'")
+    # A finished-and-retired run is legitimately `done`; only a live status is contradictory.
+    if archived and status in LIVE_STATUSES:
+        problems.append(f"{where}: archived but status is '{status}'")
     return problems
 
 
 def discover() -> tuple[list[Experiment], list[str]]:
     """Collect every experiment folder (any depth) and the problems found parsing them.
 
-    An experiment is a directory named ``expNNN_*`` holding a ``config.yaml``; the glob
-    therefore also picks up grid ``run_NNN/`` configs, which the name check drops.
+    An experiment is a directory named ``expNNN_*`` holding a ``notes.md``. Keyed on the notes and
+    not on ``config.yaml``, because the registry frontmatter lives in the notes and some experiments
+    have no config at all — exp087 re-edited an existing dataset with a local tool and never
+    submitted a job, so a config-keyed glob left it out of ``INDEX.md``, out of validation and out of
+    reach of the archive tool, silently. Grid ``run_NNN/`` directories carry a config but no notes,
+    so they drop out here rather than needing the name check to catch them.
     """
     experiments: list[Experiment] = []
     problems: list[str] = []
 
-    for config in sorted(EXPERIMENTS_DIR.glob("**/config.yaml")):
-        exp_dir = config.parent
+    for notes in sorted(EXPERIMENTS_DIR.glob("**/notes.md")):
+        exp_dir = notes.parent
         if not EXP_DIR_RE.match(exp_dir.name):
             continue
 
@@ -214,6 +215,32 @@ def discover() -> tuple[list[Experiment], list[str]]:
     return experiments, problems
 
 
+def find_misfiled_experiments(experiments: list[Experiment]) -> list[str]:
+    """An experiment must sit under its own thread: ``<thread>/`` live, ``archive/<thread>/`` retired.
+
+    Kept out of ``validate()`` — and so out of ``discover()`` — on purpose. This is a property of
+    where the folder *is*, not of whether its notes parse, and ``regroup_experiments.py`` has to be
+    able to run on a tree that is failing it. A check that blocked its own remedy would be useless.
+    """
+    problems = []
+    for exp in experiments:
+        expected = exp.rel_dir.parts[1:-1] if exp.archived else exp.rel_dir.parts[:-1]
+        if expected == (exp.thread,):
+            continue
+        where = f"experiments/{exp.rel_dir}/notes.md"
+        if not expected:
+            root = "experiments/archive/" if exp.archived else "experiments/"
+            problems.append(
+                f"{where}: sits directly in {root} — run tools/regroup_experiments.py to file it "
+                f"under experiments/{exp.thread or '<thread>'}/"
+            )
+        else:
+            problems.append(
+                f"{where}: thread '{exp.thread}' does not match its folder '{'/'.join(expected)}'"
+            )
+    return problems
+
+
 def find_archive_references(experiments: list[Experiment]) -> list[str]:
     """Live configs must never point into ``experiments/archive/``.
 
@@ -225,6 +252,8 @@ def find_archive_references(experiments: list[Experiment]) -> list[str]:
         if exp.archived:
             continue
         config = EXPERIMENTS_DIR / exp.rel_dir / "config.yaml"
+        if not config.exists():
+            continue  # a tool-driven experiment with no submitted job, e.g. exp087
         for lineno, line in enumerate(config.read_text().splitlines(), start=1):
             if "experiments/archive/" in line and not line.lstrip().startswith("#"):
                 problems.append(
@@ -263,16 +292,27 @@ def render_index(experiments: list[Experiment]) -> str:
         f"## Active ({len(active)})",
         "",
         "Everything the current work depends on. A run here is either in flight, or a result /",
-        "dataset that a live config still reads.",
+        "dataset that a live config still reads. Grouped by thread, because experiment *numbers*",
+        "interleave across the three concepts being unlearned in parallel — `exp064` and `exp119`",
+        "are the same thread, `exp065` and `exp066` are not neighbours in anything but numbering.",
         "",
     ]
-    lines += render_table(active)
+
+    for thread, (blurb, doc) in THREAD_DOCS.items():
+        in_thread = [e for e in active if e.thread == thread]
+        if not in_thread:
+            continue
+        lines += ["", f"### `{thread}` ({len(in_thread)})", "", blurb + "."]
+        if doc:
+            lines.append(f"Full write-up: **`{doc}`**.")
+        lines.append("")
+        lines += render_table(in_thread)
 
     retirable = [e for e in active if e.status in RETIRED_STATUSES]
     if retirable:
         lines += [
             "",
-            "> Ready to archive (`superseded`/`abandoned`, still flat): "
+            "> Ready to archive (`superseded`/`abandoned`, still live): "
             + ", ".join(e.exp_id for e in retirable)
             + " — run `tools/archive_experiment.py`.",
         ]
@@ -309,7 +349,7 @@ def main() -> int:
     args = parser.parse_args()
 
     experiments, problems = discover()
-    problems += find_archive_references(experiments)
+    problems += find_misfiled_experiments(experiments) + find_archive_references(experiments)
 
     if problems:
         print(f"{len(problems)} problem(s):", file=sys.stderr)

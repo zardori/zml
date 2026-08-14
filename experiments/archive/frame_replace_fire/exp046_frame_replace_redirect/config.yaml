@@ -9,8 +9,8 @@ metadata_file: experiments/archive/frame_replace_fire/exp042_frame_replace_preco
 latents_dir: experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/outputs_20260625_215904/latents
 
 # Retention anchors: base-model preservation latents from exp041 (reused from exp043-045).
-retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
-retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
 
 # Restrict the erase loss to the edited (fire) latent frames (unchanged from exp044/045). The

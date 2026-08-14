@@ -5,7 +5,7 @@ usage() {
     echo "Usage: $0 [--cluster CLUSTER] [--experiment PATH] [--logs-only] [--include-weights] [--no-videos]"
     echo "  --cluster  Cluster name: athena or helios (reads cluster.conf, default: both)"
     echo "  --experiment PATH  Pull only this repo-relative experiment dir (e.g."
-    echo "                     experiments/exp066_split_chainsaw_dataset). Pair with --include-weights"
+    echo "                     experiments/imagenet/exp066_split_chainsaw_dataset). Pair with --include-weights"
     echo "                     to fetch one experiment's latents without dragging every checkpoint in"
     echo "                     the repo across the wire. Skips the MLflow sync."
     echo "  --logs-only        Download only logs, skip experiment outputs"

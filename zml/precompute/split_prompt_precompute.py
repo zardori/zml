@@ -14,8 +14,9 @@ denoising schedule, each step runs the transformer twice — once conditioned on
 prompt B — and assembles one velocity where latent frames ``[:split_latent_frame]`` take B's
 prediction and ``[split_latent_frame:]`` take A's, then does a single scheduler step on the full
 latent (so the DPM-solver state stays coherent). After the split phase, every step conditions on the
-shared neutral prompt C, letting the two halves denoise into a temporally coherent whole while keeping
-the layout each half already committed to.
+shared neutral prompt C (or, with ``tail_prompt_mode="empty"``, on nothing at all), letting the two
+halves denoise into a temporally coherent whole while keeping the layout each half already committed
+to.
 
 This first milestone just *generates and saves* the four videos per row — A, B, C (each a plain
 generation) and the combined split clip — sharing one initial noise per row so they are directly
@@ -66,9 +67,28 @@ class Config:
     # Per-clip jitter (+/-) on split_latent_frame so the boundary is not always at a fixed position
     # (another positional cue to decorrelate). 0 disables. Resolved with a per-clip seeded RNG.
     split_jitter: int = 0
-    # Fraction of the denoising schedule to keep the A/B split before switching to the shared prompt C.
-    # Early steps set global content (is the concept there?); the C tail heals the temporal seam.
+    # Fraction of the denoising schedule to keep the A/B split before switching to the shared tail
+    # conditioning. Early steps set global content (is the concept there?); the tail heals the seam.
+    #
+    # Measured range of authority (exp099, 5 scenes x {0.5, 0.85}): above ~0.5 this knob is inert for
+    # *content*. The same seed at 0.5 and 0.85 gives clips differing by 2-4 grey levels — texture, not
+    # subject — and every clip keeps its two-state/collapsed verdict. Content is committed in the first
+    # ~20 of 50 steps, so a switch placed after that only refines what is already decided. exp074's
+    # finding that 0.2/0.3 wash the concept out is the same fact from the other side: those put the
+    # switch *inside* the decisive window, where the tail prompt does win. Do not expect 0.85 vs 1.0 to
+    # change anything; the levers that move object yield are prompt framing and (prompt, seed) choice.
     split_step_frac: float = 0.85
+    # What conditions the tail (post-split) phase.
+    #   "c"     - the shared neutral prompt C, as originally designed.
+    #   "empty" - the empty string. With CFG the positive and negative embeddings then coincide, so
+    #             the guidance term vanishes and the tail is *pure unconditional* denoising: it
+    #             sharpens whatever the split phase committed to without arguing for or against any
+    #             content. This matters for object classes, where prompt C is necessarily a
+    #             concept-*deleting* prompt ("a wooden workbench in a cluttered garage" for chain saw),
+    #             so every C step pushes against the very concept the A-half is supposed to keep.
+    #             Nudity does not have this problem — its C keeps the subject and leaves only the
+    #             clothed/naked attribute open — which is why the tail never looked harmful there.
+    tail_prompt_mode: str = "c"
     output_dir: str = "."
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
@@ -89,6 +109,16 @@ def resolve_split(config: Config, rng: random.Random) -> tuple[int, str]:
     if region not in ("first", "second"):
         raise ValueError(f"concept_region must be 'first'|'second'|'random', got {config.concept_region!r}")
     return sf, region
+
+
+TAIL_PROMPT_MODES = ("c", "empty")
+
+
+def tail_prompt(prompt_c: str, mode: str) -> str:
+    """The prompt conditioning the post-split (heal) phase, per ``Config.tail_prompt_mode``."""
+    if mode not in TAIL_PROMPT_MODES:
+        raise ValueError(f"tail_prompt_mode must be one of {TAIL_PROMPT_MODES}, got {mode!r}")
+    return "" if mode == "empty" else prompt_c
 
 
 def _cfg_embeds(pipe, prompt: str, do_cfg: bool):
@@ -156,7 +186,7 @@ def generate_split_clip(
     do_cfg = config.guidance_scale > 1.0
     emb_a = _cfg_embeds(pipe, prompt_a, do_cfg)
     emb_b = _cfg_embeds(pipe, prompt_b, do_cfg)
-    emb_c = _cfg_embeds(pipe, prompt_c, do_cfg)
+    emb_tail = _cfg_embeds(pipe, tail_prompt(prompt_c, config.tail_prompt_mode), do_cfg)
 
     pipe.scheduler.set_timesteps(config.num_inference_steps, device=device)
     timesteps = pipe.scheduler.timesteps
@@ -186,7 +216,7 @@ def generate_split_clip(
             else:  # "second"
                 noise_pred[:, sf:] = pred_a[:, sf:]
         else:
-            noise_pred = _predict(pipe, latents, emb_c, t, rope, config.guidance_scale, do_cfg)  # heal seam
+            noise_pred = _predict(pipe, latents, emb_tail, t, rope, config.guidance_scale, do_cfg)  # heal seam
         # Mirror the pipeline: DDIM takes (pred, t, sample); DPM-solver++ is a stateful multistep.
         if not isinstance(pipe.scheduler, CogVideoXDPMScheduler):
             latents = pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
@@ -251,6 +281,7 @@ def main(config: Config) -> None:
                 "stem": stem, "seed": seed,
                 "prompt_a": row["prompt_a"], "prompt_b": row["prompt_b"], "prompt_c": row["prompt_c"],
                 "split_latent_frame": sf, "concept_region": region, "split_step_frac": config.split_step_frac,
+                "tail_prompt_mode": config.tail_prompt_mode,
                 "videos": paths,
             })
             with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:

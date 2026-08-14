@@ -34,7 +34,7 @@ CLIP_TYPES = ("A", "B", "C", "combined")
 class Config:
     # Directory of .mp4 clips (e.g. an exp059 outputs_*/videos dir). Mutually exclusive with grid_dir.
     videos_dir: str | None = None
-    # A submit_job.py grid root (e.g. experiments/exp074_.../grid_TIMESTAMP): report every run_*/
+    # A submit_job.py grid root (e.g. experiments/nudity/exp074_.../grid_TIMESTAMP): report every run_*/
     # subdir and aggregate by the varied config field named by grid_key (e.g. "split_step_frac").
     # Use this for hyperparameter sweeps instead of one report job per grid combination.
     grid_dir: str | None = None

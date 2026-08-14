@@ -4,8 +4,8 @@ model_id: THUDM/CogVideoX-5b
 # Same data as exp046/exp048: curated fire targets with pre-edit original latents, exp041 retention.
 metadata_file: experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/outputs_20260625_215904/metadata.json
 latents_dir: experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/outputs_20260625_215904/latents
-retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
-retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
 
 # Objective unchanged from exp046/exp048 — the redirection that produced the step-500 erasure.

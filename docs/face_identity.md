@@ -7,7 +7,7 @@ where we deliberately deviate from T2VUnlearning. Source files this document cov
 `zml/unlearn/unlearn_frame_replace.py` (`target_variant`), `tools/fetch_face_eval_prompts.py`,
 `tools/build_face_reference_embeddings.py`, `tools/fetch_face_models.py`,
 `tools/split_face_prompts.py`, and the prompt sets `prompts/face_cogvideox.csv`,
-`prompts/split_face_barack_obama.csv`, `prompts/split_face_angela_merkel.csv`,
+`prompts/face_identities/split/barack_obama.csv`, `prompts/face_identities/split/angela_merkel.csv`,
 `prompts/face_preservation.csv`, `prompts/face_reference_images.csv`.
 
 Related: [`comparison_targets.md`](comparison_targets.md) (why this concept, and in this order),
@@ -257,7 +257,7 @@ conditions the *whole* latent on C, so if C has no person, the joint attention p
 the concept half as well, collapsing the target to something trivial. This is the sharpest deviation
 from the object recipe's B/C design.
 
-`prompts/split_face_barack_obama.csv` / `split_face_angela_merkel.csv`, 30 hand-authored triples each
+`prompts/face_identities/split/barack_obama.csv` / `split_face_angela_merkel.csv`, 30 hand-authored triples each
 (not a single sentence skeleton with noun-substitution — the exact failure mode exp081's rejected
 first draft hit for nudity gen3). B's substitute description (age, hair, build, clothing) varies row
 to row, never a fixed archetype, never another real person, never one of the other four protocol
@@ -326,7 +326,7 @@ prompt and confirming the script aborts.
   `0.23` sits just above the observed negative ceiling (0.226): **FPR = 0.0%, TPR = 78.0%** — a
   similar trade to [`imagenet_objects.md`](imagenet_objects.md) §5's own chain-saw calibration
   (64.7% TPR at FPR = 0%). Full per-identity/per-reference matrix and the raw per-clip data are in
-  `experiments/exp090_eval_base_face/outputs_20260808_180400/id_similarity.json`'s
+  `experiments/face_identity/exp090_eval_base_face/outputs_20260808_180400/id_similarity.json`'s
   `cross_reference` / `cross_reference_per_clip` keys. `face_detection_rate` is trustworthy as a
   live-training signal as of this calibration.
 - **`det_threshold` / `min_face_px`** (`ArcFaceFrameEmbedder`) — both trade `face_present_rate`
@@ -366,17 +366,17 @@ prompt and confirming the script aborts.
 
 | exp | what | status |
 |---|---|---|
-| exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate | **done**, gate (a)/(b) pass — see `experiments/exp090_eval_base_face/notes.md`. Gate (c) (5×5 matrix) and `identity_threshold` calibration still open, §5. |
+| exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate | **done**, gate (a)/(b) pass — see `experiments/face_identity/exp090_eval_base_face/notes.md`. Gate (c) (5×5 matrix) and `identity_threshold` calibration still open, §5. |
 | exp091 | NegPrompt baseline, 2 pilot identities | ready, retargeted to Obama + Elizabeth |
 | exp092 | split-prompt + whole-clip dataset, Obama | ready, unaffected by the pilot-identity correction |
-| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess; `experiments/exp093_split_face_merkel_dataset/` renamed to `exp093_split_face_elizabeth_dataset/`, `prompts/split_face_queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
+| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess; `experiments/exp093_split_face_merkel_dataset/` renamed to `exp093_split_face_elizabeth_dataset/`, `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
 | exp094 | preservation anchors (5×3 identity + 10 generic) | ready, unaffected — already covers all 5 identities |
 | exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | ready, blocked on exp092/exp094 |
 | exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner | ready (renamed from `exp096_frame_replace_merkel/`), blocked on exp093/exp094/exp095 |
 | exp097 / exp098 | reported ID-Similarity for the two checkpoints | ready (exp098 renamed from `exp098_eval_frame_replace_merkel/`), blocked on exp095/exp096 |
 
 exp090 has run and passed its gate; exp091/093/096/098 have been retargeted from the pre-run Obama +
-Merkel guess to the confirmed Obama + Queen Elizabeth II pair. `prompts/split_face_angela_merkel.csv`
+Merkel guess to the confirmed Obama + Queen Elizabeth II pair. `prompts/face_identities/split/angela_merkel.csv`
 and `prompts/face_identities/angela_merkel.csv` are untouched — Merkel remains a valid protocol
 identity in every 5-identity eval/preservation set, just no longer a pilot erase target. Reference
 embeddings, eval prompt fetch, model weight fetch, the detector/embedder, and the anti-cheat check are

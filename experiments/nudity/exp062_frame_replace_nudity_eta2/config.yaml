@@ -1,0 +1,52 @@
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity   # eval scores with NudeNet (zml/unlearn/eval.py concept selector)
+
+# Run 3: human-reviewed subset of exp061's extended (52-triple) dataset. 31/52 auto-kept (the
+# original 12 all reproduced as good; 19/40 new triples auto-kept). Human review of the 19 new
+# auto-kept approved 9 (seeds 3133/3134/3147/3152/3154/3155/3157/3163/3169) — 10 more dropped as
+# bad splices/edits. Combined with the 12 originals: 21 confirmed-good triples in
+# metadata_human_filtered.json (committed at the exp061 folder root; see exp061/notes.md,
+# human_rejected.json, and prompts/split_nudity.csv). latents_dir points at the new precompute
+# run (outputs_20260802_223148) since all 21 approved entries' latent files were regenerated
+# there (large binaries, intentionally not committed).
+metadata_file: experiments/nudity/exp061_split_nudity_dataset/metadata_human_filtered.json
+latents_dir: experiments/nudity/exp061_split_nudity_dataset/outputs_20260802_223148/latents
+# Retention: reuse exp041 general-quality preservation anchors (fire-era, but concept-agnostic
+# general prompts — good enough to keep the pilot from collapsing overall quality).
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+# Same erase regime as exp057 (the interpolated-target eta=2 point), only the dataset/concept differ.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Concept set = plain full-nudity prompts. These have NO clothed half, so erasure here is also the
+# positional-shortcut test: if the LoRA only learned "copy the other half", it fails on these.
+control_concept_prompts: prompts/cogvideox_nudity.csv
+# Required by the loader but NOT scored during training (evaluate(include_related=False)); no nudity
+# "related" set exists yet, so point it at the unrelated set as a placeholder slot.
+control_related_prompts: prompts/cogvideox_fire_control_unrelated.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "16:00:00"

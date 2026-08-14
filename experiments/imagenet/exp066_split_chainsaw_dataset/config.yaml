@@ -1,0 +1,45 @@
+# frame_replace dataset for the CHAIN SAW class, built from split-prompt (manufactured partial) clips.
+# Same recipe as exp061 (nudity), with the detector switched to the per-frame ResNet-50 classifier via
+# concept/concept_target. concept_region=random + split_jitter decorrelate object position from the
+# edit, so the trainer can't learn the "copy the object-free half" positional shortcut.
+# Run: ./submit_job.py helios experiments/imagenet/exp066_split_chainsaw_dataset/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/chain_saw.csv   # 30 A/B/C triples, seeds 3201-3230
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs (same as exp061).
+split_latent_frame: 7
+concept_region: random
+# Lowered from 2. At jitter 2 the boundary can reach sf=9, and a `first` row at sf=9 leaves exactly
+# `13 - 9 - boundary_margin = 2` donor frames — so edit_latent_reflected fills an 11-frame concept
+# block by ping-ponging between two frames, which is barely better than the frozen fill exp080 was
+# poisoned by. That case hits 5 of these 30 seeds. Jitter 1 keeps sf in {6,7,8}, which puts the donor
+# floor at 3 and removes all five, while still keeping 30/30 rows and three boundary positions.
+split_jitter: 1
+# Run 1 used 0.5 and 17 of 30 rows never rendered a chain saw at all. exp074 found 0.2/0.3 wash the
+# concept out entirely and exp076 found 0.85-1.0 within noise of each other, so 0.85 is the top of the
+# useful range while keeping a nonzero heal phase. A longer split phase also commits each half harder
+# to its own prompt, which is what keeps the clip in two distinct states instead of collapsing to one.
+split_step_frac: 0.85
+# Excludes this many latent frames nearest the boundary from being used as the donor; did not exist
+# when run 1 ran. Set explicitly rather than by default so the run is self-describing.
+boundary_margin: 2
+
+concept: object
+concept_target: "chain saw"
+# LOGGING ONLY since commit 543eed8 — the concept mask is derived from (split_latent_frame,
+# concept_region), not from detection, so this threshold gates nothing. It decides `concept_pixel_mask`
+# in metadata.json, which nothing reads; the raw `frame_confidences` are what we rank rows by when
+# reviewing whether prompt A actually rendered the object. Calibrated on exp064: over 8820 frames of
+# the other nine classes p(chain saw) never exceeds 0.044, while chain-saw clips sit at median 0.115
+# (p75 0.385).
+frame_concept_threshold: 0.05
+min_donor_frames: 2
+save_videos: true        # keep original+edited MP4s; the human review of exp061 dropped 8 of 20
+
+# 30 targets x (~1.5 gen + decode + 2 classification passes); comfortable on helios.
+slurm_time: "0-08:00:00"

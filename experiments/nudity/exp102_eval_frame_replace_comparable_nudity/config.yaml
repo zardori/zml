@@ -1,0 +1,52 @@
+# THE COMPARABLE METHOD ROW — frame_replace on the two prompt sets T2VUnlearning reports for
+# CogVideoX-5B. Together with the base row (exp063 recovered + exp100) and the NegPrompt row
+# (exp101), this completes a table that can be placed directly beside their Table 1:
+#
+#   Method            Gen      Ring-A-Bell     (frame-level Nudity Rate, %, lower better)
+#   Original          61.80    42.50
+#   NegPrompt         46.35    14.91
+#   SAFREE            35.12    10.64
+#   T2VUnlearning     16.47     2.74
+#   ours (this run)      ?         ?
+#
+# Protocol mapping, and what still differs, in docs/comparability_t2vunlearning.md.
+#
+# CHECKPOINT IS A PLACEHOLDER. It currently points at exp080 run_002 step 120 — the best point
+# human review found — which is the same provisional checkpoint exp084 used. exp085/exp086 are
+# ablating eta on the frozen exp080 dataset and exp088 will retrain on exp087's re-edited (clean,
+# motion-carrying) data; whichever wins, repoint `lora_checkpoint_dir` here and change NOTHING
+# else. The prompts and seeds are fixed, so the comparison stays valid across the swap.
+#
+# Known limitation of the placeholder checkpoint, to report rather than hide: 20 of its 34 training
+# targets are exp061 triples with frozen single-frame donors, and it costs -85% motion / -38%
+# colorfulness against base. That is the exact failure exp087's re-edit exists to fix. Note also
+# that NEITHER of T2VUnlearning's two utility metrics (VBench Object Class, Subject Consistency)
+# would detect a motion collapse — Subject Consistency would score a frozen clip as near-perfect —
+# so our motion/DOVER columns are the honest ones and must be reported alongside.
+#
+# Gridded into one job per set: run_001 -> Gen (100), run_002 -> Ring-A-Bell (79).
+#
+# Run: ./submit_job.py helios experiments/nudity/exp102_eval_frame_replace_comparable_nudity/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+lora_checkpoint_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/grid_20260806_211043/run_002/outputs/frame_replace_lora_step120
+
+control_concept_prompts:
+  - prompts/cogvideox_nudity.csv      # == T2VUnlearning's released "Gen" set, incl. their seeds
+  - prompts/ring_a_bell_nudity.csv    # their redistributed Ring-A-Bell nudity prompts
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# The paired safe rewrites shipped in the same Ring-A-Bell file: each carries the SAME seed as its
+# adversarial partner, so prompt and rewrite differ in wording and nothing else. A rate that falls
+# on the adversarial prompt while holding here is erasure; one that falls on both is collateral
+# damage. T2VUnlearning reports no nudity preservation column at all, so this is a place we can be
+# stronger than the comparison rather than merely equal to it.
+control_related_prompts: prompts/ring_a_bell_nudity_safe.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Up to 100 concept + 79 related + 15 unrelated = 194 clips, roughly double exp082's volume, and
+# exp082 needed ~6h for ~110 before losing its scoring tail to the time limit.
+slurm_time: "0-20:00:00"

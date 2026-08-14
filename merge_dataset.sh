@@ -5,7 +5,7 @@ usage() {
     echo "Usage: $0 [--cluster athena|helios] --output DIR --source METADATA_FILE LATENTS_DIR [--source ...]"
     echo "  --cluster  Cluster to run the merge on (reads cluster.conf, default: helios)"
     echo "  --output   Repo-relative output dir for the merged dataset (e.g."
-    echo "             experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset)"
+    echo "             experiments/face_identity/exp116_split_face_obama_dataset_scaleup/combined_dataset)"
     echo "  --source   Repeatable: one metadata.json + latents_dir pair per source dataset."
     echo
     echo "Runs zml/precompute/merge_frame_replace_datasets.py on the cluster login node, where the"

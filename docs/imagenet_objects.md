@@ -5,7 +5,7 @@ where we deliberately deviate from the papers. Source files this document covers
 `zml/benchmarks/imagenet_classes.py`, `imagenet_classifier.py`, `check_for_object.py`, `registry.py`,
 `zml/eval/imagenet_eval.py`, `tools/build_imagenet_table.py`, `tools/split_imagenet_prompts.py`, and
 the prompt sets `prompts/imagenet_objects.csv`, `prompts/imagenet_preservation.csv`,
-`prompts/split_imagenet_*.csv`.
+`prompts/imagenet_objects/split/*.csv`.
 
 Related: [`comparison_targets.md`](comparison_targets.md) (why this concept, and in this order),
 [`frame_replace.md`](frame_replace.md) (the erasure method), [`split_prompt.md`](split_prompt.md)
@@ -155,8 +155,8 @@ and must stay that way. We preserve the classes, not the test items.
   **Since `543eed8` this field is logging-only and gates nothing.** The concept mask is derived from
   `(split_latent_frame, concept_region)`, so the threshold decides only `concept_pixel_mask` in
   `metadata.json`, which nothing reads. It still earns its calibration, because the raw
-  `frame_confidences` logged next to it are how you rank rows when reviewing whether prompt A rendered
-  the object at all — the one job the detector still has here (§6, exp066/exp067 run 1).
+  `frame_confidences` logged next to it are what `tools/screen_split_dataset.py` screens on after the
+  build — the one job the detector still has here (§6).
 
   Before that commit the errors were asymmetric and dangerous: a frame *below* threshold became a
   donor, so a false negative silently spliced the object into `x0_edited`. exp066/exp067's run 1 is the
@@ -180,13 +180,37 @@ and must stay that way. We preserve the classes, not the test items.
   `object_detection_rate` used as a live-training signal; ESR/PSR are frame-pooled and ignore it.
   Too high and a partially-visible object reads as absent during training; too low and one lucky
   frame flags the whole clip.
-- **B-prompt substitutes** (`prompts/split_imagenet_*.csv`) — must lie outside the ten classes, or the
+- **A-prompt framing and specificity** (`prompts/imagenet_objects/split/*_closeup.csv`, built by
+  `tools/build_split_imagenet_closeup_prompts.py`) — **the knob with the largest measured effect on
+  yield, and the one that was wrong for the whole first pass.** Prompt A must put the object where a
+  whole-frame classifier can see it, and must name the parts that identify the class. Too wide or too
+  bare and the base model renders no object at all (17 of 30 rows in each of exp066/exp067); too
+  tightly cropped and the clip stops resembling the eval prompts the erasure is measured on. Calibrate
+  against `prompts/imagenet_objects.csv`, the set the base model scores 0.506 / 0.739 top-1 on.
+- **B-prompt substitutes** (`prompts/imagenet_objects/split/*.csv`) — must lie outside the ten classes, or the
   "concept-free" half teaches the model to produce a class PSR then measures. They must also vary
-  across the file: a single fixed substitute teaches a fixed replacement rather than removal.
+  across the file: a single fixed substitute teaches a fixed replacement rather than removal. And they
+  must be **specified as richly as A, and specified to lack the identifying feature**. Both halves of
+  that matter: under-specified substitutes lose the splice on prompt strength rather than on content
+  (which fakes yield by turning the safe half into the concept half), and church-shaped substitutes
+  make the safe half score as `church` anyway — 10 of exp067's 30 rows, with `p22_s3323` at 0.2465
+  concept-half against 0.2474 safe-half.
+- **`--min-concept-max` / `--min-contrast-index`** (`tools/screen_split_dataset.py`) — the post-build
+  screen, and the only place a detector is allowed to decide anything for these datasets. Too strict
+  and a class with a small in-frame concept is thrown away wholesale; too loose and rows where the
+  object was never rendered dilute the erase signal with a no-op ("replace non-chainsaw frames with
+  other non-chainsaw frames"). 0.10 / 0.4 for both pilot classes; see
+  [`split_prompt.md`](split_prompt.md) §3.1 for why the second gate is a within-clip differential.
 - **`split_step_frac`**, **`concept_region`**, **`split_jitter`** — unchanged from
   [`split_prompt.md`](split_prompt.md) §4, including the positional-shortcut argument. Because the 20
   eval prompts per class are ordinary full-object scenes with no object-free half, evaluating on them
-  *is* the shortcut test.
+  *is* the shortcut test. Note that `split_step_frac` is **inert above ~0.5** (exp099); do not spend a
+  run tuning it.
+- **`tail_prompt_mode`** (`c` | `empty`) — what conditions the heal phase. `c` is the shared neutral
+  prompt, which for an object class is necessarily the object-*removed* scene, so a long tail argues
+  against the concept; `empty` makes the tail pure unconditional denoising, healing the seam without
+  arguing for or against content. Only has authority below `split_step_frac` ~0.4 (see above), which
+  is exactly where a deleting tail does damage. exp119 measures it; until then `c` remains the default.
 
 ## 6. Status
 
@@ -199,11 +223,15 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 |---|---|---|
 | exp064 | base-model ESR/PSR over all ten classes; the `Original` row and the sanity gate for classifier + prompts | **done** — gate passed, see below |
 | exp065 | NegPrompt baseline, chain saw + church (grid) | ran 2026-08-03, **timed out** at 163/200 and 164/200 with no report; `slurm_time` 10 h → 14 h, resubmit (resumable) |
-| exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | run 1 kept **4/30**, discarded; rebuilding at `split_step_frac: 0.85` |
-| exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | run 1 kept **7/30**, discarded; rebuilding at `split_step_frac: 0.85` |
+| exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | run 1 kept 4/30; run 2 (`0.85`, construction mask) kept 30/30 but **screens at 7/30** — superseded by exp117 |
+| exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | run 1 kept 7/30; run 2 kept 30/30 but **screens at 3/30** — superseded by exp118 |
 | exp068 | preservation anchors, 10 classes x 3 prompts | **done** — 30 entries, 3 per class, `outputs_20260803_233647` |
-| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | blocked on exp066's rebuild |
-| exp070 | frame_replace erasure of church, same regime | blocked on exp067's rebuild |
+| exp099 | static vs motion-carrying A/B prompts x `split_step_frac` | **done** — motion prompts 0/5 two-state vs static 2/5; keep the static scaffold. Also showed `split_step_frac` is inert above ~0.5 |
+| exp117 | chain-saw dataset on object-dominant prompts, `emit_whole_clip_target` | ready, not submitted |
+| exp118 | church dataset on object-dominant prompts, `emit_whole_clip_target` | ready, not submitted |
+| exp119 | `tail_prompt_mode` [c, empty] x `split_step_frac` [0.3, 0.85], 5 chain-saw seeds | ready, not submitted |
+| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | blocked on exp117 |
+| exp070 | frame_replace erasure of church, same regime | blocked on exp118 |
 | exp071 / exp072 | reported ESR/PSR for the two LoRAs | blocked on exp069 / exp070 |
 
 **exp066/exp067 run 1 — why the datasets were discarded.** Both ran 2026-08-03, two days before
@@ -216,31 +244,55 @@ threshold, and four have `edited_max_confidence` at or above threshold, meaning 
 nothing by the detector's own reading. All seven kept church rows were `concept_region: first` despite
 `concept_region: random`, which alone would have taught the positional shortcut.
 
-Chain saw's 17 `no_concept` rows point at a *sampler* cause rather than a detector one, and the
-mechanism is specific to object classes: at `split_step_frac: 0.5` half the schedule is the prompt-C
-heal phase, and for objects **C removes the object entirely** ("a wooden workbench in a cluttered
-garage", "a green English village on a clear afternoon"), so every heal step argues against the
-concept surviving. Nudity never had this problem because its C keeps the subject and leaves only the
-clothed/naked attribute open — re-scoring exp074/exp076 shows seam contrast is flat there from 0.3 to
-1.0. Hence the rebuild at 0.85, which is also the current default (`cb63756`). See
-`docs/split_prompt.md` §2 for the table and the general rule.
+**exp066/exp067 run 2 — the rebuild worked and the yield did not move.** With the mask
+construction-derived, `insufficient_donor_frames` geometric and `split_jitter: 1`, both runs kept
+30/30 as predicted. Screening them (`tools/screen_split_dataset.py`) shows what the keep count hides:
 
-**Judge these clips by seam contrast, not motion.** A split-prompt target only carries erase signal if
-the two halves settle on different content; a clip that is nearly static *within* each half is fine, and
-one that collapses to a single state across all 49 frames is useless. Averaging frame-to-frame
-differences confuses the two — exp066's `p25_s3226` has a median difference of 0.470, which reads as
-"static", but a 17.03 step exactly at its seam, and it is the best clip in that batch.
-`tools/check_seam_contrast.py` measures this from the saved MP4s (no GPU, no latents): run 1 scored
-**2/4** and **1/7** two-state. It is a whole-frame measure, so compare an object class against itself
-across runs rather than against nudity's numbers — swapping one building inside a village moves fewer
-pixels than swapping most of a subject.
+| | rows | pass | `not-split` | `no-concept` |
+|---|---|---|---|---|
+| exp066 chain saw | 30 | 7 (23%) | 6 | **17** |
+| exp067 church | 30 | 3 (10%) | 10 | **17** |
+
+`no-concept` means the peak detector score in the concept half never reached 0.10 — the base model
+drew no chain saw, no church, anywhere in the clip. **The same 17 of 30 in both classes.** A splitter
+cannot separate a concept that was never rendered, so most of what looked like a sampler problem never
+was one.
+
+Three things follow, and together they redirect the thread:
+
+1. **`split_step_frac` was the wrong lever, and is now measured to be a dead one.** Raising it 0.5 →
+   0.85 was justified by the argument that prompt C deletes the object for these classes (it does).
+   But exp099 ran the same seeds at both values and got near-identical clips — 2–4 grey levels apart,
+   every verdict unchanged — because content is committed in roughly the first 20 of 50 steps and a
+   switch after that only refines. Anything in [0.5, 1.0] is the same experiment. The C-deletion
+   argument survives, but it applies to the *decisive* window below ~0.4, which is what exp119 tests
+   with `tail_prompt_mode: "empty"` (a tail conditioned on nothing, so it heals without erasing).
+2. **The lever that moves object yield is the prompts.** exp116 proved this on faces: reframing to
+   controlled medium/close framing took yield 30% → 50–63%, while a re-seed of the original prompts
+   reproduced 30% exactly. The object prompts have the same two defects — wide framing that puts a
+   small object in a large scene, and no class-identifying detail ("a church", against the eval set's
+   "a stone church with a tall steeple"). exp117/exp118 rebuild them with
+   `tools/build_split_imagenet_closeup_prompts.py`, settings, seeds and prompt C held verbatim.
+3. **Church has a second, class-specific failure.** Its 10 `not-split` rows are ones where the church
+   *was* rendered and the substitute building scored just as high (`p22_s3323`: 0.2465 concept half,
+   0.2474 safe half). "a village hall", "a museum facade", "a manor house" are masonry buildings of
+   similar scale, and ResNet-50's `church` class is not narrow. exp118's substitutes are specified to
+   have no tower, spire or bell-cote at all.
+
+**Screen these clips with the detector differential, not with seam contrast.** The pixel-space checker
+is concept-blind and whole-frame, and on this data it makes both errors: it passes exp066's
+`p13_s3214` (flower pot → chain-and-hook object, a textbook seam, peak p(chain saw) 0.003) and rejects
+exp067's `p27_s3328` (bell tower present for 24 frames then gone — the one correct church split —
+scored "diffuse" at ratio 3.0, because a bell tower is a small share of the frame). Use
+`tools/screen_split_dataset.py`, which asks the paired within-clip question instead; keep
+`tools/check_seam_contrast.py` for diagnosing *why* a row failed. `docs/split_prompt.md` §3.1.
 
 **exp064 (done) — the gate, and what it changed.** 200 videos in 5.71 h on athena. Both pilot classes
 render well (chain saw top-1 .506 / top-5 .795, church .739 / .950), so the pilot is viable and the
 datasets are worth building. It also produced the two things everything downstream needed: the
 calibrated thresholds in §5, and the discovery that the ranking convention is ambiguous (§3.1). Full
 numbers, per-class weak spots and the yield risks carried into exp066/exp069:
-`experiments/exp064_eval_base_imagenet/notes.md`.
+`experiments/imagenet/exp064_eval_base_imagenet/notes.md`.
 
 Our `Original` row, both conventions, against the published one:
 

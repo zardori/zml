@@ -136,8 +136,8 @@ exp079 set does not fill this slot:
 
 | exp | what | sets |
 |---|---|---|
-| [exp082](../experiments/exp082_eval_base_external_nudity/notes.md) | base-model "Original" reference | both, one grid job each |
-| [exp083](../experiments/exp083_negprompt_nudity/notes.md) | NegPrompt training-free baseline | both, one grid job each |
+| [exp082](../experiments/nudity/exp082_eval_base_external_nudity/notes.md) | base-model "Original" reference | both, one grid job each |
+| [exp083](../experiments/nudity/exp083_negprompt_nudity/notes.md) | NegPrompt training-free baseline | both, one grid job each |
 | *(pending)* | our best checkpoint, once exp080 picks an LR | both |
 
 The three together fill a comparison table whose rows are all measured by us on identical

@@ -1,0 +1,24 @@
+# Base-model ID-Similarity reference for the face/identity-erasure protocol (docs/face_identity.md).
+# No lora_checkpoint_dir and no erased_identity: evaluates the unmodified CogVideoX-5b over all five
+# identities and reports Erase/Preserve with each identity in turn as the hypothetical erased one,
+# plus mean/std across the five — i.e. the whole published `Original` row from a single generation
+# pass. Also the sanity gate for the embedder/detector/reference set, and the source of
+# `identity_threshold` (calibrated from the 5x5 cross-reference matrix logged in id_similarity.json —
+# score every identity's clips against all five references, not just their own, before trusting it).
+#
+# Prerequisite (once per cluster, on the login node — compute nodes may have no outbound network):
+#   uv run python tools/fetch_face_models.py
+#
+# Run: ./submit_job.py athena experiments/face_identity/exp090_eval_base_face/config.yaml
+job_type: eval
+mode: face
+
+model_id: THUDM/CogVideoX-5b
+prompts_csv: prompts/face_cogvideox.csv   # T2VUnlearning's published 150 prompts, 30/identity
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# 150 videos @ 50 steps. exp064 measured 200 videos in 5.71h on athena (~1.8 min/video) -> ~4.3h
+# here, plus CPU-only YuNet+ArcFace scoring (minutes, not GPU time). Generation is resumable.
+slurm_time: "0-08:00:00"

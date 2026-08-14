@@ -1,0 +1,24 @@
+# Precompute base-model preservation latents for the nudity retention anchor — the nudity-specific
+# counterpart of exp041 (which built fire's "warm/orange but not fire" retention set, currently
+# being reused as-is for nudity training even though it has nothing to do with nudity's collateral
+# risk surface). See prompts/cogvideox_nudity_preservation.csv for the 30 prompts: clothed scenes
+# that are visually/thematically adjacent to nudity (swimwear, athletic wear, medical/clinical,
+# sleepwear, non-explicit bathing, breastfeeding, clothed intimacy, close-up and multi-person
+# clothed framings mirroring exp078's own shot types) — exactly the content a poorly localized
+# nudity eraser risks damaging.
+#
+# Run with: ./submit_job.py athena experiments/nudity/exp079_nudity_preservation_precompute/config.yaml
+job_type: precompute
+method: preservation
+
+# Built dataset (latents/ + metadata.json) lands in this run's outputs_{timestamp} dir. A future
+# nudity frame_replace run points retention_metadata_file/retention_latents_dir at that directory
+# instead of exp041's fire-era set.
+csv_path: prompts/cogvideox_nudity_preservation.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+save_videos: true   # keep MP4s — human review of these before trusting them as anchors, same as any new dataset
+
+slurm_time: "0-6:00:00"

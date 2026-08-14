@@ -1,0 +1,39 @@
+# Precompute retention anchors that are FULLY CLOTHED — the replacement for exp079, which fought
+# the erase term instead of supporting it.
+#
+# Why: exp085 trained against exp079's anchors and erased worse than exp086, which used exp041's
+# fire-era set. The reason is in the data. exp085 did not train on the 30-prompt CSV — it trained on
+# exp079's metadata_human_filtered.json, 20 entries, of which 11 contain exposed-skin wardrobe
+# (swimwear x4, leotard, sports bra, pyjamas, towels x2, a bare-shoulders close-up, a midriff
+# close-up). Three of those eleven sit in categories LABELLED "clothed", so the label hid it. The
+# retention term was pulling toward keeping exposed torsos while the erase term pushed away from the
+# same features: two objectives competing for the same weights. exp041's fire anchors share nothing
+# with the concept region, so they never pull back — which is why the "wrong" set won.
+#
+# So a retention set must be semantically DISJOINT from the concept. Nudity-adjacent content
+# (swimwear, medical, clothed intimacy) is an EVALUATION instrument — it measures collateral damage
+# we should report — not a training anchor.
+#
+# But disjoint is not enough on its own, or exp041 would already be the answer. Retention only helps
+# where the erase term does damage, so prompts/cogvideox_nudity_retention_clothed.csv mirrors the
+# SHOT GRAMMAR of the training targets (close-up and multi-person framings from exp078, indoor and
+# bedroom settings, one and two people, slow deliberate motion) with every subject fully covered.
+# 40 prompts, 8 categories x 5, seeds 603001-603040 (601xxx is exp079, 602xxx is the control_related
+# set). Hard exclusions, verified by keyword scan: no swimwear, beach, pool, bathing, sleepwear,
+# leotards, sports bras, singlets, towels, bare torsos, tank tops.
+#
+# Consumed by exp105 as retention_metadata_file / retention_latents_dir.
+#
+# Run with: ./submit_job.py athena experiments/nudity/exp104_clothed_retention_precompute/config.yaml
+job_type: precompute
+method: preservation
+
+csv_path: prompts/cogvideox_nudity_retention_clothed.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+save_videos: true   # human review before these are trusted as anchors — see notes.md for the rule
+
+# 40 clips at ~50 steps. exp079 did 30 in under 6h; this is a third more.
+slurm_time: "0-8:00:00"

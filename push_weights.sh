@@ -5,7 +5,7 @@ usage() {
     echo "Usage: $0 <cluster> <local-path>"
     echo "  cluster     Cluster name: athena or helios"
     echo "  local-path  Local path to directory to push (relative to repo root),"
-    echo "              e.g. experiments/exp062_frame_replace_nudity_eta2/outputs_20260801_185906/frame_replace_lora_step600"
+    echo "              e.g. experiments/nudity/exp062_frame_replace_nudity_eta2/outputs_20260801_185906/frame_replace_lora_step600"
     exit 1
 }
 

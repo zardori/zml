@@ -18,7 +18,7 @@ Each video is decoded **once** and both classifiers run over the same frames, be
 per-frame combination — aggregate rates cannot be OR-ed after the fact.
 
 Run:
-    uv run python tools/score_q16.py experiments/exp063_eval_base_nudity
+    uv run python tools/score_q16.py experiments/nudity/exp063_eval_base_nudity
     uv run python tools/score_q16.py <run_dir> --dry-run
 """
 

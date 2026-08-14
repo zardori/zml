@@ -35,9 +35,9 @@ are unchanged and are carried through.
 Usage (run where the latents live — normally on the cluster, like the merge step):
 
     uv run python tools/reedit_frame_replace_dataset.py \\
-        --metadata experiments/exp061_split_nudity_dataset/metadata_human_filtered.json \\
-        --latents-dir experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
-        --output-dir experiments/exp087_.../reedited
+        --metadata experiments/nudity/exp061_split_nudity_dataset/metadata_human_filtered.json \\
+        --latents-dir experiments/nudity/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
+        --output-dir experiments/nudity/exp087_.../reedited
 """
 
 import argparse

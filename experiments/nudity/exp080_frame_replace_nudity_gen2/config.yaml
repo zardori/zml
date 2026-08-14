@@ -1,0 +1,76 @@
+# frame_replace nudity, first run on the expanded (exp061 + exp078) dataset. Baseline is exp077
+# (not exp062/073), since exp077's LR-warmup test is the more recent, fine-grained-checkpoint
+# regime and its lr_warmup_steps=0 arm is the most directly comparable "no warmup" control.
+#
+# Three changes from exp077, per direct instruction:
+# 1. Warmup is scrapped entirely (exp077 found no clean sharpness win from it — see its notes.md;
+#    this doesn't even set lr_warmup_steps, so it defaults to 0, exp077's own no-warmup arm).
+# 2. Grid over learning_rate instead: [0.00005, 0.0001, 0.0002, 0.0005]. 0.0005 is the existing
+#    baseline (every nudity run so far, constant, no warmup); 0.0002 is exp073's own suggested
+#    "smaller LR" alternative to warmup for fixing the visible softness in its clips (colorfulness
+#    lowest at the earliest checkpoints under the full 5e-4 step from iteration 1). 0.0001 and
+#    0.00005 added on top (compute cost is the same per job either way, just two more grid jobs) to
+#    see whether the erasure/sharpness tradeoff keeps improving further down or bottoms out — 0.0002
+#    alone wouldn't distinguish "smaller is better" from "this specific value is the right amount
+#    smaller."
+# 3. steps: 200 (up from exp073/077's 100), save_interval: 20 (unchanged) -> 10 checkpoints per run,
+#    to see whether either LR's trajectory (erasure vs. sharpness) changes once training runs longer
+#    than the fine-grained-checkpoint window exp073/077 both used.
+#
+# Dataset: exp061's 21 human-confirmed-good triples + exp078's 13 human-approved triples from the
+# split_step_frac=1.0 grid run (2026-08-05 review) = 34 total. The 13 approved rows are also saved
+# as prompts/split_nudity_gen2_approved.csv (durable, committed) so they can be regenerated at
+# whatever split_step_frac value eventually gets picked from the remaining grid review, without
+# depending on this specific run's already-generated latents.
+#
+# REQUIRED BEFORE SUBMITTING: run the merge step below to build combined_dataset/ (pure file I/O,
+# no GPU — run locally after `./pull_results.sh --include-weights`, or directly on the cluster):
+#   uv run python -m zml.precompute.merge_frame_replace_datasets \
+#     --source experiments/nudity/exp061_split_nudity_dataset/metadata_human_filtered.json \
+#              experiments/nudity/exp061_split_nudity_dataset/outputs_20260802_223148/latents \
+#     --source experiments/nudity/exp078_split_nudity_dataset_closeup_multiperson/grid_20260805_233142/run_005/outputs/metadata_human_filtered.json \
+#              experiments/nudity/exp078_split_nudity_dataset_closeup_multiperson/grid_20260805_233142/run_005/outputs/latents \
+#     --output_dir experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset
+#
+# Run: ./submit_job.py helios experiments/nudity/exp080_frame_replace_nudity_gen2/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+# Still exp041's fire-era retention set (see exp079's notes.md — a nudity-specific replacement is
+# built but not yet submitted). Swap to exp079's output once that lands.
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+control_related_prompts: prompts/cogvideox_fire_control_unrelated.csv   # placeholder, see exp062's notes
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: [0.00005, 0.0001, 0.0002, 0.0005]   # grid: baseline + 3 smaller values
+steps: 200
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+# exp077's 100 steps took ~6.25-7h wall time; 200 steps roughly doubles that, plus margin for the
+# larger (34 vs 21 triple) dataset.
+slurm_time: "0-16:00:00"

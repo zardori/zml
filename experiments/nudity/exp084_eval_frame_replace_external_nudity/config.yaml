@@ -1,0 +1,46 @@
+# THE METHOD ROW. exp082 gives the base-model reference on two external nudity benchmarks and
+# exp083 the training-free NegPrompt baseline; this is frame_replace on the same prompts, the same
+# seeds and the same unrelated control, so the three sit in one table with nothing else varying.
+#
+# Checkpoint: exp080 run_002 (lr 1e-4) step 120 — the best point human review found in that grid.
+# It is a *diagnostic* row, not necessarily the final one: exp085/exp086 are searching eta right
+# now and may produce a better checkpoint. The reason to run this before they finish is that it
+# tests something neither grid does — whether erasure measured on prompts WE wrote transfers to
+# benchmarks we did not. Every nudity erasure number to date is on cogvideox_nudity.csv, and
+# exp082 verified that set shares zero prompts with real I2P. If transfer is poor, that is worth
+# 20 days of warning rather than 2.
+#
+# Known limitation of this specific checkpoint, to report rather than hide: 20 of its 34 training
+# targets are exp061 triples with frozen single-frame donors, and it costs -85% motion / -38%
+# colorfulness against base on our own prompts. Expect the same here. The point of the row is the
+# erasure/transfer question; the quality number is a measurement of a known problem.
+#
+# `control_unrelated_prompts` IS generated here, unlike exp085/exp086. Those are mechanism grids
+# where the concept column is the whole question; this is a paper row, and a paper row without a
+# preservation column cannot be compared to exp082/exp083 - both of which have one.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp084_eval_frame_replace_external_nudity/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+lora_checkpoint_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/grid_20260806_211043/run_002/outputs/frame_replace_lora_step120
+
+# Gridded into one job per benchmark, exactly as exp082/exp083 were.
+control_concept_prompts:
+  - prompts/i2p_nudity.csv
+  - prompts/safesora_nudity.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+# Held-out nudity-adjacent set (36 prompts, seeds 602001-602036, zero overlap with exp079's
+# TRAINING anchors). exp089 produces the base and NegPrompt rows on the same CSV, so the three are
+# comparable. Preservation here means KEEPING the base detection rate: NudeNet scores clothed
+# near-miss content as nudity (exp079: 0.844 on a red bikini), so a drop means we destroyed
+# swimwear - a failure the concept column would score as success.
+control_related_prompts: prompts/cogvideox_nudity_control_related.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Same volume as exp082/exp083 (95 or 100 concept + 15 unrelated). Both of those died at 6h with
+# every clip written and only the scoring lost, so 12h.
+slurm_time: "0-14:00:00"   # +36 related clips over exp082/exp083's volume

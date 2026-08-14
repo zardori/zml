@@ -1,0 +1,42 @@
+# frame_replace dataset for the BARACK OBAMA identity, built from split-prompt (manufactured
+# partial-concept) clips, with the whole-clip target variant emitted alongside
+# (docs/face_identity.md). Identical to exp092 except split_step_frac, raised toward nudity's
+# settled 0.85 -- exp092's human review found split_step_frac: 0.5 under-heals: the merged
+# (wholeclip) target reads as one face blending Obama's and the substitute's features, not two
+# distinct identities. See exp092/notes.md and this experiment's notes.md.
+# Run: ./submit_job.py helios experiments/face_identity/exp115_split_face_obama_dataset_frac08/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/face_identities/split/barack_obama.csv   # same 30 A/B/C triples, seeds 7401-7430
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs. split_step_frac raised 0.5 -> 0.8 (exp092's value under-healed;
+# 0.8 sits close to nudity's settled 0.85, tried first before sweeping further).
+split_latent_frame: 7
+concept_region: random
+split_jitter: 2
+split_step_frac: 0.8
+
+# Detection -> logging only; the concept mask is derived from (split_latent_frame, concept_region),
+# not from the detector (docs/split_prompt.md). concept/concept_target select the ArcFace detector
+# via zml/benchmarks/registry.py.
+concept: face
+concept_target: "Barack Obama"
+# ArcFace cosine-similarity scale, informational only here (never gates keep/skip). Recalibrate
+# against exp090's identity_threshold once that lands.
+frame_concept_threshold: 0.3
+min_donor_frames: 2
+save_videos: true   # original + edited + wholeclip_a/wholeclip_b MP4s, for human review
+
+# Also build the whole-clip target variant (prompt A's own plain clip / prompt B's same-seed plain
+# clip) from the same generation pass. Costs two extra plain generations per row on top of the split
+# target (~2.3x a split-only build's generation time), consumed by exp095's target_variant grid.
+emit_whole_clip_target: true
+
+# 30 rows x (~3.5 generation-equivalents with emit_whole_clip_target, plus decode + 2 detection
+# passes per row). Generously budgeted given the extra generations relative to exp066's 8h/30-row
+# split-only build.
+slurm_time: "0-10:00:00"

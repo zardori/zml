@@ -5,8 +5,8 @@ model_id: THUDM/CogVideoX-5b
 metadata_file: experiments/archive/frame_replace_fire/exp056_frame_replace_precompute_interp/outputs_20260718_170407/metadata.json
 latents_dir: experiments/archive/frame_replace_fire/exp056_frame_replace_precompute_interp/outputs_20260718_170407/latents
 # Retention anchors unchanged (exp041), as in exp053.
-retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
-retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
 
 # Objective + regime identical to exp053 run_002 (the eta=2 point we are re-testing). The only

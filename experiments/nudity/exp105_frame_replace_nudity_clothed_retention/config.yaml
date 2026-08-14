@@ -1,0 +1,76 @@
+# Does a fully-clothed retention set fix what exp079's broke? Isolates the RETENTION variable.
+#
+# exp085 (exp079 nudity anchors) erased worse than exp086 (exp041 fire anchors), which is backwards
+# from the premise exp079 was built on. The cause is compositional: exp085 trained on exp079's
+# metadata_human_filtered.json, 20 entries, 11 of which contain exposed-skin wardrobe (swimwear x4,
+# leotard, sports bra, pyjamas, towels x2, a bare-shoulders close-up, a midriff close-up). Retention
+# pulled toward keeping exposed torsos while the erase term pushed away from the same features.
+# exp041's fire anchors never pull back because they share nothing with the concept region — which
+# is why the "wrong" set won.
+#
+# exp104 rebuilds the anchor set fully clothed while KEEPING the shot grammar of the training
+# targets (close-up and multi-person framings, indoor/bedroom, one and two people, slow motion), so
+# it is disjoint in content but overlapping in the regions the erase term actually damages. That is
+# the difference from exp041, and the reason to expect it to beat both.
+#
+# The specific hypothesis: erasure is currently coupled to degeneracy. In exp086 run_003 the frame
+# rate is 0.01 at step 70 (colorfulness 18.6), 0.21 at step 120 (23.4), 0.76 at step 170 (33.4) —
+# strongest erasure exactly where the model is most degraded, decaying as it recovers. Anchors that
+# pin "human, clothed, moving, colourful" should let erasure survive the recovery limb instead of
+# washing out with it.
+#
+# ONE VARIABLE. Everything else is exp086/exp080 run_002's regime, on exp080's OLD dataset —
+# deliberately not exp087's clean one, because exp088 is testing that separately. If both arms help,
+# a combined run follows.
+#
+# UNBLOCKED 2026-08-10: exp104 ran, was reviewed (39/40 kept), and both retention paths are filled
+# in below. Submittable once metadata_human_filtered.json is committed and pushed — the path check
+# resolves it in the repo, so it has to exist on the cluster, not just locally.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp105_frame_replace_nudity_clothed_retention/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+# exp080's ORIGINAL combined dataset — the same 34 triples exp080 run_002 and exp086 trained on,
+# frozen donors and all. Held fixed so this arm reads only on the retention change.
+metadata_file: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+
+# exp104's reviewed set: 39 of 40 approved (only seed 603021 rejected), balance held at 5-per-
+# category except closeup_clothed at 4. The filtered metadata sits at the EXPERIMENT ROOT because
+# outputs_*/ is gitignored and would never reach the cluster — the trap that aborted exp085's first
+# submission. The latents themselves stay in the run's outputs dir, which rsync does bring across.
+retention_metadata_file: experiments/nudity/exp104_clothed_retention_precompute/metadata_human_filtered.json
+retention_latents_dir: experiments/nudity/exp104_clothed_retention_precompute/outputs_20260810_131017/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+# The same two arms exp088 carries, and the same two we already have on this dataset with fire
+# anchors (exp080 run_002 = 2.0, exp086 run_003 = 1.5). Gives a 2x2 on retention x eta.
+erase_esd_eta: [1.5, 2.0]
+
+# Concept only, exactly as exp085/exp086. The preservation column comes from the external-benchmark
+# eval (exp102) of whichever checkpoint this produces, not from here.
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+save_interval: 10   # 20 evals, matching exp085/exp086 so trajectories overlay directly
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"

@@ -1,0 +1,72 @@
+# How much clothed retention? exp105 measured the endpoints; this fills the middle.
+#
+# The two ends are now known and they trade against each other cleanly:
+#
+#   fire anchors,    weight 1.0 (exp080 r2)  ->  erases (0.0000) but motion collapses to 0.11
+#   clothed anchors, weight 1.0 (exp105 r2)  ->  motion held at 0.16-0.35 but never erases (~0.29)
+#
+# exp105 settled that the motion collapse is NOT intrinsic to eta-extrapolated erasure — anchors
+# containing moving, clothed people hold 2-3x the motion of the fire anchors across the whole back
+# half of training (0.35 vs 0.13 at step 130, a ten-checkpoint effect, not noise). What clothed
+# anchors also do is compete with the erase term, because what they share with the concept is not
+# wardrobe but human-body features. At weight 1.0 that competition wins and erasure never lands.
+#
+# Nothing between 0 and 1 has been tried. Lower weight should buy back erasure while keeping some of
+# the motion protection, and the whole question is whether the frontier between them is worth
+# anything — at matched erasure exp105 r1 already reads motion 0.34 / colour 22.7 where exp086 r3
+# reads 0.16 / 16.8, which is a real Pareto gain if it survives at a weight that actually erases.
+#
+# ONE VARIABLE. This is exp105 run_002 with `retention_weight` swept and everything else — dataset,
+# anchors, eta, lr, steps, eval — held byte-identical, so the four points (0.25 / 0.5 / 1.0 / and
+# exp080 r2's fire baseline) sit on one curve.
+#
+# eta is fixed at 2.0 rather than swept: it was the better of exp105's two arms on every axis that
+# matters (late-phase rate 0.290 vs 0.394, and the same colour), and sweeping both would cost 4 jobs
+# to answer a question that 2 jobs answer.
+#
+# Dataset note: exp080's combined_dataset carries 4 of 34 targets that still trigger the detector
+# (2 at confidence ~0.75 across all 49 frames). That is a real defect found on 2026-08-11 and it is
+# deliberately NOT fixed here — filtering it would confound the weight sweep. exp109 rebuilds the
+# dataset properly; this run keeps the same data exp105 used so the comparison holds.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp108_retention_weight_sweep_clothed/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+# Identical to exp105 — exp080's original combined dataset, frozen donors and all.
+metadata_file: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+
+# Identical to exp105 — exp104's 39 reviewed fully-clothed anchors.
+retention_metadata_file: experiments/nudity/exp104_clothed_retention_precompute/metadata_human_filtered.json
+retention_latents_dir: experiments/nudity/exp104_clothed_retention_precompute/outputs_20260810_131017/latents
+
+# THE SWEPT FIELD. 1.0 is exp105 run_002 and is not repeated here.
+retention_weight: [0.25, 0.5]
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2.0   # exp105's better arm; see header
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+save_interval: 10   # 20 evals, so trajectories overlay exp105/exp086 directly
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"

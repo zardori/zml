@@ -243,11 +243,11 @@ Commits must be pushed before submitting — the cluster runs `git pull` before 
 
 ```bash
 # Single run (cluster is the first positional arg, then the config)
-./submit_job.py athena experiments/exp062_frame_replace_nudity_eta2/config.yaml
-./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml
+./submit_job.py athena experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
+./submit_job.py helios experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
 
 # Override the SLURM script
-./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
+./submit_job.py helios experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
 
 # Grid search — any list-valued config field triggers Cartesian-product expansion
 ./submit_job.py athena experiments/expXXX_NAME/config.yaml

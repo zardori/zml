@@ -16,7 +16,7 @@ untouched, so `tools/build_*_table.py` (which already treats a DOVER mean of 0.0
 reporting real numbers with no further changes.
 
 Run:
-    uv run python tools/score_dover.py experiments/exp080_.../outputs_20260806_120000
+    uv run python tools/score_dover.py experiments/nudity/exp080_.../outputs_20260806_120000
     uv run python tools/score_dover.py <dir> --dry-run     # report what would change
 """
 

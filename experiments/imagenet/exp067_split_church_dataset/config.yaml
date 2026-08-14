@@ -1,0 +1,31 @@
+# frame_replace dataset for the CHURCH class, built from split-prompt (manufactured partial) clips.
+# Identical recipe to exp066; church is the hard half of the pilot — a scene-level class that fills
+# the frame rather than a compact object, so this is where the frame-local edit is most likely to
+# struggle. Run: ./submit_job.py helios experiments/imagenet/exp067_split_church_dataset/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/church.csv   # 30 A/B/C triples, seeds 3301-3330
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1    # see exp066's config: jitter 2 leaves 5 of these 30 seeds with only 2 donor frames
+split_step_frac: 0.85    # see exp066's config for why; run 1's 0.5 left 6 of 7 kept clips single-state
+boundary_margin: 2
+
+concept: object
+concept_target: "church"
+# LOGGING ONLY since commit 543eed8 — see exp066's config. Calibrated on exp064, and lower than
+# exp066's on purpose: p(church) on the other nine classes' 8820 frames never exceeds 0.006, an order
+# of magnitude tighter than chain saw's 0.044, while church clips sit at median 0.233. Church never
+# scores above 0.49 anywhere, so a nudity-style 0.5 would read nothing at all. Run 1 is the cautionary
+# case: with the mask still detector-derived, six of seven kept clips had confidences that never left
+# the 0.021-0.050 band, so the "mask" was thresholding noise.
+frame_concept_threshold: 0.03
+min_donor_frames: 2
+save_videos: true
+
+slurm_time: "0-08:00:00"

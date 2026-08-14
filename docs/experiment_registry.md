@@ -1,29 +1,47 @@
 # The experiment registry: notes frontmatter, `INDEX.md`, and the archive
 
-Reference for `tools/experiments_index.py` and `tools/archive_experiment.py`, and for the
-`notes.md` frontmatter both read. Covers what the fields mean, when an experiment is retired into
-`experiments/archive/`, and the two-sided procedure a move requires (repo *and* cluster).
+Reference for `tools/experiments_index.py`, `tools/regroup_experiments.py` and
+`tools/archive_experiment.py`, and for the `notes.md` frontmatter all three read. Covers what the
+fields mean, where an experiment folder lives at each stage of its life, and the two-sided procedure
+a move requires (repo *and* cluster).
 
 Related: `.claude/skills/project-docs/SKILL.md` decides *what* goes in a `notes.md` at all; this
 document only covers the machine-readable header on top of it.
 
 ## Motivation
 
-The project passed 70 experiments. Almost all of them are irrelevant to the run being designed
+The project passed 100 experiments. Almost all of them are irrelevant to the run being designed
 today, but a flat `experiments/` gives no way to tell which — and the knowledge of "exp044 proved
 the mask is inert, don't retry it" lived only in one person's head or buried in a 200-line
 `notes.md`. Three people share this repo, so that is not a workable state.
 
-Two mechanisms fix it, and they are deliberately separate:
+There is a second, independent source of disorder: **three concepts are being unlearned in
+parallel, so experiment numbers interleave.** The ImageNet object thread is exp064–exp072, then
+jumps to exp099 and exp117–exp119, with 30-odd nudity and face experiments in between. A number
+tells you *when* an experiment was created and nothing about what it belongs to, so consecutive
+folders in a flat listing are usually unrelated.
+
+Three mechanisms fix this, and they are deliberately separate:
 
 - **The index answers "which of these matter?"** Every experiment declares its own status and a
-  one-sentence takeaway; `INDEX.md` renders them into one scannable table. This works regardless of
-  where the folder sits.
-- **The archive answers "why is `ls` unreadable?"** Retired threads move under
-  `experiments/archive/<thread>/`, so the flat listing shows only live work.
+  one-sentence takeaway; `INDEX.md` renders them into one scannable table, grouped by thread. This
+  works regardless of where the folder sits.
+- **The thread directory answers "where is this thread?"** Every live experiment sits at
+  `experiments/<thread>/expNNN_name/`, so one thread is one directory.
+- **The archive answers "which of these are over?"** Retired experiments move to
+  `experiments/archive/<thread>/expNNN_name/` — the same grouping, one level down, so retiring is a
+  move sideways rather than a re-shuffle.
 
-The index is the load-bearing half. Archiving is housekeeping on top of it, which is why the tool
-refuses to move anything whose metadata is missing.
+The index is the load-bearing half. Grouping and archiving are housekeeping on top of it, which is
+why the tools refuse to move anything whose metadata is missing.
+
+### Numbering: sequential, never suffixed
+
+Numbers stay globally sequential and one-number-one-experiment. A rebuild of exp066 is exp117, not
+`exp066_1`. Suffixes were considered and rejected: they break the `exp_id` uniqueness that
+`INDEX.md` and every `docs/` cross-reference depend on, they say nothing about the *next*
+experiment in a thread, and they duplicate a relationship the frontmatter already records better —
+`status: superseded` on the old one, "superseded by expNNN" in its `takeaway`.
 
 ## Frontmatter
 
@@ -75,9 +93,32 @@ still marked `active`, and:
 
 That is the one rule that makes the archive meaningful. A live run reading archived data means the
 archive is not dead — it is a hidden dependency, and the next person to prune it breaks a running
-experiment. When a retired experiment's *data* is still needed, it stays flat (this is why
-`exp041_preservation_precompute` is still at the top level: it is fire-era but its retention
-anchors are concept-agnostic, and the nudity and object runs still read them).
+experiment. When a retired experiment's *data* is still needed, it stays live (this is why
+`exp041_preservation_precompute` is not archived: it is fire-era but its retention anchors are
+concept-agnostic, and the nudity and object runs still read them — it lives in the `shared` thread,
+`experiments/shared/exp041_preservation_precompute/`).
+
+## Filing a live experiment under its thread
+
+```bash
+uv run tools/regroup_experiments.py                  # dry run over every misfiled live experiment
+uv run tools/regroup_experiments.py --apply
+uv run tools/regroup_experiments.py expNNN --apply   # just these
+```
+
+New experiments should be created at `experiments/<thread>/expNNN_name/` directly; this tool exists
+for the ones that are not, and for the one-time migration that introduced the layout.
+`experiments_index.py --check` fails on any experiment sitting directly in `experiments/`, or whose
+folder disagrees with its `thread:` field.
+
+That check lives in `find_misfiled_experiments()`, deliberately *outside* `validate()` and therefore
+outside `discover()`. Location is a property of where a folder is, not of whether its notes parse,
+and `regroup_experiments.py` has to be able to run against a tree that is currently failing the
+check — a check that blocked its own remedy would be useless.
+
+The mechanics (reference rewriting, artifact carry-over, the migration ledger) are shared with
+archiving and live in `tools/experiment_moves.py`; the two tools differ only in destination and in
+the policy each enforces before moving.
 
 ## Archiving
 
@@ -87,7 +128,10 @@ uv run tools/archive_experiment.py exp0NN [exp0NN ...] --apply
 ```
 
 The destination is `experiments/archive/<thread>/<expNNN_name>/`, with the thread taken from the
-frontmatter so the folder and the `INDEX.md` group can never disagree. Per experiment the tool:
+frontmatter so the folder and the `INDEX.md` group can never disagree. Since live experiments are
+already grouped by thread, this is a move *sideways* — `experiments/imagenet/expNNN` to
+`experiments/archive/imagenet/expNNN` — and only the live/retired axis changes. Per experiment the
+tool:
 
 1. **refuses** if `status` is `active`, if `thread` is missing, or if any config outside the moving
    set references the folder;
@@ -97,15 +141,17 @@ frontmatter so the folder and the `INDEX.md` group can never disagree. Per exper
 3. `git mv`s the tracked files and `mv`s the untracked `outputs_*` / `logs_*` / `grid*` alongside;
 4. stacks the move onto `tools/migrate_experiments.sh`, the companion every *other* member replays.
 
-The reference rewrite matches the bare substring `experiments/expNNN_name`, not an anchored
+The reference rewrite matches the bare substring of the folder's *current* path, not an anchored
 repo-relative path. That is deliberate: some eval configs carry an *absolute* cluster path
-(`/net/.../zml/experiments/expNNN_.../`), and a repo-relative-only match would leave those behind to
-fail silently at job time.
+(`/net/.../zml/experiments/.../expNNN_.../`), and a repo-relative-only match would leave those behind
+to fail silently at job time. Where one move's old path is a prefix of another's, the longest is
+rewritten first, so the more specific replacement always wins.
 
 **Why the `.gitignore` matters here.** Its patterns were `experiments/*/outputs_*/` — a single `*`
 matches exactly one path component, so nesting an experiment one level deeper would have made every
-checkpoint and video git-tracked. They are now `experiments/**/…`. If you ever add a new artifact
-pattern, use `**`.
+checkpoint and video git-tracked. They are now `experiments/**/…`, which is what let live
+experiments move under `experiments/<thread>/` without re-touching them. If you ever add a new
+artifact pattern, use `**`.
 
 ## The other half: everyone else's trees
 
@@ -158,9 +204,15 @@ Per `CLAUDE.md`, cluster commands and job submission are done by the project own
 
 ## Status
 
-The initial migration (2026-08-02) moved 57 of 72 experiments into five threads — `esd_fire` (16),
-`unhype` (16), `frame_replace_fire` (20), `baselines` (2), `misc` (3) — leaving 15 flat: `exp041`
-plus the live nudity (`exp059`–`exp063`) and ImageNet-object (`exp064`–`exp072`) work.
+- **2026-08-02 — the archive.** Moved 57 of 72 experiments into five retired threads: `esd_fire`
+  (16), `unhype` (16), `frame_replace_fire` (20), `baselines` (2), `misc` (3). The remaining 15 —
+  `exp041` plus the live nudity and ImageNet-object work — stayed flat.
+- **2026-08-14 — thread directories for live work.** Moved all 62 live experiments into
+  `experiments/<thread>/`: `nudity` (37), `imagenet` (13), `face_identity` (11), `shared` (1). Also
+  changed experiment discovery from `config.yaml`-keyed to `notes.md`-keyed: `exp087` re-edited an
+  existing dataset with a local tool and never submitted a job, so it had no config and had been
+  invisible to `INDEX.md`, to validation and to the archive tool the whole time. The registry now
+  holds 119 experiments, up from 118 for that reason alone.
 
 ## Human-review artifacts belong at the experiment root
 

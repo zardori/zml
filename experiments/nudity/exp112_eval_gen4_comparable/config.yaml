@@ -1,0 +1,46 @@
+# The full comparable table, re-measured on exp110's checkpoint.
+#
+# exp110 (gen4 data, 100 realistic-wardrobe targets) beat the old incumbent on every axis at equal
+# erasure: step 140 reads rate 0.0000 at colorfulness 35.4 (base 36.3) and motion 0.25, against
+# exp080 r2 s120's 0.0000 / 21.9 / 0.11. So every number in docs/comparability_t2vunlearning.md is
+# now measured on a superseded checkpoint and has to be redone.
+#
+# This is exp102 + exp084's coverage in one config, so the whole table moves together rather than in
+# two submissions on two dates: all four concept sets, plus the paired safe `related` set (whose
+# baselines exp111 just established) and the unrelated control.
+#
+# CHECKPOINT = step 140. On metrics it dominates step 120 — identical rate (0.0000) and motion
+# (0.25), 4 points more colorfulness, same clip score. The one thing that would reverse that is if
+# 140's extra colour is artefacts rather than saturation, which DOVER answers; it was still scoring
+# locally when this was written. If DOVER shows 140 worse than 120 on technical quality, change this
+# one field to ...step120 before submitting.
+#
+# HUMAN REVIEW HAS NOT HAPPENED YET. The clips are pulled and staged but the sun was in the way.
+# Running the eval now is fine — it costs hours and unblocks the table — but per the project's
+# standing rule nothing here gets reported until the checkpoint has been watched. If review rejects
+# step 140, this is a one-field re-run.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp112_eval_gen4_comparable/config.yaml
+model_id: THUDM/CogVideoX-5b
+job_type: eval
+concept: nudity
+
+lora_checkpoint_dir: experiments/nudity/exp110_frame_replace_nudity_gen4/outputs_20260812_131605/frame_replace_lora_step140
+
+# Grid -> 4 jobs, one per concept set. Gen and Ring-A-Bell are T2VUnlearning's own two columns;
+# I2P and SafeSora are the external sets exp082/exp083/exp084 established.
+control_concept_prompts:
+  - prompts/cogvideox_nudity.csv      # == T2VUnlearning's released "Gen" set, incl. their seeds
+  - prompts/ring_a_bell_nudity.csv    # their redistributed Ring-A-Bell nudity prompts
+  - prompts/i2p_nudity.csv
+  - prompts/safesora_nudity.csv
+
+# Preservation. exp111 measured base 0.130 / NegPrompt 0.050 here, so this cell is now readable —
+# and it is where exp111 found motion -89% for the OLD checkpoint. Whether exp110 fixes that is the
+# most interesting question in this run, more than the erasure rates.
+control_related_prompts: prompts/ring_a_bell_nudity_safe.csv
+control_unrelated_prompts: prompts/cogvideox_fire_control_unrelated.csv
+
+eval_inference_steps: 50
+disable_mlflow: true
+slurm_time: "0-20:00:00"

@@ -24,25 +24,27 @@ zml/
 │   ├── benchmarks/              # concept detectors & reports (e.g. NudeNet wrapper)
 │   ├── search/                  # prompt/hyperparameter search helpers
 │   └── eval/                    # scripts and utils for evaluation
-├── experiments/                 # one folder per experiment run; only LIVE work sits flat here
+├── experiments/                 # grouped by THREAD, never flat — see "Experiment Layout" below
 │   ├── INDEX.md                 # generated registry — read this first, not `ls`
-│   ├── exp062_frame_replace_nudity_eta2/  # single-run experiment
-│   │   ├── config.yaml          # hyperparameters, dataset info, etc.
-│   │   ├── logs_{TIMESTAMP}/     # logs from the SLURM job (stdout, stderr)
-│   │   ├── outputs_{TIMESTAMP}/  # generated videos, evaluation results, etc.
-│   │   │   ├── metrics.jsonl    # metrics - one object per flushed train window and per eval
-│   │   │   ├── summary.json     # metrics - overwritten each update
-│   │   │   └── other outputs... # e.g. generated videos, eval results, etc.
-│   │   └── notes.md             # registry frontmatter + what was tried, what happened
-│   ├── exp0NN_some_grid/         # grid-search experiment (alternative pattern)
-│   │   ├── config.yaml          # base config with list values for swept params
-│   │   └── grid_{TIMESTAMP}/    # has one subfolder per hyperparameter combination
-│   │       ├── run_001/
-│   │       │   ├── config.yaml  # concrete config for this run (all values scalar)
-│   │       │   ├── logs/        # SLURM stdout/stderr logs
-│   │       │   └── outputs/     # checkpoints and per-step eval results
-│   │       ├── run_002/
-│   │       └── ...
+│   ├── <thread>/                # nudity | imagenet | face_identity | shared
+│   │   ├── exp062_frame_replace_nudity_eta2/  # single-run experiment
+│   │   │   ├── config.yaml      # hyperparameters, dataset info, etc.
+│   │   │   ├── logs_{TIMESTAMP}/     # logs from the SLURM job (stdout, stderr)
+│   │   │   ├── outputs_{TIMESTAMP}/  # generated videos, evaluation results, etc.
+│   │   │   │   ├── metrics.jsonl  # metrics - one object per flushed train window and per eval
+│   │   │   │   ├── summary.json   # metrics - overwritten each update
+│   │   │   │   ├── run_info.json  # cluster, node, elapsed, outcome — written even on timeout
+│   │   │   │   └── other outputs... # e.g. generated videos, eval results, etc.
+│   │   │   └── notes.md         # registry frontmatter + what was tried, what happened
+│   │   └── exp0NN_some_grid/    # grid-search experiment (alternative pattern)
+│   │       ├── config.yaml      # base config with list values for swept params
+│   │       └── grid_{TIMESTAMP}/  # has one subfolder per hyperparameter combination
+│   │           ├── run_001/
+│   │           │   ├── config.yaml  # concrete config for this run (all values scalar)
+│   │           │   ├── logs/    # SLURM stdout/stderr logs
+│   │           │   └── outputs/ # checkpoints and per-step eval results
+│   │           ├── run_002/
+│   │           └── ...
 │   └── archive/<thread>/         # retired threads (esd_fire, unhype, frame_replace_fire, ...)
 │       └── exp0NN_.../           # same folder shape; nothing live may reference these
 ├── scripts/                     # thin generic entrypoints to the experiments (all should call zml/)
@@ -54,7 +56,15 @@ zml/
 │   ├── helios.sh                
 │   ├── peer_roots.sh            # builds ZML_PEER_ROOTS: every member's repo root on this cluster
 │   └── check_config_paths.sh    # pre-submit check that config inputs exist on the cluster
-├── prompts/                     # prompts used in experiments
+├── prompts/                     # prompt sets; per-concept subdirs, see "Prompt Layout" below
+│   ├── imagenet_objects.csv     # the eval set for a concept stays at the top level
+│   ├── imagenet_objects/        # everything derived from it, grouped
+│   │   ├── chain_saw.csv        # per-class eval control set (tools/split_imagenet_prompts.py)
+│   │   ├── others_chain_saw.csv # its preservation counterpart
+│   │   └── split/               # A/B/C dataset-construction triples
+│   │       ├── chain_saw.csv
+│   │       └── church_closeup.csv
+│   └── face_identities/         # same shape: control sets + split/
 ├── tools/                       # utility scripts
 └── docs/                        # method write-ups & design notes
     ├── frame_replace.md         # main method: supervised SFT toward a concept-removed edit
@@ -95,20 +105,57 @@ pushed). Prefer extending one of the existing scripts over documenting a manual 
 8. **Collect results** (`pull_results.sh`): Download experiment outputs and MLflow tracking data from clusters via rsync. Defaults to pulling from both clusters. Use `--cluster athena` or `--cluster helios` to target one. Pass `--logs-only` to skip outputs, or `--include-weights` to include `.safetensors`/`.pt` checkpoints (excluded by default). Reads connection details from `cluster.conf`. Artifacts a member still keeps at a pre-archive path (they have not run `tools/migrate_experiments.sh`) are pulled into `experiments/archive/` instead of re-creating the flat folder locally.
 9. **Evaluate, analyze, iterate**: Look on the results, optionally run additional evaluation scripts, analyze the results, and iterate on the unlearning method or hyperparameters.
 
+### Experiment Layout: grouped by thread
+
+**Every experiment lives under its thread — `experiments/<thread>/expNNN_name/` while live, and
+`experiments/archive/<thread>/expNNN_name/` once retired.** Threads are `nudity`, `imagenet`,
+`face_identity` and `shared`; the thread comes from the `thread:` field in the experiment's
+`notes.md`, so the folder and the registry can never disagree, and `tools/experiments_index.py
+--check` fails if they do.
+
+The reason is that three concepts are being unlearned in parallel, so experiment *numbers*
+interleave and say nothing about what an experiment belongs to: the object thread is exp064–exp072,
+then jumps to exp099 and exp117–exp119, with 30-odd nudity and face experiments in between. **Never
+create an experiment directly in `experiments/`.** If one ends up there, `tools/regroup_experiments.py`
+files it (dry run by default, `--apply` to move) — it rewrites every reference and stacks the move
+onto `tools/migrate_experiments.sh` the same way archiving does.
+
+Numbering stays globally sequential and one-number-one-experiment. Do **not** use suffixes like
+`exp066_1` to tie a rebuild to what it rebuilds — that relationship belongs in the `status` and
+`takeaway` frontmatter (`superseded` + "superseded by expNNN"), which is what `INDEX.md` renders.
+
 ### Experiment Registry
 
-There are 70+ experiments and most are no longer relevant to a new one, so **start from
+There are 100+ experiments and most are no longer relevant to a new one, so **start from
 `experiments/INDEX.md`, not from `ls`**. It is generated by `tools/experiments_index.py` from a YAML
 frontmatter block (`status`, `concept`, `method`, `thread`, `takeaway`) at the top of every
-experiment's `notes.md` — a new experiment must have one. `status` is one of `ready` (configured,
-not submitted yet) | `active` (in flight) | `done` (finished, still a live reference or dataset) |
-`superseded` | `abandoned`; the first two are live and block archiving, the last two are what
-`INDEX.md` flags as retirable. Retired threads live under `experiments/archive/<thread>/`;
-`tools/archive_experiment.py` moves them there and enforces the one rule that keeps this honest:
-**no live config may reference a path under `experiments/archive/`.** It also stacks the move onto
-`tools/migrate_experiments.sh`, which every other member runs **once, locally** to bring their
+experiment's `notes.md` — a new experiment must have one, and the notes are what make a folder an
+experiment (`config.yaml` is optional; some experiments are tool-driven and never submit a job).
+`status` is one of `ready` (configured, not submitted yet) | `active` (in flight) | `done` (finished,
+still a live reference or dataset) | `superseded` | `abandoned`; the first two are live and block
+archiving, the last two are what `INDEX.md` flags as retirable. `tools/archive_experiment.py` retires
+an experiment sideways into `experiments/archive/<thread>/` and enforces the one rule that keeps this
+honest: **no live config may reference a path under `experiments/archive/`.** It also stacks the move
+onto `tools/migrate_experiments.sh`, which every other member runs **once, locally** to bring their
 checkout and both cluster repo roots to the new layout. Field reference and the archive procedure:
 **`docs/experiment_registry.md`**.
+
+### Prompt Layout: per-concept subdirectories
+
+`prompts/` is shared by every concept and had grown to 60 flat files. The rule now:
+
+- A concept's **eval set** stays at the top level (`prompts/imagenet_objects.csv`,
+  `prompts/face_cogvideox.csv`) — it is the published, never-edited artifact.
+- Everything **derived per target** goes in that concept's directory: control sets at
+  `prompts/<concept>/<target>.csv`, and **A/B/C dataset-construction triples under
+  `prompts/<concept>/split/<target>.csv`**. The `split/` directory is what distinguishes
+  `prompts/imagenet_objects/chain_saw.csv` (20 eval prompts) from
+  `prompts/imagenet_objects/split/chain_saw.csv` (30 A/B/C triples) — same target, different job.
+
+Applied to `imagenet_objects/` and `face_identities/`, which have a per-target axis. The nudity and
+fire sets are still flat: their split CSVs are generation-numbered (`split_nudity_gen4_part2.csv`)
+rather than per-target, so there is no clean name to move them to. Fold them in when someone gives
+them a per-target structure, not before.
 
 ### Utility Scripts
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
@@ -155,15 +202,27 @@ A new concept costs exactly two things: an A/B/C prompt CSV, and a per-frame det
 `zml/benchmarks/registry.py` (`build_detector` is the one place a config's `concept` /
 `concept_target` string is mapped to a detector — never branch on the concept anywhere else).
 
+**Nothing inside precompute filters for quality, so always screen the build before training it.**
+`tools/screen_split_dataset.py` scores each row on a within-clip differential (does the half
+conditioned on prompt A read more concept than the half conditioned on B?) and separates the two
+failures a new concept actually hits: the model never rendered the concept, or it rendered it in both
+halves. Set `emit_whole_clip_target: true` on a first build so the A-side confidences can tell those
+apart in one job. Both concepts transferred so far lost most of their first dataset to prompts the
+base model does not render the concept under — write prompt A against the eval prompts, not from
+scratch (`docs/split_prompt.md` §3.1–3.2).
+
 ### Current Goals
 
 1. **Nudity** — finish split-prompt → frame_replace (exp062 pilot: does erasure transfer, and is the
    positional shortcut gone?). Then scale the dataset and add a nudity `related`/preservation set.
 2. **Second concept: ImageNet objects** — protocol implemented (per-frame ResNet-50, ESR/PSR via
    `mode: imagenet`), two-class pilot in exp064–exp072, chain saw and church. exp064 (base-model
-   reference) is **done and passed the gate**; datasets exp066–exp068 are next. ESR/PSR is reported
-   under two ranking conventions (1000-way and restricted to the ten classes) because the papers do
-   not state theirs. Write-up: **`docs/imagenet_objects.md`**.
+   reference) is **done and passed the gate**. The datasets are the blocker: exp066/exp067 build 30/30
+   rows but only 7 and 3 are usable, because in 17 of 30 rows the base model rendered no object at
+   all under the training prompts. That is a prompt-framing failure, not a sampler one — exp117/exp118
+   rebuild on object-dominant prompts. ESR/PSR is reported under two ranking conventions (1000-way and
+   restricted to the ten classes) because the papers do not state theirs. Write-up:
+   **`docs/imagenet_objects.md`**.
 3. **Third concept: face/celebrity identity** — ID-similarity protocol implemented (ArcFace + YuNet,
    `mode: face`), 2-identity pilot (Obama, Merkel) staged as exp090–exp098. Nothing submitted yet;
    exp090 (base-model reference, all 5 identities) is the hard gate everything else waits on.

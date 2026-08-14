@@ -9,8 +9,8 @@ model_id: THUDM/CogVideoX-5b
 # loss can fall near 0 at a genuine midpoint instead of overfitting the specific donor latent.
 metadata_file: experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/outputs_20260625_215904/metadata.json
 latents_dir: experiments/archive/frame_replace_fire/exp042_frame_replace_precompute_curated/outputs_20260625_215904/latents
-retention_metadata_file: experiments/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
-retention_latents_dir: experiments/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
 retention_weight: 1.0
 
 # Objective unchanged from exp051.

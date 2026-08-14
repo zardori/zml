@@ -77,12 +77,32 @@ clothed/naked attribute is left unspecified. The heal phase has little to erase.
 
 For the object classes it is the opposite. Church's C is "a green English village on a clear
 afternoon" and chain saw's is "a wooden workbench in a cluttered garage" — **C removes the object
-entirely**, so every heal step actively argues against the concept surviving in the concept half. That
-makes heal-phase length trade directly against concept survival in a way it never did for nudity, and
-it is the most likely reading of exp066's 17 `no_concept` rows at 0.5.
+entirely**, so every heal step actively argues against the concept surviving in the concept half.
 
-**Practical rule: the more of the concept prompt C drops, the shorter the heal phase should be.**
-Do not carry a `split_step_frac` across concepts without checking what C leaves behind.
+**But raising `split_step_frac` does not fix that, because above ~0.5 the knob has no authority over
+content.** exp099 ran the same five seeds at 0.5 and at 0.85 and the clips came out near-identical:
+2–4 grey levels apart over the whole clip, every two-state/collapsed verdict unchanged, `p3_s3202` at
+median frame-difference 11.592 against 11.596. Seventeen steps of completely different conditioning
+changed texture and not subject. The reason is ordinary diffusion behaviour — content is committed in
+roughly the first 20 of 50 steps, and a conditioning switch placed after that only refines what is
+already decided.
+
+That single fact reconciles the two tables above. The nudity sweep is flat from 0.3 to 1.0 because
+almost that whole range sits *after* the decisive window; only 0.2 degrades, because only 0.2 puts
+the switch inside it. exp074's "0.2/0.3 wash the concept out" and exp099's "0.5 and 0.85 are the same
+clip" are one observation seen from two sides.
+
+**Practical rules:**
+
+- **Do not expect `split_step_frac` above ~0.5 to change anything.** exp066/exp067's rebuild raised it
+  0.5 → 0.85 on the strength of the C-deletion argument above and yield did not move (7/30 and 3/30).
+  Anything in [0.5, 1.0] is the same experiment.
+- **The decisive window is below ~0.4**, and that is where a tail prompt that deletes the concept does
+  real damage. If a long heal phase is wanted for seam quality, the fix is to change *what* conditions
+  it, not when it starts — `tail_prompt_mode: "empty"` makes the tail pure unconditional denoising
+  (under CFG the positive and negative embeddings coincide, so the guidance term vanishes), which
+  heals without arguing against any content. exp119 tests this.
+- **The levers that actually move object yield are the prompts**, not the sampler. See §3.2.
 
 ### Measuring the collapse: seam contrast, not motion
 
@@ -111,13 +131,22 @@ largest consecutive-frame difference, where it falls relative to the constructio
 This complements `tools/check_latent_motion.py`, which answers a different question in latent space —
 is the *donor fill* frozen — and needs the latents.
 
-**Known limitation: it is a whole-frame measure.** The step at the seam is a mean over all pixels, so a
-concept occupying a small share of the frame produces a smaller step than a full-frame one even when
-the split worked perfectly. Nudity swaps most of the subject and scores a median seam ratio of ~14;
-church swaps one building inside an otherwise identical village and scored 3.8. The `max/median`
-normalisation absorbs part of that but not all of it, so **read the two-state fraction as a
-within-concept comparison, not an absolute bar across concepts**, and confirm a low score by eye
-before concluding the split failed.
+**Known limitation: it is a whole-frame measure, and it is concept-blind.** Both limits were measured
+on the object rebuild, and together they mean seam contrast must not be used to *select* training
+rows:
+
+- The step at the seam is a mean over all pixels, so a concept occupying a small share of the frame
+  produces a smaller step even when the split worked perfectly. Nudity swaps most of the subject and
+  scores a median seam ratio of ~14; church swaps one building inside an otherwise identical village
+  and scored 3.8. exp067's `p27_s3328` — the one church clip that split *correctly*, bell tower
+  present for 24 frames and gone thereafter — is scored **diffuse** (ratio 3.0), a false rejection.
+- Two distinct states are not two states *of the concept*. exp066's `p13_s3214` scores a textbook
+  two-state seam: a flower pot in the first half, a chain-and-hook object in the second. Peak
+  p(chain saw) over all 49 frames is 0.003. A false acceptance.
+
+So: **use `tools/screen_split_dataset.py` (§3.1) to decide what to train on, and seam contrast to
+diagnose why a row failed.** Read the two-state fraction as a within-concept comparison, never as an
+absolute bar across concepts.
 
 ## 3. From split clip to frame_replace dataset
 
@@ -181,9 +210,87 @@ Targets are dropped (recorded in `skipped.json`) only when:
   time.
 
 A row can still be a *bad* training target without being skipped — e.g. a scene that renders badly
-regardless of prompt (see exp074's seed-3163 finding, a persistent per-seed generation defect). That
-kind of failure isn't reliably catchable by the detector either, so it's caught by human review of
-the kept set before training, same as before.
+regardless of prompt (see exp074's seed-3163 finding, a persistent per-seed generation defect). Since
+the mask stopped being detector-derived, **nothing inside precompute filters for quality at all**, so
+selection is a separate step after the build: §3.1.
+
+### 3.1 Selecting rows: the within-clip differential
+
+`tools/screen_split_dataset.py` decides which built rows are worth training on. It is concept-
+agnostic and reads only what precompute already logged, so it needs no GPU and no second job.
+
+The obvious screen — "did the detector fire?" — is what cost exp066/exp067 their first run. An
+absolute threshold asks `p(church) > 0.03?` on a scale that is not comparable across scenes: over
+exp067's 30 clips the per-clip peak p(church) spans 0.0009 to 0.357, driven mostly by framing and
+lighting. Any single cut through that range is arbitrary.
+
+The question that *is* well posed is paired and within-clip: **does the half conditioned on prompt A
+read more concept than the half conditioned on prompt B?** Both halves share a seed, a scene, a camera
+and a lighting setup, so everything except the concept cancels. The tool reports it as a bounded
+contrast index
+
+```
+ci = (mean(concept_half) - mean(safe_half)) / (mean(concept_half) + mean(safe_half))     ∈ [-1, 1]
+```
+
+and requires two things of a row, because either alone is insufficient (§2's two false verdicts):
+
+| gate | rejects | verdict when it fails |
+|---|---|---|
+| `--min-concept-max` | prompt A never rendered the concept anywhere | `no-concept` |
+| `--min-contrast-index` | it rendered, but the safe half has it too | `not-split` |
+
+Defaults are 0.10 and 0.4. The contrast threshold sits inside a clear gap in the church data (the
+three genuine splits score 0.87 / 0.63 / 0.49, the next row down 0.18) and keeps every clip that
+survived visual review in both classes. Thresholds are CLI arguments and not a per-concept table on
+purpose: `build_detector` is the one place the codebase maps a concept string to behaviour, and this
+must not become a second one.
+
+`--write-filtered` writes the surviving entries to the **experiment root**, not under `outputs_*/`,
+which is gitignored — a filtered set living there never reaches the cluster (the mistake that aborted
+exp085).
+
+`tools/screen_split_face_dataset.py` is the absolute-threshold-only ancestor of this tool, kept
+because exp115/exp116's published keep-lists were selected with it. New work should use the general
+one.
+
+### 3.2 Prompt framing decides yield, not the sampler
+
+Screening exp066/exp067's rebuild gives a blunt result:
+
+| | rows | pass | `not-split` | `no-concept` |
+|---|---|---|---|---|
+| exp066 chain saw | 30 | 7 (23%) | 6 | **17** |
+| exp067 church | 30 | 3 (10%) | 10 | **17** |
+
+`no-concept` means the base model never drew the object anywhere in the clip. **The same 17 of 30 in
+both classes** — a shared, structural cause, not per-class bad luck. The splitter cannot separate a
+concept that was never rendered, so most of what looked like a sampler problem was never one.
+
+The face thread hit this first and measured the fix. exp115 kept 9/30; 14 of the 21 rejects had
+`original_max_confidence` at or near 0, in wide, side-on or occluded framings. exp116 rewrote the
+prompts with controlled medium/close frontal framing, held everything else fixed, and yield went
+**30% → 50% and 63%** — while a re-seed of the original prompts reproduced 30% exactly, proving it was
+framing and not seed luck.
+
+The object prompts had the same two defects, both visible against the eval set the base model scores
+0.739 (church) and 0.506 (chain saw) top-1 on:
+
+1. **Framing.** "Static wide shot of a small church across a field of wildflowers" puts a small
+   building in a large landscape. A detector classifying a 224px view of the whole frame is not being
+   obtuse — the frame genuinely is not *of* the object.
+2. **Specificity.** Eval prompts name the class-identifying parts ("with a tall steeple", "its orange
+   casing and bar clearly visible"); the split prompts said only "a church" / "a chain saw".
+
+`tools/build_split_imagenet_closeup_prompts.py` applies both, and applies the second **symmetrically
+to prompt B** — if only A gains detail, B loses the splice on prompt strength rather than on content,
+which buys yield by quietly turning the safe half into the concept half. exp117/exp118 test it, with
+the settings, seeds and prompt C held verbatim so the comparison isolates the prompts.
+
+**Rule for a new concept: check that the base model renders it under the training prompts before
+touching any sampler knob.** `emit_whole_clip_target: true` gives that for free — the A-side
+confidences come from a plain generation, so they separate a prompt failure from a splitter failure
+within the same job.
 
 ## 4. De-biasing: avoiding the positional shortcut
 
@@ -245,6 +352,18 @@ split-prompt is concept-agnostic. The cost of a new concept is exactly two thing
 Everything else — sampler, mask construction, `edit_latent`, the trainer — is unchanged.
 See [`comparison_targets.md`](comparison_targets.md) for which concepts are worth attacking next.
 
+**Write the CSV against the eval prompts, not from scratch.** Both threads that have transferred to a
+new concept lost most of their first dataset the same way — to prompts under which the base model
+does not render the concept at all (faces: 14 of 21 rejects in exp115; objects: 17 of 30 rows in each
+of exp066/exp067). The prompt A of a training row and the eval prompts should be alike in framing and
+in how specifically they name the concept; where they are not, the training set is measuring
+something the eval never asks about. §3.2 has the two concrete defects and the fix.
+
+**Budget one cheap screening pass, always.** Set `emit_whole_clip_target: true` on the first build of
+a new concept and run `tools/screen_split_dataset.py` (§3.1) before anything trains. The A-side
+confidences distinguish "the prompts are wrong" from "the splitter is wrong", which are the two
+failures a new concept actually hits, and they cost one job instead of two.
+
 **One open question about the CSVs themselves.** Every split CSV we have written so far ends all three
 of A, B and C with the same scaffold: `"Static shot … The camera is fixed and never moves."` — 30/30
 rows in both `split_imagenet_*.csv` and 52/52 in `split_nudity.csv`. It was a reasonable choice (a
@@ -254,4 +373,10 @@ method has been shown to do, it makes the training prompt A stylistically unlike
 and `edit_latent_reflected` has since changed the trade-off — it *mirrors* the safe segment's motion
 into the concept block, so motion in the safe half is now an asset rather than a liability. Whether
 split-prompt can stitch two prompts that both carry motion, or whether motion smears the seam away
-(exp067's `p16_s3317`), is exp099.
+(exp067's `p16_s3317`), was exp099.
+
+**exp099 answered it: keep the static scaffold.** Motion-carrying prompts scored **0/5** two-state
+against the static arm's 2/5, at both `split_step_frac` values, and their median seam ratio collapsed
+to 1.1 — the `p16_s3317` failure generalised. Two of the five motion clips also came out *more* static
+than their static-prompt counterparts (median frame difference 0.045 and 0.054), so asking for camera
+motion is not even a reliable way to get it. The scaffold stays in every split CSV.

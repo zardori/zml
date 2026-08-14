@@ -6,7 +6,7 @@ Usage:
 
 Arguments:
     cluster   Cluster name: athena or helios
-    config    Path to experiment config YAML (e.g. experiments/exp062_frame_replace_nudity_eta2/config.yaml)
+    config    Path to experiment config YAML (e.g. experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml)
 
 Options:
     --slurm   Path to SLURM script relative to remote dir; defaults to slurm/athena.sh
@@ -16,9 +16,9 @@ Options:
               a job that produces its own inputs)
 
 Example:
-    ./submit_job.py athena experiments/exp062_frame_replace_nudity_eta2/config.yaml
-    ./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml
-    ./submit_job.py helios experiments/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
+    ./submit_job.py athena experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
+    ./submit_job.py helios experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
+    ./submit_job.py helios experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml --slurm slurm/other.sh
 
 Each config must set `slurm_time` (e.g. `slurm_time: 0-4:00:00`); it is passed as the sbatch
 --time and there is no default. The optional `job_type` field (unlearn|eval|precompute, default
@@ -178,7 +178,11 @@ def submit_scalar(
         f" --time={slurm_time}"
         f" --output={logs_dir}/{job_type}_%j.out"
         f" --error={logs_dir}/{job_type}_%j.err"
+        # ZML_TIME_LIMIT is what slurm/run_info.sh records when `scontrol` is unavailable on the
+        # compute node (it is, on helios) — without it run_info.json cannot say how much headroom a
+        # run had against its wall clock.
         f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_path},OUTPUT_DIR={output_dir}"
+        f",ZML_TIME_LIMIT={slurm_time}"
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && {sbatch_cmd}"
@@ -209,6 +213,7 @@ def _write_config_and_submit(
         f" --output={logs_dir}/{job_type}_%j.out"
         f" --error={logs_dir}/{job_type}_%j.err"
         f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_remote_path},OUTPUT_DIR={output_dir}"
+        f",ZML_TIME_LIMIT={slurm_time}"  # see the note in submit_single_job
         f" {slurm_script}"
     )
     remote_cmd = f"cd {remote_dir} && {write_cmd} && {sbatch_cmd}"

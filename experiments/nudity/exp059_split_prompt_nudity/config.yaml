@@ -1,0 +1,21 @@
+# Split-prompt generation: manufacture partial-concept (clothed->naked) clips for frame_replace on
+# nudity. First milestone — generate and save 4 videos per row (A=naked, B=clothed, C=neutral, and
+# the temporal-split combined) so we can eyeball whether the splice produces a coherent clip that is
+# clothed early and naked late. Run: ./submit_job.py helios experiments/nudity/exp059_split_prompt_nudity/config.yaml
+job_type: precompute
+method: split_prompt
+
+csv_path: prompts/split_nudity.csv
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Region B (concept-free) = latent frames [:7]; region A (concept) = [7:]. Keep the A/B split for
+# the first half of denoising (global content), then heal the seam on the neutral prompt C.
+split_latent_frame: 7
+split_step_frac: 0.5
+
+save_latents: true
+
+# 4 rows x ~4.5 generations each; comfortable headroom on helios.
+slurm_time: "0-04:00:00"

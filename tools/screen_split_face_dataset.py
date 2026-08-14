@@ -23,7 +23,7 @@ quality and whole-clip identity separation — the human keep list, written with
 
 Calibrated against exp115's 30 triples: at the defaults below, all 9 human keeps pass and 14 of the
 21 rejects are cut, with zero false rejections (see this file's module docstring test in
-``experiments/exp116_split_face_obama_dataset_scaleup/notes.md``).
+``experiments/face_identity/exp116_split_face_obama_dataset_scaleup/notes.md``).
 
     uv run python tools/screen_split_face_dataset.py --metadata <outputs_.../metadata.json>
 """

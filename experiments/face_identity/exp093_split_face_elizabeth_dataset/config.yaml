@@ -1,0 +1,29 @@
+# frame_replace dataset for the QUEEN ELIZABETH II identity — identical recipe to exp092 (Obama),
+# same knobs, different CSV/target. Kept as a separate run (not a grid arm of exp092) so a bad build
+# for one identity doesn't block or contaminate the other's review, same convention as every other
+# per-class/per-identity dataset pair in this project (e.g. exp066/exp067).
+# Second pilot identity confirmed by exp090's actual gate numbers (Obama + Elizabeth), superseding
+# the pre-run Obama + Merkel guess this experiment originally targeted — see exp090's notes.md.
+# Run: ./submit_job.py helios experiments/face_identity/exp093_split_face_elizabeth_dataset/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/face_identities/split/queen_elizabeth_ii.csv   # 30 A/B/C triples, seeds 7701-7730
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: random
+split_jitter: 2
+split_step_frac: 0.5   # keep in sync with exp092's final decision (see its notes.md What to watch)
+
+concept: face
+concept_target: "Queen Elizabeth II"
+frame_concept_threshold: 0.3
+min_donor_frames: 2
+save_videos: true
+
+emit_whole_clip_target: true
+
+slurm_time: "0-10:00:00"

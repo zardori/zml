@@ -30,11 +30,11 @@ a different project member's repo, as long as ``ZML_PEER_ROOTS`` is set (``slurm
 
 Run standalone, e.g.:
     python3 -m zml.precompute.merge_frame_replace_datasets \\
-        --source experiments/exp061_split_nudity_dataset/metadata_human_filtered.json \\
-                 experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
-        --source experiments/exp078_.../grid_.../run_005/outputs/metadata_human_filtered.json \\
-                 experiments/exp078_.../grid_.../run_005/outputs/latents \\
-        --output_dir experiments/exp080_.../combined_dataset
+        --source experiments/nudity/exp061_split_nudity_dataset/metadata_human_filtered.json \\
+                 experiments/nudity/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
+        --source experiments/nudity/exp078_.../grid_.../run_005/outputs/metadata_human_filtered.json \\
+                 experiments/nudity/exp078_.../grid_.../run_005/outputs/latents \\
+        --output_dir experiments/nudity/exp080_.../combined_dataset
 """
 
 import argparse
