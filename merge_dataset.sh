@@ -79,10 +79,12 @@ if git rev-parse '@{u}' >/dev/null 2>&1; then
     fi
 fi
 
-# Build the remote command with every argument individually quoted.
+# Build the remote command with every argument individually quoted. Plain python3, not `uv run` --
+# merge_frame_replace_datasets.py and zml/paths.py are stdlib-only (no torch/diffusers import
+# anywhere in the zml/zml.precompute package __init__ chain), and login nodes don't have uv.
 remote_cmd="cd $(printf '%q' "$REMOTE_DIR") && git pull"
 remote_cmd+=" && ZML_CLUSTER=$(printf '%q' "$CLUSTER") source slurm/peer_roots.sh"
-remote_cmd+=" && uv run python -m zml.precompute.merge_frame_replace_datasets"
+remote_cmd+=" && python3 -m zml.precompute.merge_frame_replace_datasets"
 for ((i = 0; i < ${#SOURCE_ARGS[@]}; i++)); do
     remote_cmd+=" $(printf '%q' "${SOURCE_ARGS[$i]}")"
 done

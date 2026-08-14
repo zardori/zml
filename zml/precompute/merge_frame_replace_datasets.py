@@ -16,14 +16,16 @@ soon as its dataset came from a merge.
 No GPU needed — this is pure file I/O, so it can run locally (after pulling the source latents with
 ``pull_results.sh --include-weights``) or directly on a cluster login node. ``merge_dataset.sh``
 (repo root) is the local entrypoint that does the latter over ssh, since ``combined_dataset/`` is
-gitignored and has to be built where it will be read from.
+gitignored and has to be built where it will be read from. It invokes this module with plain
+``python3``, not ``uv run`` — this file and ``zml/paths.py`` are stdlib-only, and cluster login
+nodes (unlike compute nodes) don't have ``uv`` installed.
 
 A source's ``metadata_file``/``latents_dir`` is resolved through ``zml.paths.resolve_input_path``,
 the same peer-root fallback every training entrypoint uses — so this can merge sources that live in
 a different project member's repo, as long as ``ZML_PEER_ROOTS`` is set (``slurm/peer_roots.sh``).
 
 Run standalone, e.g.:
-    uv run python -m zml.precompute.merge_frame_replace_datasets \\
+    python3 -m zml.precompute.merge_frame_replace_datasets \\
         --source experiments/exp061_split_nudity_dataset/metadata_human_filtered.json \\
                  experiments/exp061_split_nudity_dataset/outputs_20260802_223148/latents \\
         --source experiments/exp078_.../grid_.../run_005/outputs/metadata_human_filtered.json \\
