@@ -1,11 +1,14 @@
 ---
-status: ready
+status: done
 concept: face
 method: preservation/precompute
 thread: face_identity
 takeaway: >
   Retention anchors for the face-identity axis: 5 identities x 3 prompts + 10 generic-person
-  anchors (25 total, seeds 7601-7625). Not yet submitted.
+  anchors (25 total, seeds 7601-7625). Submitted and complete (`outputs_20260811_185230`, 43m on
+  helios) — exp095/exp096 now point at the real output dir. Human video review of the 25 anchors
+  has not been done yet (see Status); not a blocker for exp095 to submit, since retention anchors
+  are used wholesale rather than per-triple human-filtered.
 ---
 # exp094 — face-identity preservation/retention precompute
 
@@ -50,7 +53,8 @@ Feeds exp095/exp096's `retention_metadata_file`/`retention_latents_dir`, each wi
 `retention_exclude` set to the identity that run erases.
 
 ## Status
-- [ ] Submitted.
+- [x] Submitted — complete, `outputs_20260811_185230` (25/25 latents, exit_code 0, 43m on helios).
 - [ ] Human video review of all 25 anchors (genuinely the right identity / a genuine unnamed face,
-      not a blank or malformed render).
+      not a blank or malformed render). Not yet done — exp095/exp096 use the anchors unfiltered in
+      the meantime; revisit if `face_present_rate` on the retention set looks off during training.
 - [ ] Category coverage recorded after any rejects.

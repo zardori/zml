@@ -164,5 +164,9 @@ the prompts are wrong; split-prompt triples fail far more often by construction.
 - [x] Submitted and complete (4 jobs).
 - [x] Reviewed clip by clip for wardrobe realism and residual concept; 100/200 kept.
 - [x] Per-category survival recorded; filtered metadata at the experiment root.
-- [ ] Merged into a training dataset (needs the cluster — latents live in four `run_*/outputs/latents`).
+- [x] Merged into a training dataset — confirmed by exp110's notes.md ("exp109 reviewed (100/200)
+      and merged into `combined_dataset/` on the cluster"); this checkbox was just stale. Any
+      future re-merge (e.g. after re-reviewing a shard) can use `./merge_dataset.sh` (repo root,
+      added for exp116) instead of a hand-typed ssh command — it wraps
+      `zml/precompute/merge_frame_replace_datasets.py` the same way, from any member's checkout.
 - [ ] Trained against exp108's best `retention_weight`, gen4-only and gen4+exp080-filtered.

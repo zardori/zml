@@ -68,4 +68,5 @@ shared heal phase heals the seam better and generalizes worse per-triple.
 
 9/30 is too thin for exp095's training run on its own. `exp116_split_face_obama_dataset_scaleup`
 scales this dataset up (re-seed + framing-controlled prompts, same `split_step_frac: 0.8`) and
-merges its keeps with this experiment's 9 into a combined dataset for exp095.
+merges its keeps with this experiment's 9 into a combined dataset for exp095. These 9 triples are
+`src0_*` inside exp116's `combined_dataset/` once `./merge_dataset.sh` builds it.

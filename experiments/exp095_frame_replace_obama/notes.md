@@ -6,7 +6,9 @@ thread: face_identity
 takeaway: >
   First frame_replace erasure of a face identity (Barack Obama), copying exp080's best nudity
   regime field-for-field. Grid target_variant [split, wholeclip] — the A/B this run exists to
-  answer. Blocked on exp116 (dataset scale-up + merge with exp115) and exp094. Not yet submitted.
+  answer. exp116 (dataset scale-up) and exp094 (retention) are both done; only the
+  merge_dataset.sh step (builds exp116's combined_dataset/ on helios) is left before this can be
+  submitted.
 ---
 # exp095 — frame_replace erasure of Barack Obama
 
@@ -33,14 +35,15 @@ at the cost of being a whole-clip rewrite rather than a frame-local edit (which 
 broader motion damage). Both consume the merged exp115+exp116 dataset (`emit_whole_clip_target: true`
 built both target types from one generation pass in each) — no extra precompute for this grid.
 
-- Dataset: exp116's `combined_dataset/` — exp115's 9 human-kept triples merged with exp116's
-  scale-up keeps via `zml/precompute/merge_frame_replace_datasets.py`. Supersedes the original
-  exp092 pointer (exp092 itself superseded by exp115; exp115 alone was too thin at 9/30).
-- Retention: exp094's anchors minus Obama's own (`retention_exclude`).
+- Dataset: exp116's `combined_dataset/` — exp115's 9 human-kept triples merged with exp116's 43
+  scale-up keeps (52 total) via `zml/precompute/merge_frame_replace_datasets.py`. Supersedes the
+  original exp092 pointer (exp092 itself superseded by exp115; exp115 alone was too thin at 9/30).
+- Retention: exp094's anchors (`outputs_20260811_185230`, 25 total) minus Obama's own 3
+  (`retention_exclude`) — 22 anchors.
 
-**Before submitting**, confirm `experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/`
-exists (built per exp116/notes.md's Downstream steps) and replace the exp094 `outputs_TIMESTAMP`
-placeholder with the real `outputs_{timestamp}` directory.
+**Before submitting**, run `./merge_dataset.sh` (command in `config.yaml`'s header comment) so
+`experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/` exists — the one remaining
+step. exp094's real output dir is already filled in.
 
 ## What to watch
 Live eval writes `summary.json` every `save_interval`; read that first, same as every other
@@ -65,9 +68,9 @@ face-presence rate — that's `face_present_rate`).
 - **Collateral / positional-shortcut sanity** on the other four identities (`others_barack_obama.csv`,
   wired to both `control_related_prompts` and `control_unrelated_prompts` as the required-but-
   unscored-in-training slot, same convention as exp069).
-- Overfitting: the dataset is at most 30 triples per variant, likely fewer after exp092's human
-  review — watch for the small-dataset instability nudity's early runs (exp062 run 2) hit at
-  comparable scale.
+- Overfitting: 52 triples per variant (exp115's 9 + exp116's 43) — still smaller than nudity's
+  100-triple exp109 build, so watch for the small-dataset instability nudity's early runs (exp062
+  run 2, 21 triples) hit, though 52 is past the point that run was thin at.
 
 ## Downstream
 exp097 runs the full 150-video ID-Similarity eval on whichever checkpoint(s) look best here — the
@@ -75,7 +78,8 @@ live numbers are a progress signal, not the reported metric (same relationship e
 exp096 (Merkel) uses whichever `target_variant` wins here, not a repeated grid.
 
 ## Status
-- [ ] exp092 and exp094 complete; timestamps filled in.
+- [x] exp115/exp116 (dataset) and exp094 (retention) complete; timestamps filled in. Only
+      `./merge_dataset.sh` (builds `combined_dataset/` on helios) is left before submitting.
 - [ ] Submitted (2-job grid: split, wholeclip).
 - [ ] Both variants compared on erasure + preservation + `face_present_rate`; a winner picked for
       exp096.

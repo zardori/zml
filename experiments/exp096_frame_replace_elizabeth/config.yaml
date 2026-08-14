@@ -6,7 +6,8 @@
 # Second pilot identity confirmed by exp090's actual gate numbers (Obama + Elizabeth), superseding
 # the pre-run Obama + Merkel guess this experiment originally targeted — see exp090's notes.md.
 #
-# FILL IN the exp093/exp094 outputs_{timestamp} once those datasets are built and reviewed.
+# exp094 (retention) is done, outputs_20260811_185230 filled in below. FILL IN exp093's
+# outputs_{timestamp} once that dataset is built and reviewed.
 # Run: ./submit_job.py helios experiments/exp096_frame_replace_elizabeth/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
@@ -18,8 +19,8 @@ latents_dir: experiments/exp093_split_face_elizabeth_dataset/outputs_TIMESTAMP/l
 # FILL IN: "split" or "wholeclip", whichever exp095 found better. Placeholder below is not a result.
 target_variant: split
 
-retention_metadata_file: experiments/exp094_face_preservation/outputs_TIMESTAMP/metadata.json
-retention_latents_dir: experiments/exp094_face_preservation/outputs_TIMESTAMP/latents
+retention_metadata_file: experiments/exp094_face_preservation/outputs_20260811_185230/metadata.json
+retention_latents_dir: experiments/exp094_face_preservation/outputs_20260811_185230/latents
 retention_exclude: "Queen Elizabeth II"
 retention_weight: 1.0
 

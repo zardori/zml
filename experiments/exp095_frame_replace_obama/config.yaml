@@ -5,10 +5,20 @@
 # or the whole-clip target erase better / preserve better? See docs/face_identity.md R4/R5.
 #
 # exp092 (30 triples, split_step_frac 0.5) was superseded by exp115 (0.8, fixes the chimera-face
-# whole-clip target) -- but exp115 only yielded 9/30 on human review. exp116 scales that up (reseed
-# + framing-controlled prompts) and merges its keeps with exp115's 9 into one combined_dataset/ via
-# zml/precompute/merge_frame_replace_datasets.py. FILL IN the exp116 combined_dataset path (and the
-# exp094 outputs_{timestamp}) once that merge is done.
+# whole-clip target) -- but exp115 only yielded 9/30 on human review. exp116 scaled that up (reseed
+# + framing-controlled prompts, 43/90 kept) and merges its keeps with exp115's 9 into one
+# combined_dataset/ (52 triples total) via:
+#   ./merge_dataset.sh --cluster helios \
+#     --output experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset \
+#     --source experiments/exp115_split_face_obama_dataset_frac08/metadata_human_filtered.json \
+#              experiments/exp115_split_face_obama_dataset_frac08/outputs_20260812_141127/latents \
+#     --source experiments/exp116_split_face_obama_dataset_scaleup/metadata_human_filtered_run001.json \
+#              experiments/exp116_split_face_obama_dataset_scaleup/grid_20260813_173003/run_001/outputs/latents \
+#     --source experiments/exp116_split_face_obama_dataset_scaleup/metadata_human_filtered_run002.json \
+#              experiments/exp116_split_face_obama_dataset_scaleup/grid_20260813_173003/run_002/outputs/latents \
+#     --source experiments/exp116_split_face_obama_dataset_scaleup/metadata_human_filtered_run003.json \
+#              experiments/exp116_split_face_obama_dataset_scaleup/grid_20260813_173003/run_003/outputs/latents
+# Run that once (project owner, on the cluster) before submitting this config.
 # Run: ./submit_job.py helios experiments/exp095_frame_replace_obama/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
@@ -21,8 +31,8 @@ target_variant: [split, wholeclip]
 
 # Retention: the other four identities + the 10 generic-face anchors. retention_exclude drops
 # Obama's own anchors, which would otherwise pull directly against the erase branch.
-retention_metadata_file: experiments/exp094_face_preservation/outputs_TIMESTAMP/metadata.json
-retention_latents_dir: experiments/exp094_face_preservation/outputs_TIMESTAMP/latents
+retention_metadata_file: experiments/exp094_face_preservation/outputs_20260811_185230/metadata.json
+retention_latents_dir: experiments/exp094_face_preservation/outputs_20260811_185230/latents
 retention_exclude: "Barack Obama"
 retention_weight: 1.0
 

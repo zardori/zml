@@ -14,7 +14,13 @@ Also relinks every target's ``variants[*]`` block (``emit_whole_clip_target``,
 soon as its dataset came from a merge.
 
 No GPU needed — this is pure file I/O, so it can run locally (after pulling the source latents with
-``pull_results.sh --include-weights``) or directly on a cluster login node.
+``pull_results.sh --include-weights``) or directly on a cluster login node. ``merge_dataset.sh``
+(repo root) is the local entrypoint that does the latter over ssh, since ``combined_dataset/`` is
+gitignored and has to be built where it will be read from.
+
+A source's ``metadata_file``/``latents_dir`` is resolved through ``zml.paths.resolve_input_path``,
+the same peer-root fallback every training entrypoint uses — so this can merge sources that live in
+a different project member's repo, as long as ``ZML_PEER_ROOTS`` is set (``slurm/peer_roots.sh``).
 
 Run standalone, e.g.:
     uv run python -m zml.precompute.merge_frame_replace_datasets \\
@@ -29,6 +35,8 @@ import argparse
 import json
 import os
 
+from zml.paths import resolve_input_path
+
 
 def _relink_paths(d: dict, prefix: str, latents_dir: str, latents_out: str) -> None:
     """Symlink ``d``'s ``latent_path``/``original_latent_path`` (whichever are present) into
@@ -36,15 +44,21 @@ def _relink_paths(d: dict, prefix: str, latents_dir: str, latents_out: str) -> N
 
     Shared by the top-level entry and every ``variants[*]`` sub-dict, so a target variant's paths
     are relinked the same way its flat-key counterpart always has been.
+
+    Raises if a source ``.pt`` doesn't exist, rather than writing a dangling symlink that would
+    only fail hours later inside a training job.
     """
     for key in ("latent_path", "original_latent_path"):
         old_path = d.get(key)
         if old_path is None:
             continue
+        target = os.path.abspath(os.path.join(latents_dir, old_path))
+        if not os.path.exists(target):
+            raise FileNotFoundError(f"Source latent missing, would create a dangling symlink: {target}")
         new_name = prefix + os.path.basename(old_path)
         link_path = os.path.join(latents_out, new_name)
         if not os.path.exists(link_path):
-            os.symlink(os.path.abspath(os.path.join(latents_dir, old_path)), link_path)
+            os.symlink(target, link_path)
         d[key] = new_name
 
 
@@ -54,6 +68,8 @@ def merge(sources: list[tuple[str, str]], output_dir: str) -> None:
 
     combined: list[dict] = []
     for source_idx, (metadata_file, latents_dir) in enumerate(sources):
+        metadata_file = resolve_input_path(metadata_file)
+        latents_dir = resolve_input_path(latents_dir)
         with open(metadata_file) as f:
             entries = json.load(f)
         if not entries:
@@ -75,7 +91,8 @@ def merge(sources: list[tuple[str, str]], output_dir: str) -> None:
     with open(os.path.join(output_dir, "metadata.json"), "w") as f:
         json.dump(combined, f, indent=2)
 
-    print(f"Merged {len(sources)} sources -> {len(combined)} targets -> {output_dir}")
+    n_links = sum(1 for _ in os.scandir(latents_out))
+    print(f"Merged {len(sources)} sources -> {len(combined)} targets ({n_links} links) -> {output_dir}")
 
 
 if __name__ == "__main__":
