@@ -104,6 +104,29 @@ At identical erasure: **+62% colorfulness and +127% motion**, with colour now wi
 base model and clip score essentially unharmed. Motion is still -64% against base, so the collapse is
 reduced rather than solved — but this is the first movement on it in five experiments.
 
+### DOVER confirms step 140, and confirms the colour is real
+
+Scored locally (helios wrote 0.0). Base is dovT 0.0700 / dovA 0.8700:
+
+| step | rate | DOVER-t | DOVER-a | colour | motion |
+|---|---|---|---|---|---|
+| 60-80 *(the degenerate trough)* | 0.09-0.10 | 0.035-0.040 | 0.34-0.47 | 19-22 | 0.09-0.20 |
+| 120 | 0.0000 | 0.0584 | 0.8413 | 31.2 | 0.25 |
+| **140** | **0.0000** | **0.0616** | **0.8871** | **35.4** | **0.25** |
+| exp080 r2 s120 *(old incumbent)* | 0.0000 | 0.0643 | 0.8420 | 21.9 | 0.11 |
+
+**Step 140 beats step 120 on both DOVER axes**, so the 4 extra points of colorfulness are genuine
+saturation rather than artefacts — the question that was left open when exp112/exp113 were staged.
+No config change needed; step 140 stands.
+
+Against the old incumbent it is a near-tie on technical quality (0.0616 vs 0.0643, both roughly
+-8..-12% against base) while being **above base on aesthetic** (0.8871 vs 0.8700) and far ahead on
+colour and motion. So the new checkpoint is not trading technical quality for the colour it gained.
+
+The trough at steps 60-80 is worth noting separately: dovA falls to 0.34-0.47 there, which is what
+genuine degradation looks like on this instrument. The model climbs out of it by step 90 and the good
+window sits entirely outside it — unlike exp080 run_002, whose erasure and degeneracy overlapped.
+
 ### It is a window, not a transient
 
 Steps 90-140 are all <=0.04, with **four checkpoints at <=0.01** (90, 100, 120, 140). That matters
@@ -134,7 +157,7 @@ was a null.
 - [x] exp109 reviewed (100/200) and merged into `combined_dataset/` on the cluster.
 - [x] Submitted and complete (1 job, 200 steps).
 - [x] Read against exp080 run_002 step 120 — **beats it on every axis at equal erasure**.
-- [ ] DOVER scored locally (helios wrote 0.0) — needs the eval videos pulled.
+- [x] DOVER scored locally — **step 140 beats step 120 on both axes**; colour gain is real, not artefacts.
 - [ ] **Human review of steps 120/140** before this number is reported anywhere.
 - [ ] exp102 / exp107 repointed at the winning checkpoint (one field each).
 - [ ] Optional: subsample-to-31 arm to separate wardrobe realism from data volume.

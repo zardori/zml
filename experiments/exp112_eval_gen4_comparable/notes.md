@@ -34,10 +34,11 @@ and "graded, not confined" softens into something much easier to defend. If it d
 checkpoint is better on the concept set and no better where it matters for preservation.
 
 ## Checkpoint choice
-**step 140**, which dominates step 120 on metrics: identical rate (0.0000) and motion (0.25), 4
-points more colorfulness, same clip score. The one thing that would reverse it is if 140's extra
-colour is artefacts rather than saturation — DOVER answers that and was still scoring locally when
-this was staged. If it flags 140, change `lora_checkpoint_dir` to `...step120` before submitting.
+**step 140**, and DOVER has now confirmed it (2026-08-14). It dominates step 120 on every axis:
+identical rate (0.0000) and motion (0.25), 4 points more colorfulness, same clip score, and
+**higher on both DOVER axes** (technical 0.0616 vs 0.0584, aesthetic 0.8871 vs 0.8413). The open
+question when this was staged — whether 140's extra colour was artefacts rather than saturation —
+is answered: it is saturation. No config change needed.
 
 ## Standing caveat
 **Human review has not happened.** The clips are pulled and staged for it. Running the eval now is
