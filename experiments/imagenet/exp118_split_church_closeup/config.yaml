@@ -1,0 +1,36 @@
+# frame_replace dataset for CHURCH, rebuilt on object-dominant prompts. Companion to exp117; see
+# that config for the reasoning, which applies unchanged here.
+#
+# Church is the harder half and needs the rebuild more: exp067 run 2 screened at 3/30, with the same
+# 17 rows that never rendered the concept plus 10 more where the substitute building read as much
+# "church" as the church did. The reframe attacks both — the building now fills the frame, prompt A
+# names the steeple/spire/bell tower the classifier keys on, and every substitute is specified to
+# have no tower, spire or bell-cote at all.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp118_split_church_closeup/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/church_closeup.csv   # 30 A/B/C triples, seeds 3301-3330
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Identical to exp067 run 2, so the comparison isolates the prompts.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+concept: object
+concept_target: "church"
+frame_concept_threshold: 0.03   # LOGGING ONLY since 543eed8, see exp117's config
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: true
+
+# exp067 run 2 measured 30 rows on helios at a comparable rate to exp066; the whole-clip variant adds
+# ~2.1x. Same envelope as exp117.
+slurm_time: "0-06:00:00"

@@ -1,0 +1,58 @@
+# Does the heal phase have to argue against the concept? A 2x2 over what conditions the tail and
+# when the tail starts.
+#
+# The problem, specific to object classes. Prompt C is the shared neutral prompt both halves switch
+# to after split_step_frac, and for an object it is necessarily the *object-removed* scene ("a wooden
+# workbench in a cluttered garage"). So every tail step pushes against the concept the A-half is
+# supposed to be keeping. Nudity never showed this because its C keeps the subject and leaves only
+# the clothed/naked attribute open — which is why the tail looked harmless when it was swept there.
+#
+# tail_prompt_mode: "empty" conditions the tail on the empty string instead. Under CFG the positive
+# and negative embeddings then coincide, the guidance term vanishes, and the tail becomes pure
+# unconditional denoising: it sharpens whatever the split phase committed to without arguing for or
+# against any content.
+#
+# What we already know, and why the split_step_frac axis is here. exp099 measured 0.5 against 0.85 on
+# these same five seeds and found the clips near-identical (2-4 grey levels apart, every two-state
+# verdict unchanged) — above ~0.5 the tail is inert for content, because content is committed in the
+# first ~20 of 50 steps. So the honest prediction is that tail_prompt_mode does *nothing* at 0.85,
+# and the 0.3 arm is where it can matter: exp074 found 0.2/0.3 wash the concept out entirely, and if
+# prompt C is the reason, "empty" at 0.3 should keep it. A long content-neutral tail would be the
+# best of both — plenty of steps to heal the seam, none of them erasing.
+#
+# Reading it: 0.3-empty >> 0.3-c is the hypothesis confirmed, and makes a long empty tail the new
+# default for objects. All four arms alike confirms the tail is simply not a lever and the prompts
+# are (exp117/exp118). 0.85 differing between the two tail modes would contradict exp099 and means
+# the inertness finding needs re-examining before anything else is believed.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp119_split_tail_conditioning/config.yaml
+# frame_replace_split rather than split_prompt: the arms are scored with screen_split_dataset.py, on
+# the per-frame detector confidences, and only this method logs them. The edit and the saved latents
+# are incidental at 5 rows.
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_sweep.csv   # 5 rows, seeds 3202/3204/3208/3210/3217
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: second   # fixed, so the seam sits at the same index in every clip and arms compare directly
+split_jitter: 0
+boundary_margin: 2
+
+concept: object
+concept_target: "chain saw"
+frame_concept_threshold: 0.05   # logging only, see exp117's config
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false   # the question is about the tail, and A/B plain clips never see it
+
+# Both list-valued, so submit_job.py grids into 4 jobs of 5 rows.
+split_step_frac: [0.3, 0.85]
+tail_prompt_mode: ["c", "empty"]
+
+# 5 rows at exp066 run 2's measured 197 s/row is ~17 min; the model load dominates. Same envelope as
+# exp099, which ran this shape comfortably.
+slurm_time: "0-02:00:00"
