@@ -1,14 +1,16 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  exp080 run_002's exact regime (fire retention, eta 2.0, lr 1e-4) on exp109's 100 realistic-wardrobe
-  targets — one variable against the best checkpoint this project has. Deliberately NOT paired with
-  clothed retention: exp108 shows that trade is monotonic, so pairing would confound two changes for
-  no gain. Confound that IS unavoidable and stated: 100 targets vs 34, so data volume moves with
-  wardrobe realism. 1 job.
+  THE DATA MATTERED AFTER ALL, and this is the new best checkpoint by a wide margin. Step 140 reads
+  rate 0.0000 at colorfulness 35.4 (base 36.3 — essentially no colour loss) and motion 0.25, against
+  the old incumbent exp080 r2 s120's 0.0000 / 21.9 / 0.11. That is +62% colour and +127% motion at
+  identical erasure. The window is wide, not a transient: steps 90-140 are all <=0.04 with four
+  checkpoints <=0.01. The U-shape also flattens — the rebound tops out at 0.23 where every earlier
+  run reached 0.49-0.76. Overturns exp088's "data does not matter" reading. Needs DOVER + human
+  review, then exp102/exp107 repointed.
 ---
 # exp110 — frame_replace on the gen4 dataset
 
@@ -81,8 +83,58 @@ the comparisons survive the swap. A **combined** arm (gen4's 100 + exp080's filt
 worth running for the headline number regardless of this result, but it is a data-volume run, not an
 ablation, and should not be confused for one.
 
+## Results (2026-08-12) — the data mattered
+
+| step | 60 | 70 | 80 | **90** | **100** | 110 | **120** | 130 | **140** | 150 | 160 | 170 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| rate | 0.09 | 0.10 | 0.09 | **0.01** | **0.01** | 0.04 | **0.00** | 0.04 | **0.00** | 0.21 | 0.06 | 0.23 | 0.12 |
+| colour | 22.3 | 19.4 | 19.3 | 26.2 | 28.3 | 30.8 | 31.2 | 33.6 | **35.4** | 37.0 | 36.1 | 36.8 | 35.7 |
+| motion | 0.20 | 0.09 | 0.11 | 0.22 | 0.22 | 0.24 | 0.25 | 0.27 | **0.25** | 0.30 | 0.29 | 0.21 | 0.13 |
+| clip | 0.30 | 0.26 | 0.28 | 0.30 | 0.27 | 0.28 | 0.29 | 0.30 | 0.29 | 0.28 | 0.28 | 0.28 | 0.27 |
+
+### The new best checkpoint
+
+| | rate | colour | motion | clip |
+|---|---|---|---|---|
+| base | 0.414 | 36.3 | 0.686 | 0.30 |
+| exp080 r2 s120 *(old incumbent)* | 0.0000 | 21.9 | 0.11 | 0.27 |
+| **exp110 s140** | **0.0000** | **35.4** | **0.25** | **0.29** |
+
+At identical erasure: **+62% colorfulness and +127% motion**, with colour now within 1 point of the
+base model and clip score essentially unharmed. Motion is still -64% against base, so the collapse is
+reduced rather than solved — but this is the first movement on it in five experiments.
+
+### It is a window, not a transient
+
+Steps 90-140 are all <=0.04, with **four checkpoints at <=0.01** (90, 100, 120, 140). That matters
+because isolated single-step zeros have been misread as regimes three times in this thread. Six
+consecutive checkpoints in the low band is a regime.
+
+### The U-shape flattens
+
+Every earlier run rebounded to 0.49-0.76 as colour recovered. This one tops out at **0.23** (step
+170), and the late window (160-200) aggregates to **rate 0.124 at motion 0.212 and colour 36.2** —
+i.e. at *full* colour recovery it still holds a 70% reduction against base. Compare exp086 r3's late
+window at 0.506, exp088 r1's 0.440, exp105 r2's 0.290.
+
+### This overturns exp088
+
+[exp088](../exp088_frame_replace_nudity_clean/notes.md) unfroze the donors, changed nothing, and its
+recorded conclusion was that the method is insensitive to its training data. That reading was wrong —
+or rather, too broad. Un-freezing donors did nothing; **replacing implausible wardrobe with realistic
+wardrobe (and 34 targets with 100) did a great deal.** The distinction is that exp087 fixed a
+*mechanical* defect in the targets while exp109 fixed a *semantic* one.
+
+The volume confound stated in the config header stands and cannot be resolved from this run: 100
+targets vs 34, so realism and data volume moved together. A subsample-to-31 arm would separate them.
+Worth one job now that the result is positive, where it was not worth one when the expected outcome
+was a null.
+
 ## Status
 - [x] exp109 reviewed (100/200) and merged into `combined_dataset/` on the cluster.
-- [ ] Submitted (1 job).
-- [ ] Read against exp080 run_002 step 120 and against exp088 (the other data-axis null).
-- [ ] Human review of the best checkpoint.
+- [x] Submitted and complete (1 job, 200 steps).
+- [x] Read against exp080 run_002 step 120 — **beats it on every axis at equal erasure**.
+- [ ] DOVER scored locally (helios wrote 0.0) — needs the eval videos pulled.
+- [ ] **Human review of steps 120/140** before this number is reported anywhere.
+- [ ] exp102 / exp107 repointed at the winning checkpoint (one field each).
+- [ ] Optional: subsample-to-31 arm to separate wardrobe realism from data volume.
