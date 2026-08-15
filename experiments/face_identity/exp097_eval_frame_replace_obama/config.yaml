@@ -10,9 +10,9 @@ model_id: THUDM/CogVideoX-5b
 prompts_csv: prompts/face_cogvideox.csv
 erased_identity: "Barack Obama"
 
-# FILL IN with the exp095 checkpoint being reported, from the winning target_variant grid arm
-# (e.g. .../outputs_TIMESTAMP/frame_replace_lora_step120, matching exp080's reported step).
-lora_checkpoint_dir: experiments/face_identity/exp095_frame_replace_obama/outputs_TIMESTAMP/frame_replace_lora_step120
+# exp095's grid: run_001 = split (winner), run_002 = wholeclip (disqualified, degenerate clips).
+# Step 200 picked over the exp080-precedent step 120 — manual review found later checkpoints look best.
+lora_checkpoint_dir: experiments/face_identity/exp095_frame_replace_obama/grid_20260814_141010/run_001/outputs/frame_replace_lora_step200
 
 eval_inference_steps: 50
 disable_mlflow: true

@@ -43,7 +43,7 @@ This row, plus exp090 (Original) and exp091 (NegPrompt), fills the Obama column 
 table sitting next to T2VUnlearning's CogVideoX-5B Table 3 block.
 
 ## Status
-- [ ] exp095 has a checkpoint chosen; `lora_checkpoint_dir` filled in.
+- [x] exp095 has a checkpoint chosen (`split`, step 200); `lora_checkpoint_dir` filled in.
 - [ ] Submitted.
 - [ ] Compared against exp090 (Original) and exp091 (NegPrompt) — Erase, Preserve,
       `face_present_rate`, `collapse_score`, and quality, not Erase alone.
