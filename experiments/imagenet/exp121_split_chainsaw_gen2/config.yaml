@@ -1,0 +1,39 @@
+# A second generation of the chain-saw dataset: exp117's prompts, fresh seeds.
+#
+# exp117 measured these prompts at 14/30 usable, which is a working dataset but a thin one (exp062,
+# the nudity run this recipe comes from, trained on 31). The cheapest route to more rows is more
+# samples of a yield we have now measured, not more prompt editing — and re-seeding is the control
+# exp116 already ran for faces, where re-seeding the *bad* prompts reproduced their yield exactly.
+# So this should land near 14 again; if it lands far off, the 47% was seed luck and that is worth
+# knowing before another class is built on these prompts.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp121_split_chainsaw_gen2/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_gen2.csv   # exp117's 30 triples, seeds 3231-3260
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Identical to exp117 so the two generations merge into one homogeneous dataset.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+concept: object
+concept_target: "chain saw"
+frame_concept_threshold: 0.05   # logging only since 543eed8
+min_donor_frames: 2
+save_videos: true
+# exp117's whole-clip variant did its diagnostic job (prompt A renders in 29/30) and is not a usable
+# training target: same-seed A and B differ by mean |dpixel| 56.5 against 72.4 for two *unrelated*
+# scenes, with 74% of pixels changing, so it is a scene swap rather than the minimal edit
+# frame_replace is built on. Off here, which also removes 2.1x of the runtime.
+emit_whole_clip_target: false
+
+# 30 rows at exp066 run 2's measured 197 s/row is ~1 h 40 m without the whole-clip variant.
+slurm_time: "0-03:00:00"

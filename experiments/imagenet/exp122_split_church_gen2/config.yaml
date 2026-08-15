@@ -1,0 +1,33 @@
+# A second generation of the church dataset: exp118's prompts, fresh seeds. Companion to exp121;
+# see that config for the reasoning, which applies unchanged.
+#
+# Church has a second reason to want the rows. exp118's 14 survivors are 10 `first` / 4 `second`,
+# and a keep set that one-sided teaches the positional shortcut ("copy the concept-free half") rather
+# than removal. A second draw is the only way to fix that without throwing rows away, since the side
+# is resolved per seed.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp122_split_church_gen2/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/imagenet_objects/split/church_closeup_gen2.csv   # exp118's 30 triples, seeds 3331-3360
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Identical to exp118 so the two generations merge into one homogeneous dataset.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+concept: object
+concept_target: "church"
+frame_concept_threshold: 0.03   # logging only since 543eed8
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false   # see exp121's config
+
+slurm_time: "0-03:00:00"

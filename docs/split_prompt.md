@@ -97,12 +97,30 @@ clip" are one observation seen from two sides.
 - **Do not expect `split_step_frac` above ~0.5 to change anything.** exp066/exp067's rebuild raised it
   0.5 → 0.85 on the strength of the C-deletion argument above and yield did not move (7/30 and 3/30).
   Anything in [0.5, 1.0] is the same experiment.
-- **The decisive window is below ~0.4**, and that is where a tail prompt that deletes the concept does
-  real damage. If a long heal phase is wanted for seam quality, the fix is to change *what* conditions
-  it, not when it starts — `tail_prompt_mode: "empty"` makes the tail pure unconditional denoising
-  (under CFG the positive and negative embeddings coincide, so the guidance term vanishes), which
-  heals without arguing against any content. exp119 tests this.
-- **The levers that actually move object yield are the prompts**, not the sampler. See §3.2.
+- **The decisive window is below ~0.4** — but a content-neutral tail does not buy it back.
+  `tail_prompt_mode: "empty"` conditions the heal phase on the empty string, so under CFG the
+  positive and negative embeddings coincide, the guidance term vanishes, and the tail becomes pure
+  unconditional denoising: it heals the seam without arguing for or against any content. The
+  hypothesis was that this would make a long tail safe for object classes, whose C deletes the
+  object. **exp119 tested it on a 2x2 and rejected it.**
+
+  | `split_step_frac` | `tail_prompt_mode: c` | `tail_prompt_mode: empty` |
+  |---|---|---|
+  | 0.3 | 3/5 | **2/5** |
+  | 0.85 | 4/5 | 4/5 |
+
+  The 0.85 arms are identical row-for-row, with contrast indices agreeing to within 0.003 — an
+  independent confirmation of the inertness finding above, on a different axis. And at 0.3 `empty`
+  was *worse*, not better: `p0_s3202` lost the concept entirely under `empty` (peak 0.044) while `c`
+  kept it (0.247). So prompt C's concept-deleting content is not why an early split washes the
+  concept out. What matters is how many decisive steps the concept region gets conditioned on prompt
+  A, and at 0.3 it does not get enough — the tail's *content* is beside the point.
+
+  **Keep `split_step_frac: 0.85` and `tail_prompt_mode: c`, and stop sweeping this axis.** Three of
+  the sampler's knobs are now measured dead for content.
+- **The levers that actually move object yield are the prompts**, not the sampler. See §3.2. The one
+  sampler knob not yet ruled out is `concept_guidance_scale` (§3.3) — and it is aimed at a different
+  mechanism than any of these.
 
 ### Measuring the collapse: seam contrast, not motion
 
@@ -284,13 +302,59 @@ The object prompts had the same two defects, both visible against the eval set t
 
 `tools/build_split_imagenet_closeup_prompts.py` applies both, and applies the second **symmetrically
 to prompt B** — if only A gains detail, B loses the splice on prompt strength rather than on content,
-which buys yield by quietly turning the safe half into the concept half. exp117/exp118 test it, with
-the settings, seeds and prompt C held verbatim so the comparison isolates the prompts.
+which buys yield by quietly turning the safe half into the concept half. exp117/exp118 tested it with
+the settings, seeds and prompt C held verbatim, and it reproduced the face thread's result:
+
+| | pass before | pass after | `not-split` | `no-concept` |
+|---|---|---|---|---|
+| chain saw (exp066 → **exp117**) | 7 (23%) | **14 (47%)** | 6 → 4 | 17 → 12 |
+| church (exp067 → **exp118**) | 3 (10%) | **14 (47%)** | 10 → 5 | 17 → 11 |
+
+Church's `not-split` half has its own confirmed cause and cure: exp067's substitute buildings were
+church-shaped, and rewriting them to have no tower, spire or bell-cote took whole-clip prompt B from
+a peak p(church) of 0.247 — tying the concept half — down to 0.064 across all 30 rows.
 
 **Rule for a new concept: check that the base model renders it under the training prompts before
 touching any sampler knob.** `emit_whole_clip_target: true` gives that for free — the A-side
 confidences come from a plain generation, so they separate a prompt failure from a splitter failure
 within the same job.
+
+### 3.3 After the prompts: the splice suppresses concepts the prompt does render
+
+exp117's whole-clip diagnostics moved the object thread's diagnosis, and the finding is general
+enough to expect on the next concept. With the reframed prompts, plain prompt A renders the object in
+**29 of 30 chain-saw rows and 28 of 30 church rows** — "the base model never drew it" is no longer the
+bottleneck. The remaining loss is the *splice* killing a concept that the identical (prompt, seed)
+renders fine unsplit, and it fails binary. Split concept-half mean over the same row's plain-A mean:
+
+| rows | chain saw | church |
+|---|---|---|
+| passing | 1.12 | 0.76 |
+| failing | **0.06** | **0.23** |
+
+The mechanism is in `generate_split_clip`: `pred_a` and `pred_b` are each predicted over the *whole*
+latent and only the prediction is spliced, so `pred_a` is evaluated in a context whose other region
+is converging on prompt B. CogVideoX's temporal-coherence prior then argues the clip is one scene and
+pulls the concept region toward the substitute. Either the object establishes itself early enough to
+hold its half or it is gone — hence no middle.
+
+`concept_guidance_scale` raises CFG on the concept branch alone, at zero extra compute (both
+branches' conditional and unconditional predictions are already computed; it is a scalar on them).
+exp120 sweeps it over the 12 exp117 rows that failed *despite* plain A rendering the object, with the
+base value as a control arm. Watch clip quality as well as pass count: high CFG on CogVideoX
+saturates, and a row bought at the cost of a degraded clip is not a usable row.
+
+### 3.4 The whole-clip variant is a diagnostic, not a training target
+
+`emit_whole_clip_target` pairs prompt A's plain clip with prompt B's plain clip at the same seed. It
+is tempting as a seam-free target on the argument that the two differ by one noun under one seed.
+Measured on exp117, that argument fails: mean per-pixel |A − B| at the same seed is **56.5**, against
+**72.4** between clips of two *unrelated* rows, with 74% of pixels moving more than 25 levels (church:
+52.9 vs 86.4). The noun swap redraws the frame — a shared seed does not hold the scene. Training on
+it would teach a global scene substitution, the opposite of frame_replace's minimal-edit premise.
+
+Turn it on for a new concept's *first* build, where it separates a prompt failure from a splitter
+failure in one job (§3.2), and off for every build after — it costs 2.1x runtime.
 
 ## 4. De-biasing: avoiding the positional shortcut
 

@@ -48,6 +48,17 @@ CHAIN_SAW_CSV = "prompts/imagenet_objects/split/chain_saw_closeup.csv"
 CHURCH_CSV = "prompts/imagenet_objects/split/church_closeup.csv"
 SWEEP_CSV = "prompts/imagenet_objects/split/chain_saw_closeup_sweep.csv"
 
+# A second generation of the same 30 scenes under fresh seeds. exp117/exp118 measured these prompts
+# at 14/30 usable per class, which is not enough rows to train on twice, and the cheapest way to more
+# is more samples of a distribution we have now measured rather than more prompt editing. Re-seeding
+# is also the control exp116 ran for faces: re-seeding *bad* prompts reproduced their yield exactly,
+# so re-seeding good ones should reproduce 47% and the two generations can simply be merged.
+CHAIN_SAW_GEN2_CSV = "prompts/imagenet_objects/split/chain_saw_closeup_gen2.csv"
+CHURCH_GEN2_CSV = "prompts/imagenet_objects/split/church_closeup_gen2.csv"
+# +30 keeps each generation in its own contiguous block (chain saw 3201-3230 then 3231-3260) so a
+# seed still identifies its generation on sight, and no seed is ever reused across the thread.
+GEN2_SEED_OFFSET = 30
+
 # The 5 rows cheap sampler sweeps run on. One class only, because a sweep is scored with
 # `screen_split_dataset.py` and a detector build takes a single `concept_target`.
 #
@@ -186,6 +197,11 @@ def build_rows(source_csv: Path, scenes: list[Scene], framing: str) -> list[dict
     return [build_row(s, framing, prompt_c[s.seed]) for s in scenes]
 
 
+def reseed(rows: list[dict[str, str | int]], offset: int) -> list[dict[str, str | int]]:
+    """The same triples under a fresh seed block — one more sample of a measured yield (see GEN2)."""
+    return [{**row, "seed": int(row["seed"]) + offset} for row in rows]
+
+
 def write_csv(path: Path, rows: list[dict[str, str | int]], note: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as handle:
@@ -200,12 +216,18 @@ def main() -> None:
     parser.add_argument("--chain-saw-csv", default=CHAIN_SAW_CSV)
     parser.add_argument("--church-csv", default=CHURCH_CSV)
     parser.add_argument("--sweep-csv", default=SWEEP_CSV)
+    parser.add_argument("--chain-saw-gen2-csv", default=CHAIN_SAW_GEN2_CSV)
+    parser.add_argument("--church-gen2-csv", default=CHURCH_GEN2_CSV)
     args = parser.parse_args()
 
     chain_saw = build_rows(Path(CHAIN_SAW_SOURCE), CHAIN_SAW_SCENES, CHAIN_SAW_FRAMING)
     church = build_rows(Path(CHURCH_SOURCE), CHURCH_SCENES, CHURCH_FRAMING)
     write_csv(Path(args.chain_saw_csv), chain_saw, f"seeds {CHAIN_SAW_SCENES[0].seed}-{CHAIN_SAW_SCENES[-1].seed}")
     write_csv(Path(args.church_csv), church, f"seeds {CHURCH_SCENES[0].seed}-{CHURCH_SCENES[-1].seed}")
+
+    for path, rows in ((args.chain_saw_gen2_csv, chain_saw), (args.church_gen2_csv, church)):
+        gen2 = reseed(rows, GEN2_SEED_OFFSET)
+        write_csv(Path(path), gen2, f"gen2 re-seed, seeds {gen2[0]['seed']}-{gen2[-1]['seed']}")
 
     by_seed = {int(row["seed"]): row for row in church + chain_saw}
     missing = [s for s in SWEEP_SEEDS if s not in by_seed]

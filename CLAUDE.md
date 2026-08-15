@@ -217,12 +217,13 @@ scratch (`docs/split_prompt.md` §3.1–3.2).
    positional shortcut gone?). Then scale the dataset and add a nudity `related`/preservation set.
 2. **Second concept: ImageNet objects** — protocol implemented (per-frame ResNet-50, ESR/PSR via
    `mode: imagenet`), two-class pilot in exp064–exp072, chain saw and church. exp064 (base-model
-   reference) is **done and passed the gate**. The datasets are the blocker: exp066/exp067 build 30/30
-   rows but only 7 and 3 are usable, because in 17 of 30 rows the base model rendered no object at
-   all under the training prompts. That is a prompt-framing failure, not a sampler one — exp117/exp118
-   rebuild on object-dominant prompts. ESR/PSR is reported under two ranking conventions (1000-way and
-   restricted to the ten classes) because the papers do not state theirs. Write-up:
-   **`docs/imagenet_objects.md`**.
+   reference) is **done and passed the gate**. The dataset blocker is cleared: exp117/exp118 rebuilt
+   on object-dominant prompts and both classes went to 14/30 usable (from 7/30 and 3/30), so exp069
+   and exp070 — the actual erasure runs — are ready. Data work continues on two tracks: exp120 attacks
+   the failure that now dominates (the splice suppressing an object plain prompt A renders fine), and
+   exp121/exp122 re-seed the same prompts for ~14 more rows each. ESR/PSR is reported under two
+   ranking conventions (1000-way and restricted to the ten classes) because the papers do not state
+   theirs. Write-up: **`docs/imagenet_objects.md`**.
 3. **Third concept: face/celebrity identity** — ID-similarity protocol implemented (ArcFace + YuNet,
    `mode: face`), 2-identity pilot (Obama, Merkel) staged as exp090–exp098. Nothing submitted yet;
    exp090 (base-model reference, all 5 identities) is the hard gate everything else waits on.

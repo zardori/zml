@@ -1,0 +1,53 @@
+# Does raising CFG on the *concept branch only* recover the rows the splice suppresses?
+#
+# exp117's whole-clip diagnostics moved the diagnosis. Prompt A, generated plainly at the same seed,
+# renders a chain saw in 29 of 30 rows — so "the base model never drew it", the story of exp066, is
+# gone. What remains is the splice killing a concept the identical (prompt, seed) renders fine on its
+# own, and it fails binary rather than gradually: measured as the split clip's concept-half mean over
+# the plain-A mean, surviving rows keep 1.12 and failing rows keep 0.06.
+#
+# The mechanism is in generate_split_clip: pred_a and pred_b are both predicted over the *whole*
+# latent and only the prediction is spliced, so pred_a is evaluated in a context whose other region
+# is converging on prompt B. CogVideoX's temporal-coherence prior then argues the clip is one scene
+# and pulls the concept region toward the substitute. concept_guidance_scale raises CFG on pred_a
+# alone, strengthening the concept region's own conditioning against that pull, at zero extra
+# compute — it is a scalar on predictions already being computed.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp120_split_concept_guidance/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# The 12 exp117 rows that screened `no-concept` *and* whose plain prompt-A clip rendered the object
+# (tools/subset_split_prompts.py). Selecting on the measured failure is what makes 12 rows enough:
+# under the control arm every one of them is a known zero, so any pass at all is signal.
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_suppressed.csv
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Field-for-field exp117, so the 6.0 arm re-runs those rows exactly. resolve_split seeds its RNG per
+# row, so `random`/1 resolve to the same (split_latent_frame, concept_region) they did there — which
+# makes the control arm a reproducibility check as well as a baseline.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+concept: object
+concept_target: "chain saw"
+frame_concept_threshold: 0.05   # logging only since 543eed8
+min_donor_frames: 2
+save_videos: true
+# Off: these rows were *selected* by their whole-clip A confidences, so re-measuring them buys
+# nothing and costs 2.1x.
+emit_whole_clip_target: false
+
+# 6.0 is the control (must reproduce exp117's 0/12). 9.0 and 12.0 bracket the range where CogVideoX
+# stays photorealistic; above ~15 CFG artefacts appear, which would trade yield for clips too
+# saturated to train on — so watch clip quality, not only the pass count.
+concept_guidance_scale: [6.0, 9.0, 12.0]
+
+# 12 rows at exp066 run 2's measured 197 s/row is ~40 min plus model load. 3 grid jobs.
+slurm_time: "0-02:00:00"

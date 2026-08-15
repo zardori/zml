@@ -89,6 +89,18 @@ class Config:
     #             Nudity does not have this problem — its C keeps the subject and leaves only the
     #             clothed/naked attribute open — which is why the tail never looked harmful there.
     tail_prompt_mode: str = "c"
+    # CFG scale applied to the *concept* branch (pred_a) only; None reuses guidance_scale for both.
+    #
+    # Why the concept side needs its own scale. Both branches are predicted over the whole latent and
+    # only the prediction is spliced (see generate_split_clip), so pred_a is evaluated in a context
+    # whose other region is converging on prompt B. CogVideoX's temporal-coherence prior then argues
+    # that the clip is one scene, and the concept region gets pulled toward the substitute. exp117's
+    # whole-clip diagnostics show this is now the dominant loss and that it fails *binary*: rows that
+    # survive keep 112% of the concept confidence a plain prompt-A generation reaches at the same
+    # seed, rows that fail keep 6%. Raising only this branch's guidance strengthens the concept
+    # region's own conditioning against that pull, and costs nothing — it is a scalar on predictions
+    # that are already computed.
+    concept_guidance_scale: float | None = None
     output_dir: str = "."
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
@@ -183,7 +195,8 @@ def generate_split_clip(
     builder (``frame_replace_split_precompute``).
     """
     device = pipe._execution_device
-    do_cfg = config.guidance_scale > 1.0
+    concept_guidance = config.concept_guidance_scale or config.guidance_scale
+    do_cfg = max(config.guidance_scale, concept_guidance) > 1.0
     emb_a = _cfg_embeds(pipe, prompt_a, do_cfg)
     emb_b = _cfg_embeds(pipe, prompt_b, do_cfg)
     emb_tail = _cfg_embeds(pipe, tail_prompt(prompt_c, config.tail_prompt_mode), do_cfg)
@@ -208,7 +221,7 @@ def generate_split_clip(
     old_pred = None
     for i, t in enumerate(timesteps):
         if i < split_step:
-            pred_a = _predict(pipe, latents, emb_a, t, rope, config.guidance_scale, do_cfg)
+            pred_a = _predict(pipe, latents, emb_a, t, rope, concept_guidance, do_cfg)
             pred_b = _predict(pipe, latents, emb_b, t, rope, config.guidance_scale, do_cfg)
             noise_pred = pred_b.clone()  # concept-free everywhere, then overwrite the concept region with A
             if concept_region == "first":

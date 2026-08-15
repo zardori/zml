@@ -206,11 +206,15 @@ and must stay that way. We preserve the classes, not the test items.
   eval prompts per class are ordinary full-object scenes with no object-free half, evaluating on them
   *is* the shortcut test. Note that `split_step_frac` is **inert above ~0.5** (exp099); do not spend a
   run tuning it.
-- **`tail_prompt_mode`** (`c` | `empty`) — what conditions the heal phase. `c` is the shared neutral
-  prompt, which for an object class is necessarily the object-*removed* scene, so a long tail argues
-  against the concept; `empty` makes the tail pure unconditional denoising, healing the seam without
-  arguing for or against content. Only has authority below `split_step_frac` ~0.4 (see above), which
-  is exactly where a deleting tail does damage. exp119 measures it; until then `c` remains the default.
+- **`tail_prompt_mode`** (`c` | `empty`) — what conditions the heal phase. **Measured dead (exp119):**
+  at `split_step_frac` 0.85 the two modes give identical clips row-for-row, and at 0.3 `empty` was
+  *worse* (2/5 against `c`'s 3/5), so prompt C's concept-deleting content is not why an early split
+  loses the concept. Keep `c`, keep 0.85, and do not sweep this. `docs/split_prompt.md` §2.
+- **`concept_guidance_scale`** — CFG on the concept branch (`pred_a`) only; `None` reuses
+  `guidance_scale`. **The one sampler knob not yet ruled out**, and the only one aimed at the failure
+  that now dominates: the splice suppressing an object that plain prompt A renders fine at the same
+  seed (`docs/split_prompt.md` §3.3). Free — a scalar on predictions already computed. Too high and
+  CogVideoX saturates, so judge a sweep on clip quality as well as pass count. exp120 measures it.
 
 ## 6. Status
 
@@ -227,12 +231,33 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | run 1 kept 7/30; run 2 kept 30/30 but **screens at 3/30** — superseded by exp118 |
 | exp068 | preservation anchors, 10 classes x 3 prompts | **done** — 30 entries, 3 per class, `outputs_20260803_233647` |
 | exp099 | static vs motion-carrying A/B prompts x `split_step_frac` | **done** — motion prompts 0/5 two-state vs static 2/5; keep the static scaffold. Also showed `split_step_frac` is inert above ~0.5 |
-| exp117 | chain-saw dataset on object-dominant prompts, `emit_whole_clip_target` | ready, not submitted |
-| exp118 | church dataset on object-dominant prompts, `emit_whole_clip_target` | ready, not submitted |
-| exp119 | `tail_prompt_mode` [c, empty] x `split_step_frac` [0.3, 0.85], 5 chain-saw seeds | ready, not submitted |
-| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | blocked on exp117 |
-| exp070 | frame_replace erasure of church, same regime | blocked on exp118 |
+| exp117 | chain-saw dataset on object-dominant prompts, `emit_whole_clip_target` | **done** — 14/30 usable (was 7/30); moved the thread's diagnosis, see below |
+| exp118 | church dataset on object-dominant prompts, `emit_whole_clip_target` | **done** — 14/30 usable (was 3/30); survivors skew 10 first / 4 second |
+| exp119 | `tail_prompt_mode` [c, empty] x `split_step_frac` [0.3, 0.85], 5 chain-saw seeds | **done** — hypothesis rejected; the tail is not a lever. `docs/split_prompt.md` §2 |
+| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | **ready** — 21 rows (exp117's 14 + exp066's 7); needs `merge_dataset.sh` on the cluster first |
+| exp070 | frame_replace erasure of church, same regime | **ready** — exp118's 14 rows |
+| exp120 | `concept_guidance_scale` [6, 9, 12] on the 12 suppressed chain-saw rows | ready, not submitted |
+| exp121 / exp122 | gen2 datasets: exp117/exp118 prompts under fresh seeds, ~14 more rows each | ready, not submitted |
 | exp071 / exp072 | reported ESR/PSR for the two LoRAs | blocked on exp069 / exp070 |
+
+**exp117/exp118 — the prompt reframe worked, and then changed the question.** Both classes went to
+14/30 usable, and the reframe is the measured cause: same seeds, same sampler, only A and B rewritten.
+Church's second failure has its own confirmed cure — its substitutes now peak at p(church) 0.064
+where exp067's tied the concept half at 0.247.
+
+The more consequential result is what `emit_whole_clip_target` reported. **Plain prompt A renders the
+object in 29/30 chain-saw and 28/30 church rows**, so the exp066/exp067 story — the base model never
+drew it — is essentially closed. What is left is the *splice* suppressing a concept the identical
+(prompt, seed) renders fine, failing binary: surviving rows keep 1.12x the plain-A confidence, failing
+rows 0.06x. Mechanism, the `concept_guidance_scale` response, and why the whole-clip pairs must not be
+used as training targets (same-seed A and B differ nearly as much as unrelated scenes):
+`docs/split_prompt.md` §3.3–3.4.
+
+Two operational notes from those builds. Screened keep-lists live at the experiment root as
+`outputs_{timestamp}_screened.json` — `outputs_*/` is gitignored, so anything the cluster must read
+has to sit outside it. And exp118 produced two degenerate near-white clips (`p9_s3310` std 0.0,
+`p21_s3322` std 11.8); both fell out on the concept screen, but `p21_s3322` scored 0.445 on whole-clip
+A, so a whole-clip-based keep rule would have admitted a blank video.
 
 **exp066/exp067 run 1 — why the datasets were discarded.** Both ran 2026-08-03, two days before
 `543eed8` made the concept mask construction-derived, so their masks were still detection-derived.
