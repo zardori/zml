@@ -1,17 +1,30 @@
 # frame_replace erasure of the CHURCH class, in the same regime as exp069.
+#
+# Unblocked by exp118: rewriting the substitutes to have no tower, spire or bell-cote took the church
+# dataset from 3/30 usable to 14/30, and killed the failure that caused it — whole-clip prompt B now
+# peaks at p(church) 0.064, where exp067's substitutes tied the concept half at 0.247.
+#
 # Run: ./submit_job.py helios experiments/imagenet/exp070_frame_replace_church/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: object
 concept_target: "church"
 
-# FILL IN with exp067's outputs_{timestamp}.
-metadata_file: experiments/imagenet/exp067_split_church_dataset/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/imagenet/exp067_split_church_dataset/outputs_TIMESTAMP/latents
+# exp118's 14 screened rows (tools/screen_split_dataset.py, --min-concept-max 0.10). No merge with
+# exp067: its 3 survivors are all `concept_region: first`, and this set is already 10 first / 4
+# second — adding them would take the skew to 13/4 for three rows. exp122 draws fresh seeds to
+# rebalance it properly.
+#
+# **The skew is the thing to read this run against.** A keep set that one-sided can be satisfied by
+# the positional shortcut ("copy the concept-free half onto the other"), and the concept eval set is
+# the test that distinguishes it: all 20 church eval prompts are ordinary full scenes with no
+# object-free half, so a shortcut LoRA cannot lower them.
+metadata_file: experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904_screened.json
+latents_dir: experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904/latents
 
-# FILL IN with exp068's outputs_{timestamp}; shared with exp069, only the exclusion differs.
-retention_metadata_file: experiments/imagenet/exp068_imagenet_preservation/outputs_TIMESTAMP/metadata.json
-retention_latents_dir: experiments/imagenet/exp068_imagenet_preservation/outputs_TIMESTAMP/latents
+# Shared with exp069, only the exclusion differs.
+retention_metadata_file: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/metadata.json
+retention_latents_dir: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/latents
 retention_exclude: "church"
 retention_weight: 1.0
 
