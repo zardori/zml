@@ -368,12 +368,15 @@ prompt and confirming the script aborts.
 |---|---|---|
 | exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate | **done**, gate (a)/(b) pass — see `experiments/face_identity/exp090_eval_base_face/notes.md`. Gate (c) (5×5 matrix) and `identity_threshold` calibration still open, §5. |
 | exp091 | NegPrompt baseline, 2 pilot identities | ready, retargeted to Obama + Elizabeth |
-| exp092 | split-prompt + whole-clip dataset, Obama | ready, unaffected by the pilot-identity correction |
-| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess; `experiments/exp093_split_face_merkel_dataset/` renamed to `exp093_split_face_elizabeth_dataset/`, `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
-| exp094 | preservation anchors (5×3 identity + 10 generic) | ready, unaffected — already covers all 5 identities |
-| exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | ready, blocked on exp092/exp094 |
-| exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner | ready (renamed from `exp096_frame_replace_merkel/`), blocked on exp093/exp094/exp095 |
-| exp097 / exp098 | reported ID-Similarity for the two checkpoints | ready (exp098 renamed from `exp098_eval_frame_replace_merkel/`), blocked on exp095/exp096 |
+| exp092 | split-prompt + whole-clip dataset, Obama, `split_step_frac 0.5` | **superseded by exp115** (0.5 under-heals — see §5) |
+| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess to `experiments/face_identity/exp093_split_face_elizabeth_dataset/`, `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
+| exp094 | preservation anchors (5×3 identity + 10 generic) | **done** — 25 anchors, `outputs_20260811_185230` |
+| exp115 | split-prompt + whole-clip dataset, Obama, `split_step_frac 0.8` | **done** — fixes exp092's chimera-face problem; yield low (9/30) |
+| exp116 | scale-up of exp115 with framing-controlled prompts | **done** — 43/90 kept; 52 total combined with exp115, feeds exp095 |
+| exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | **done** — `split` wins the grid (`wholeclip` disqualified by widespread degenerate clips); step 200 picked for exp096/exp097 |
+| exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner (`split`) | ready, blocked on exp093/exp094 (both done) — not yet submitted |
+| exp097 | reported ID-Similarity, Obama checkpoint | ready, blocked on exp095 (done) — not yet submitted |
+| exp098 | reported ID-Similarity, Queen Elizabeth II checkpoint | ready, blocked on exp096 |
 
 exp090 has run and passed its gate; exp091/093/096/098 have been retargeted from the pre-run Obama +
 Merkel guess to the confirmed Obama + Queen Elizabeth II pair. `prompts/face_identities/split/angela_merkel.csv`

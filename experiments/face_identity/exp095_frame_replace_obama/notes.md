@@ -1,14 +1,17 @@
 ---
-status: ready
+status: done
 concept: face
 method: frame_replace
 thread: face_identity
 takeaway: >
-  First frame_replace erasure of a face identity (Barack Obama), copying exp080's best nudity
-  regime field-for-field. Grid target_variant [split, wholeclip] — the A/B this run exists to
-  answer. exp116 (dataset scale-up) and exp094 (retention) are both done; only the
-  merge_dataset.sh step (builds exp116's combined_dataset/ on helios) is left before this can be
-  submitted.
+  First frame_replace erasure of a face identity (Barack Obama). `split` wins the target_variant
+  grid clearly: `wholeclip` produces widespread degenerate (black/structureless) clips on both the
+  erased and preserved identities mid-training, confirming the R5 motion-collapse risk. `split`
+  stays clean (zero degenerate clips throughout) but reduces motion, especially on the concept
+  videos — manual review agrees with the automated collapse in concept `face_present_rate`/ID-sim,
+  though it can't cleanly separate identity-swap from face-deletion. Later checkpoints look best on
+  review; step 200 picked for exp096/exp097. exp096 targets Queen Elizabeth II, not Merkel (see
+  `docs/face_identity.md` §6).
 ---
 # exp095 — frame_replace erasure of Barack Obama
 
@@ -42,7 +45,7 @@ built both target types from one generation pass in each) — no extra precomput
   (`retention_exclude`) — 22 anchors.
 
 **Before submitting**, run `./merge_dataset.sh` (command in `config.yaml`'s header comment) so
-`experiments/face_identity/exp116_split_face_obama_dataset_scaleup/combined_dataset/` exists — the one remaining
+`experiments/exp116_split_face_obama_dataset_scaleup/combined_dataset/` exists — the one remaining
 step. exp094's real output dir is already filled in.
 
 ## What to watch
@@ -72,14 +75,49 @@ face-presence rate — that's `face_present_rate`).
   100-triple exp109 build, so watch for the small-dataset instability nudity's early runs (exp062
   run 2, 21 triples) hit, though 52 is past the point that run was thin at.
 
+## Results
+Both grid arms ran clean (`run_001` = split, `run_002` = wholeclip; 200/200 steps, ~6.7h each, no
+errors) inside the 16h budget. Read from `summary.json`/`eval_step_*/metrics.json` in each run's
+`outputs/`.
+
+**Erasure signal is ambiguous by the numbers alone, on both variants.** Concept-set
+`face_id_similarity_mean` and `face_detection_rate` collapse to ~0 by step 60 in both arms, but so
+does concept `face_present_rate` — every checkpoint where ID-sim reads near-zero is also one where
+almost no face is detected at all, never the "face present, wrong identity" signature that would
+confirm a clean identity swap rather than face deletion. This is exactly the ambiguity
+`docs/face_identity.md` §3.1's hard reporting rule exists to catch.
+
+**`wholeclip` fails on preservation.** At step 60 the *unrelated/preserved-identity* set also
+collapses (`face_present_rate: 0.00`, `motion_score_mean: 0.02`, `colorfulness: 5.9`) and produces
+degenerate (black/structureless) clips on both the concept set (up to 7/10 at step 80, 5/10 still at
+step 200) and the preserved set (step 80). This is the R5 motion-collapse risk from exp055's
+precedent, confirmed and sharper than expected — a broad quality collapse, not a targeted erasure
+effect.
+
+**`split` stays clean but reduces motion.** Zero degenerate clips at any checkpoint, either set.
+Preserved-set `face_present_rate` holds at 0.42–0.66 throughout and `motion_score_mean` recovers
+from an early dip (2.6→0.7 by step 100) to 1.4–1.9 by step 200. The concept set's motion score is
+the caveat: it collapses early (0.9→0.03 by step 60) and only crawls back to ~0.08 by step 200 —
+visible, unlike exp055's damage, in `motion_score_mean` directly rather than needing DOVER to catch
+it.
+
+**Manual review** of the pulled `eval_step_*/concept/*.mp4` clips agrees with the automated read:
+`wholeclip` shows the degenerate clips clearly; `split` looks good with the same motion-reduction
+caveat on concept videos, and does not cleanly resolve the identity-swap-vs-deletion ambiguity by
+eye either. Checkpoint quality is hard to rank by review, but later checkpoints look best —
+**step 200** is the pick for downstream use, not the step-120 default exp080 used for nudity.
+
+**Verdict: `split` wins the grid.** `wholeclip` is disqualified by the degenerate-clip rate alone,
+independent of how the erasure-vs-degradation question resolves.
+
 ## Downstream
-exp097 runs the full 150-video ID-Similarity eval on whichever checkpoint(s) look best here — the
-live numbers are a progress signal, not the reported metric (same relationship exp069→exp071 has).
-exp096 (Merkel) uses whichever `target_variant` wins here, not a repeated grid.
+exp097 runs the full 150-video ID-Similarity eval on `run_001` (split) step 200 — the live numbers
+above are a progress signal, not the reported metric (same relationship exp069→exp071 has).
+exp096 (Queen Elizabeth II) uses `target_variant: split`, not a repeated grid.
 
 ## Status
 - [x] exp115/exp116 (dataset) and exp094 (retention) complete; timestamps filled in. Only
       `./merge_dataset.sh` (builds `combined_dataset/` on helios) is left before submitting.
-- [ ] Submitted (2-job grid: split, wholeclip).
-- [ ] Both variants compared on erasure + preservation + `face_present_rate`; a winner picked for
-      exp096.
+- [x] Submitted (2-job grid: split, wholeclip) — `grid_20260814_141010`.
+- [x] Both variants compared on erasure + preservation + `face_present_rate`; manual review agrees.
+      `split` wins for exp096; `wholeclip` disqualified by widespread degenerate clips.
