@@ -55,7 +55,7 @@ zml/
 │   ├── athena.sh                # dispatches on JOB_TYPE (unlearn|eval|precompute)
 │   ├── helios.sh                
 │   ├── peer_roots.sh            # builds ZML_PEER_ROOTS: every member's repo root on this cluster
-│   └── check_config_paths.sh    # pre-submit check that config inputs exist on the cluster
+│   └── check_config_paths.sh    # locates a config's inputs on the cluster (pre-submit check)
 ├── prompts/                     # prompt sets; per-concept subdirs, see "Prompt Layout" below
 │   ├── imagenet_objects.csv     # the eval set for a concept stays at the top level
 │   ├── imagenet_objects/        # everything derived from it, grouped
@@ -99,7 +99,7 @@ pushed). Prefer extending one of the existing scripts over documenting a manual 
 4. **Prepare thin generic entrypoints** (`scripts/`): These should be thin wrappers that parses arguments call the code in `zml/`.
 5. **Prepare SLURM templates** (`slurm/`): There is one generic script per cluster (`slurm/athena.sh`, `slurm/helios.sh`). Each holds only that cluster's account/partition/repo-dir and dispatches on the `JOB_TYPE` env var to the right thin entrypoint. `submit_job.py` supplies the job name, time, and log paths as `sbatch` flags, so they are not baked into the scripts.
 6. **Prepare experiments** (`experiments/`): For each experiment, create a new folder with a config file containing all hyperparameters, dataset info, etc. The experiment config should be in YAML format. Generate new prompt sets if needed. Also create `notes.md` with the registry frontmatter block (`status`/`concept`/`method`/`thread`/`takeaway`) — see "Experiment Registry" below.
-7. **Run experiments** (`submit_job.py`): Submit jobs to a cluster. Pass the cluster name (`athena` or `helios`) as the first positional argument, then the config path. Optionally override the SLURM script with `--slurm`. The script SSHes into the cluster, runs `git pull`, verifies that every repo-relative data path in the config exists there — in your repo or in a peer's, the same search `zml/paths.py` does at runtime (`slurm/check_config_paths.sh`; a missing path aborts the submission, `--skip-path-check` overrides) — and calls `sbatch`. If the config has any list-valued fields a grid search is performed automatically — one job per combination. Cluster connection details are read from `cluster.conf` (copy from `cluster.conf.example`). Ensure all necessary content is committed before submitting. (Claude should not submit any jobs by itself — project owners do it manually.)
+7. **Run experiments** (`submit_job.py`): Submit jobs to a cluster. Pass the cluster name (`athena` or `helios`) as the first positional argument, then the config path. Optionally override the SLURM script with `--slurm`. The script SSHes into the cluster, runs `git pull`, verifies that every repo-relative data path in the config exists there — in your repo or in a peer's, the same search `zml/paths.py` does at runtime (`slurm/check_config_paths.sh`) — and calls `sbatch`. An input that is missing here but present on the **other** cluster is offered for copy and, once confirmed, transferred before the job is submitted (`zml/cluster_sync.py`; `--no-fetch-missing` disables it). A path nobody has anywhere aborts the submission, `--skip-path-check` overrides. If the config has any list-valued fields a grid search is performed automatically — one job per combination. Cluster connection details are read from `cluster.conf` (copy from `cluster.conf.example`). Ensure all necessary content is committed before submitting. (Claude should not submit any jobs by itself — project owners do it manually.)
    Example: `./submit_job.py athena experiments/expXXX_NAME/config.yaml`
    Every config must set two infra fields: `slurm_time` (the sbatch `--time`, e.g. `slurm_time: "0-4:00:00"`; there is no default, so a missing value is rejected) and optionally `job_type` (`unlearn` (default) | `eval` | `precompute`), which selects the entrypoint via the `JOB_TYPE` env var.
 8. **Collect results** (`pull_results.sh`): Download experiment outputs and MLflow tracking data from clusters via rsync. Defaults to pulling from both clusters. Use `--cluster athena` or `--cluster helios` to target one. Narrow what is pulled with `--experiment PATH` (one dir), `--thread imagenet` (one thread, plus its `archive/` counterpart) or `--range 67-70` (experiment numbers, inclusive, single number allowed) — these can be combined and skip the MLflow sync. Pass `--logs-only` to skip outputs, or `--include-weights` to include `.safetensors`/`.pt` checkpoints (excluded by default). Reads connection details from `cluster.conf`. Artifacts a member still keeps at a pre-archive path (they have not run `tools/migrate_experiments.sh`) are pulled into `experiments/archive/` instead of re-creating the flat folder locally.
@@ -158,6 +158,12 @@ rather than per-target, so there is no clean name to move them to. Fold them in 
 them a per-target structure, not before.
 
 ### Utility Scripts
+- `tools/sync_cluster_inputs.py`: Copies inputs that exist on one cluster into your repo on the
+  other, at the same repo-relative path (`tools/sync_cluster_inputs.py helios --config <config>`, or
+  bare paths). `submit_job.py` does this for the config it is submitting; use the script directly to
+  stage data ahead of time, e.g. the sources of a `merge_dataset.sh` build. Transfers go
+  cluster-to-cluster when the source login node can ssh to the target (agent forwarding), otherwise
+  they are streamed through this machine.
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
 - `interactive.sh`: Opens an interactive SLURM session on the cluster.
 

@@ -2,7 +2,7 @@
 """Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT] [--skip-path-check]
+    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT] [--skip-path-check] [--no-fetch-missing]
 
 Arguments:
     cluster   Cluster name: athena or helios
@@ -14,6 +14,8 @@ Options:
     --skip-path-check
               Submit even if config input paths are missing on the cluster (escape hatch for
               a job that produces its own inputs)
+    --no-fetch-missing
+              Do not offer to copy missing inputs from the other cluster
 
 Example:
     ./submit_job.py athena experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
@@ -28,12 +30,13 @@ If the config contains any list-valued fields, a grid search is performed: one s
 is submitted per combination in the Cartesian product of all list fields.
 
 Before submitting, the cluster repo is pulled and every repo-relative data path the config names is
-checked to exist there — in your repo or in a peer's (slurm/check_config_paths.sh). A missing path
-aborts the submission instead of failing the job minutes after it starts.
+checked to exist there — in your repo or in a peer's (slurm/check_config_paths.sh). Anything still
+missing is looked for on the *other* cluster and, with your confirmation, copied over before the
+job is submitted (zml/cluster_sync.py); an input nobody has anywhere aborts the submission instead
+of failing the job minutes after it starts.
 """
 
 import argparse
-import shlex
 import subprocess
 import sys
 from datetime import datetime
@@ -42,12 +45,16 @@ from pathlib import Path
 
 import yaml
 
-from zml.paths import DATA_PREFIXES
+from zml.cluster_sync import (
+    Cluster,
+    ClusterSyncError,
+    config_data_paths,
+    fetch_missing_inputs,
+    git_pull,
+    load_cluster,
+    locate_paths,
+)
 
-
-SCRIPTS_DIR = Path(__file__).parent
-
-PATH_CHECK_SCRIPT = "slurm/check_config_paths.sh"
 
 CLUSTER_DEFAULT_SLURM: dict[str, str] = {
     "athena": "slurm/athena.sh",
@@ -55,27 +62,6 @@ CLUSTER_DEFAULT_SLURM: dict[str, str] = {
 }
 
 DEFAULT_JOB_TYPE = "unlearn"
-
-
-def load_cluster_conf(cluster: str) -> dict[str, str]:
-    conf_path = SCRIPTS_DIR / "cluster.conf"
-    if not conf_path.exists():
-        print(f"Error: {conf_path} not found. Copy cluster.conf.example to cluster.conf.", file=sys.stderr)
-        sys.exit(1)
-    script = f"""
-source {shlex.quote(str(conf_path))}
-case {shlex.quote(cluster)} in
-    athena) echo "HOST=$ATHENA_HOST" && echo "REMOTE_DIR=$ATHENA_REMOTE_DIR" ;;
-    helios) echo "HOST=$HELIOS_HOST" && echo "REMOTE_DIR=$HELIOS_REMOTE_DIR" ;;
-    *) echo "Error: unknown cluster '{cluster}'" >&2; exit 1 ;;
-esac
-"""
-    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=True)
-    conf: dict[str, str] = {}
-    for line in result.stdout.splitlines():
-        key, _, val = line.partition("=")
-        conf[key.strip()] = val.strip()
-    return conf
 
 
 def check_git_state() -> list[str]:
@@ -99,44 +85,47 @@ def load_config(config_path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def config_data_paths(config: dict) -> list[str]:
-    """Repo-relative data paths the config references, in config order and de-duplicated.
-
-    Uses the same `DATA_PREFIXES` rule as the runtime resolution in `zml/paths.py`, so what is
-    verified here is exactly what the entrypoints will later try to open (and nothing else — a
-    HF model id like `THUDM/CogVideoX-5b` contains a slash but is not a path). List values are
-    flattened so a grid that sweeps over a path field has all its variants checked.
-    """
-    paths: list[str] = []
-    for value in config.values():
-        for item in value if isinstance(value, list) else [value]:
-            if isinstance(item, str) and item.startswith(DATA_PREFIXES) and item not in paths:
-                paths.append(item)
-    return paths
-
-
 def remote_precheck(
-    host: str,
-    remote_dir: str,
-    cluster: str,
+    cluster: Cluster,
     paths: list[str],
     config_path: str | None,
     skip_path_check: bool,
+    fetch_missing: bool,
 ) -> None:
-    """Pull the cluster repo and verify the config's input paths exist there; abort if not.
+    """Pull the cluster repo and make sure the config's inputs are there; abort if they cannot be.
 
     Runs before any sbatch so a mistyped or never-uploaded input costs a second, not a queue slot
-    and half an hour. The pull comes first because it may be what brings the inputs in.
+    and half an hour. The pull comes first because it may be what brings the inputs in; a path that
+    is still absent is looked for on the other cluster, because the usual reason for a gap is that
+    the data was produced over there and is nowhere else.
     """
-    print(f"Pulling latest on {cluster}...")
-    subprocess.run(["ssh", host, f"cd {remote_dir} && git pull"], check=True)
+    print(f"Pulling latest on {cluster.name}...")
+    git_pull(cluster)
 
-    check_args = ["--config", config_path] if config_path else []
-    check_args += [cluster, *paths]
-    check_cmd = " ".join(shlex.quote(arg) for arg in [PATH_CHECK_SCRIPT, *check_args])
-    result = subprocess.run(["ssh", host, f"cd {remote_dir} && {check_cmd}"])
-    if result.returncode == 0:
+    located = locate_paths(cluster, paths, config=config_path)
+    for rel, remote in located.found.items():
+        if not remote.abs_path.startswith(f"{cluster.remote_dir}/"):
+            print(f"  found in peer repo: {rel} -> {remote.abs_path}")
+
+    missing = located.missing
+    if missing and fetch_missing:
+        missing = fetch_missing_inputs(cluster, missing)
+
+    if not missing and not located.missing_config:
+        n_checked = len(paths) + (1 if config_path else 0)
+        print(f"Config paths OK ({n_checked} checked on {cluster.name}).")
         return
+
+    print(
+        f"ERROR: {len(missing) + len(located.missing_config)} config path(s) not available on "
+        f"{cluster.name}:",
+        file=sys.stderr,
+    )
+    for path in located.missing_config:
+        print(f"  {path}  (not in your repo — committed and pushed?)", file=sys.stderr)
+    for path in missing:
+        print(f"  {path}", file=sys.stderr)
+
     if skip_path_check:
         print("Continuing despite the failed path check (--skip-path-check).")
         return
@@ -158,11 +147,9 @@ def expand_grid(config: dict) -> list[dict]:
 
 
 def submit_scalar(
-    host: str,
-    remote_dir: str,
+    cluster: Cluster,
     slurm_script: str,
     config_path: str,
-    cluster: str,
     slurm_time: str,
     job_type: str,
 ) -> None:
@@ -185,15 +172,14 @@ def submit_scalar(
         f",ZML_TIME_LIMIT={slurm_time}"
         f" {slurm_script}"
     )
-    remote_cmd = f"cd {remote_dir} && mkdir -p {output_dir} {logs_dir} && {sbatch_cmd}"
-    print(f"Submitting on {cluster}...")
+    remote_cmd = f"cd {cluster.remote_dir} && mkdir -p {output_dir} {logs_dir} && {sbatch_cmd}"
+    print(f"Submitting on {cluster.name}...")
     print(f"  Command: {sbatch_cmd}")
-    subprocess.run(["ssh", host, remote_cmd], check=True)
+    subprocess.run(["ssh", cluster.host, remote_cmd], check=True)
 
 
 def _write_config_and_submit(
-    host: str,
-    remote_dir: str,
+    cluster: Cluster,
     slurm_script: str,
     config_remote_path: str,
     output_dir: str,
@@ -213,20 +199,18 @@ def _write_config_and_submit(
         f" --output={logs_dir}/{job_type}_%j.out"
         f" --error={logs_dir}/{job_type}_%j.err"
         f" --export=ALL,JOB_TYPE={job_type},CONFIG={config_remote_path},OUTPUT_DIR={output_dir}"
-        f",ZML_TIME_LIMIT={slurm_time}"  # see the note in submit_single_job
+        f",ZML_TIME_LIMIT={slurm_time}"  # see the note in submit_scalar
         f" {slurm_script}"
     )
-    remote_cmd = f"cd {remote_dir} && {write_cmd} && {sbatch_cmd}"
-    subprocess.run(["ssh", host, remote_cmd], check=True)
+    remote_cmd = f"cd {cluster.remote_dir} && {write_cmd} && {sbatch_cmd}"
+    subprocess.run(["ssh", cluster.host, remote_cmd], check=True)
 
 
 def submit_grid(
-    host: str,
-    remote_dir: str,
+    cluster: Cluster,
     slurm_script: str,
     config_path: str,
     config: dict,
-    cluster: str,
     slurm_time: str,
     job_type: str,
 ) -> None:
@@ -242,7 +226,7 @@ def submit_grid(
         varied = {k: combo[k] for k in grid_keys}
         print(f"  run_{i:03d}: {varied}")
 
-    reply = input(f"\nSubmit all {len(combos)} jobs on {cluster}? [y/N] ").strip().lower()
+    reply = input(f"\nSubmit all {len(combos)} jobs on {cluster.name}? [y/N] ").strip().lower()
     if reply != "y":
         print("Aborted.")
         sys.exit(1)
@@ -255,7 +239,7 @@ def submit_grid(
         config_yaml = yaml.dump(combo, default_flow_style=False, sort_keys=False)
 
         _write_config_and_submit(
-            host, remote_dir, slurm_script,
+            cluster, slurm_script,
             config_remote, output_dir, logs_dir, config_yaml,
             slurm_time=slurm_time, job_type=job_type, job_name=f"{exp_name}_run_{i:03d}",
         )
@@ -281,6 +265,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Submit even if config input paths are missing on the cluster",
     )
+    parser.add_argument(
+        "--no-fetch-missing",
+        action="store_true",
+        help="Do not offer to copy inputs that are missing here but present on the other cluster",
+    )
     return parser.parse_args()
 
 
@@ -292,9 +281,11 @@ def main() -> None:
         print(f"Error: no default slurm script for cluster '{args.cluster}'; use --slurm", file=sys.stderr)
         sys.exit(1)
 
-    conf = load_cluster_conf(args.cluster)
-    host = conf["HOST"]
-    remote_dir = conf["REMOTE_DIR"]
+    try:
+        cluster = load_cluster(args.cluster)
+    except ClusterSyncError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     warnings = check_git_state()
     if warnings:
@@ -317,18 +308,23 @@ def main() -> None:
     is_grid = any(isinstance(v, list) for v in config.values())
     # A grid's per-run configs are written on the cluster, so only a scalar run reads a config
     # that has to be there already.
-    remote_precheck(
-        host, remote_dir, args.cluster,
-        paths=config_data_paths(config),
-        config_path=None if is_grid else args.config,
-        skip_path_check=args.skip_path_check,
-    )
+    try:
+        remote_precheck(
+            cluster,
+            paths=config_data_paths(config),
+            config_path=None if is_grid else args.config,
+            skip_path_check=args.skip_path_check,
+            fetch_missing=not args.no_fetch_missing,
+        )
+    except ClusterSyncError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     if is_grid:
-        submit_grid(host, remote_dir, slurm_script, args.config, config, args.cluster,
+        submit_grid(cluster, slurm_script, args.config, config,
                     slurm_time=slurm_time, job_type=job_type)
     else:
-        submit_scalar(host, remote_dir, slurm_script, args.config, args.cluster,
+        submit_scalar(cluster, slurm_script, args.config,
                       slurm_time=slurm_time, job_type=job_type)
 
 

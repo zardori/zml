@@ -257,6 +257,30 @@ For a grid search the script expands list fields, creates `experiments/EXP/grid_
 `run_002/`, … on the remote with scalar configs, and submits one `sbatch` job per combination. It
 warns (but does not block) on uncommitted changes or unpushed commits.
 
+Before submitting it checks that every repo-relative input the config names exists on that cluster —
+in your repo or in a peer's, the same search the entrypoints do at runtime. An input that is missing
+there but present on the **other** cluster (typically a precompute output: latents live only where
+they were produced) is listed with its size and, once you confirm, copied into your repo on the
+target before the job goes in. Pass `--no-fetch-missing` to skip the offer, or `--skip-path-check` to
+submit with inputs still missing.
+
+### `tools/sync_cluster_inputs.py` — copy inputs from one cluster to the other
+
+The same fetch, on demand — for staging data ahead of a submission, or for inputs no config names
+yet (the sources of a `merge_dataset.sh` build, say).
+
+```bash
+# everything this config needs that helios does not have yet
+tools/sync_cluster_inputs.py helios --config experiments/imagenet/exp069_frame_replace_chainsaw/config.yaml
+
+# one path, no config involved; --from picks the source cluster explicitly
+tools/sync_cluster_inputs.py helios experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/latents
+```
+
+Paths land at the same repo-relative path in your repo on the target. The bytes go cluster-to-cluster
+when the source login node can ssh to the target (needs `ForwardAgent yes` for both hosts in
+`~/.ssh/config`); otherwise they are streamed through your machine without touching local disk.
+
 ### `pull_results.sh` — download results
 
 Rsyncs `experiments/` outputs and MLflow tracking data from all team members' remote directories.
