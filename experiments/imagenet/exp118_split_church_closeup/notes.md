@@ -1,13 +1,14 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  Rebuild of exp067 on object-dominant prompts, companion to exp117. exp067 run 2 screened 3/30:
-  17 rows never rendered a church and 10 more had a substitute building reading as much "church" as
-  the church did. The reframe fills the frame with the building, names the steeple/spire/bell tower
-  the classifier keys on, and specifies every substitute to have no tower at all. Not submitted yet.
+  Biggest yield jump in the thread: 14/30 usable against exp067 run 2's 3/30. Both failures the
+  rebuild targeted moved — `no-concept` 17 -> 11 and `not-split` 10 -> 5 — and the substitute rewrite
+  is measurably the reason: whole-clip prompt B now peaks at p(church) 0.064 where exp067's tied the
+  concept half at 0.247. One flaw survives: the 14 survivors are 10 `first` / 4 `second`, a
+  positional skew exp122 is meant to rebalance. Dataset for exp070.
 ---
 # exp118 — split-prompt church dataset on object-dominant prompts
 
@@ -60,8 +61,41 @@ detector differential and keeps seam contrast for diagnosis only.
 ## Downstream
 Replaces exp067 as exp070's dataset if it clears yield.
 
+## Results (`outputs_20260815_014904`, helios, 3 h 21 m, 30/30 rows kept, 0 skipped)
+
+```
+30 clips | pass 14 (47%) | not-split 5 | no-concept 11
+surviving concept_region balance: 10 first / 4 second
+--keep-seeds 3301 3302 3303 3305 3306 3308 3309 3311 3312 3315 3316 3317 3323 3329
+```
+
+Against exp067 run 2: **3 → 14 pass**, `no-concept` 17 → 11, `not-split` 10 → 5. Church gained more
+than chain saw because it had two failures to fix and both moved. Screened keep-list committed as
+`outputs_20260815_014904_screened.json`.
+
+**The substitute rewrite is the measured cause of the `not-split` half.** Whole-clip prompt B — a
+plain generation of the substitute building — never exceeds p(church) 0.064 across all 30 rows,
+where exp067's substitutes reached 0.247 and tied the concept half (`p22_s3323`: 0.2465 vs 0.2474).
+Removing the tower, spire and bell-cote from every substitute is what did it, not the added detail.
+
+Spot-checked by eye: `p14_s3315` and `p1_s3302` are clean two-state clips — steeple/spire present in
+one region, a tower-less barn or farmhouse in the other, sky and field identical across the seam.
+
+## Two things to carry forward
+
+**The region skew is the live risk.** 10 first / 4 second among survivors. The 20 church eval prompts
+are all ordinary full scenes with no object-free half, so they remain a valid shortcut test for
+exp070 — but read that run's concept-set curve as the shortcut check, not as erasure, until exp122's
+fresh seeds rebalance the set.
+
+**Two degenerate clips.** `p9_s3310` is pure white (spatial std 0.0; prompt A and B produced the
+identical blank clip, mean |A − B| 0.09) and `p21_s3322` is near-white (std 11.8). Both fell out on
+the concept screen, so nothing was poisoned — but `p21_s3322`'s whole-clip A confidence is 0.445,
+which means a whole-clip-based rescue would have admitted a blank video. One more reason the
+detector differential is the right screen, and a reason to check gen2 for the same.
+
 ## Status
-- [ ] Submitted.
-- [ ] Screened; `no-concept` and `not-split` compared against exp067 run 2's 17 and 10.
-- [ ] Substitute buildings confirmed church-free by their safe-half confidences.
-- [ ] Survivor `concept_region` balance checked.
+- [x] Submitted.
+- [x] Screened; `no-concept` 11 and `not-split` 5 against exp067 run 2's 17 and 10.
+- [x] Substitute buildings confirmed church-free — whole-clip B peaks at 0.064.
+- [x] Survivor `concept_region` balance checked — **10 / 4, skewed**; exp122 rebalances.

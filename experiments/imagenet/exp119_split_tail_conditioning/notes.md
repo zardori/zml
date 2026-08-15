@@ -1,14 +1,14 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  2x2 over tail_prompt_mode [c, empty] x split_step_frac [0.3, 0.85] on 5 seeds. For object classes
-  prompt C is necessarily a concept-*deleting* prompt, so every heal step argues against the concept
-  the A-half should keep; "empty" makes the tail pure unconditional denoising instead. exp099 showed
-  the tail is inert for content above ~0.5, so the honest prediction is that the 0.85 arms are
-  identical and only 0.3 can move. Not submitted yet.
+  Hypothesis rejected, cleanly. The 0.85 arms are identical (4/5 both, same rows, contrast indices
+  within 0.003), confirming exp099's inertness finding. And `empty` did NOT rescue an early split:
+  0.3-empty scored 2/5 against 0.3-c's 3/5, so prompt C's concept-deleting content is not why a low
+  split_step_frac washes the concept out. The tail is not a lever at any setting — keep
+  `split_step_frac: 0.85` + `tail_prompt_mode: c` and stop sweeping this axis.
 ---
 # exp119 — what should condition the heal phase?
 
@@ -77,7 +77,41 @@ runs the detector and logs confidences. The edit and the saved latents are incid
 `./submit_job.py helios experiments/imagenet/exp119_split_tail_conditioning/config.yaml` — 4 jobs x 5 rows,
 ~15 min each.
 
+## Results (`grid_20260815_014932`, helios, 4 jobs x 5 rows)
+
+| run | `split_step_frac` | `tail_prompt_mode` | pass | no-concept | not-split |
+|---|---|---|---|---|---|
+| 001 | 0.3 | c | 3/5 | 2 | 0 |
+| 002 | 0.3 | empty | **2/5** | 3 | 0 |
+| 003 | 0.85 | c | 4/5 | 0 | 1 |
+| 004 | 0.85 | empty | 4/5 | 0 | 1 |
+
+Read against the predictions written above:
+
+- **0.85-c ≈ 0.85-empty: confirmed, and more tightly than expected.** Same four passing seeds, same
+  failing seed, contrast indices agreeing to within 0.003 (`p0_s3202` +0.970 vs +0.968, `p3_s3210`
+  +0.633 vs +0.612). Seventeen steps of completely different tail conditioning changed nothing about
+  content. exp099's inertness finding stands.
+- **0.3 is worse than 0.85 under both tail modes**, reproducing exp074 from the other side.
+- **0.3-empty ≫ 0.3-c: rejected.** It went the other way — 2/5 against 3/5, with `p0_s3202` losing
+  the concept entirely under `empty` (peak 0.0436) while `c` kept it (0.2467). So prompt C's
+  concept-deleting content is *not* why an early split washes the concept out. A tail that argues for
+  nothing is no kinder to the concept than one that argues against it; what matters is that the
+  concept region gets enough decisive steps of prompt A, and at 0.3 it does not.
+
+## What this settles
+The tail is not a lever at any setting we can reach. **Keep `split_step_frac: 0.85` and
+`tail_prompt_mode: c`** — the defaults every current object config already uses — and stop spending
+runs on this axis. Combined with exp099, three of the split sampler's knobs are now measured dead for
+content, which is what redirects the thread to prompt framing (exp117/exp118, which worked) and to
+the concept branch's own conditioning strength (exp120).
+
+Caveat on power: 5 rows per cell, chosen for high base-model confidence. That is enough to reject a
+"≫" hypothesis and enough to establish the 0.85 arms are identical (they agree row-for-row), but it
+would not detect a small effect. Nobody should re-run it looking for one — the 0.85 agreement is the
+result, and it is not a power question.
+
 ## Status
-- [ ] Submitted.
-- [ ] Scored; the four cells compared against the predictions above.
-- [ ] `docs/split_prompt.md` updated with the outcome either way.
+- [x] Submitted.
+- [x] Scored; all four cells compared against the predictions above.
+- [x] `docs/split_prompt.md` §2 updated with the outcome.

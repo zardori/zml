@@ -1,11 +1,13 @@
 ---
-status: active
+status: ready
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
   frame_replace erasure of 'church', in exp069's exact regime, isolating how much the method
-  depends on the concept being localized.
+  depends on the concept being localized. Unblocked by exp118; trains on its 14 screened rows, which
+  carry a 10-first / 4-second positional skew — the concept eval set is the test that catches a
+  shortcut LoRA, and exp122 rebalances the data.
 ---
 # exp070 — frame_replace erasure of "church"
 
@@ -19,8 +21,19 @@ Reference point: T2VUnlearning's per-class ESR-1 is 100 on garbage truck and Fre
 church — the class every method finds hardest.
 
 ## Setup
-Identical to exp069 apart from the dataset (exp067), `concept_target`, `retention_exclude` and the
-control prompt files. Replace the `outputs_TIMESTAMP` placeholders before submitting.
+Identical to exp069 apart from the dataset, `concept_target`, `retention_exclude` and the control
+prompt files.
+
+**Dataset: exp118's 14 screened rows**, no merge. exp067 run 2's 3 survivors are excluded on purpose:
+all three are `concept_region: first`, and exp118's set is already 10 first / 4 second — three more
+would take it to 13/4 for a 21% size gain. exp122 draws fresh seeds to rebalance instead. (This is
+the opposite call from exp069, where the older build's rows both balanced the sides and added the
+framing diversity church does not need — its clips are all wide by nature.)
+
+**Read the skew, not around it.** A 10/4 keep set can be satisfied by the positional shortcut "copy
+the concept-free half onto the other". The 20 church eval prompts are ordinary full scenes with no
+object-free half, so they cannot be lowered by a shortcut LoRA — which makes the concept-set curve
+the shortcut test, exactly as designed.
 
 `./submit_job.py helios experiments/imagenet/exp070_frame_replace_church/config.yaml`
 
@@ -36,6 +49,6 @@ control prompt files. Replace the `outputs_TIMESTAMP` placeholders before submit
 exp071.
 
 ## Status
-- [ ] exp067 and exp068 complete; timestamps filled in.
+- [x] Datasets complete; config wired to exp118's screened set and exp068's anchors.
 - [ ] Submitted.
 - [ ] Checkpoint chosen for exp071; chain-saw vs. church comparison written up.

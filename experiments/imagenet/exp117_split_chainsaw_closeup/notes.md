@@ -1,15 +1,16 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  Rebuild of exp066 changing only the prompts: A and B reframed close and object-dominant, with the
-  class-identifying detail the eval prompts carry. exp066 run 2 screened 7/30, and 17 of the 30
-  losses were clips where the base model never rendered a chain saw at all — a prompt problem, not a
-  sampler one. exp116 made the same change for faces and went 30% -> 50-63%. Also emits the
-  whole-clip variant, which doubles as the per-row diagnosis of whether prompt A can render the
-  object at all. Not submitted yet.
+  The prompt reframe worked: 14/30 usable against exp066 run 2's 7/30, `no-concept` 17 -> 12,
+  survivors balanced 6 first / 8 second. The whole-clip diagnostic then moved the diagnosis for the
+  whole thread — plain prompt A renders a chain saw in 29 of 30 rows, so the remaining loss is the
+  *splice* suppressing a concept the same (prompt, seed) renders fine, and it fails binary (surviving
+  rows keep 112% of the plain-A confidence, failing rows 6%). exp120 attacks that; exp121 samples
+  more rows. The whole-clip pairs are NOT a usable training target — same-seed A and B differ almost
+  as much as unrelated scenes. Dataset for exp069.
 ---
 # exp117 — split-prompt chain-saw dataset on object-dominant prompts
 
@@ -72,8 +73,60 @@ Replaces exp066 as exp069's dataset if it clears yield. Wire exp069's `metadata_
 to this run's `outputs_{timestamp}` — and prefer the screened subset (`--write-filtered`) over the
 raw 30.
 
+## Results (`outputs_20260815_014333`, helios, 3 h 26 m, 30/30 rows kept, 0 skipped)
+
+```
+30 clips | pass 14 (47%) | not-split 4 | no-concept 12
+surviving concept_region balance: 6 first / 8 second
+--keep-seeds 3201 3202 3204 3209 3210 3213 3214 3216 3218 3219 3221 3225 3227 3229
+```
+
+Against exp066 run 2 (same seeds, same sampler, wide prompts): **7 → 14 pass, `no-concept` 17 → 12,
+`not-split` 6 → 4**. The reframe delivered, at almost exactly exp116's face-thread magnitude. The
+survivors are balanced across `concept_region`, so screening did not concentrate a positional skew.
+
+Screened keep-list committed as `outputs_20260815_014333_screened.json` (the experiment root is not
+gitignored, unlike `outputs_*/`).
+
+Spot-checked by eye: `p1_s3202`, `p8_s3209`, `p0_s3201` are textbook two-state clips — background,
+lighting and camera identical across the seam, chain saw in one region and a watering can / spade /
+bicycle pump in the other, and `_edited.mp4` concept-free throughout.
+
+## What `emit_whole_clip_target` actually told us — the thread's diagnosis has changed
+
+This is the finding that outlives the dataset. Prompt A's *plain* clip clears p(chain saw) 0.10 in
+**29 of 30 rows** (church: 28/30). The exp066/exp067 story — "the base model never drew the object" —
+is essentially gone. What remains is the splice suppressing a concept the identical (prompt, seed)
+renders fine unsplit, and it fails binary rather than gradually. Split concept-half mean over the
+same row's plain prompt-A mean:
+
+| rows | median ratio |
+|---|---|
+| passing | 1.12 |
+| failing | **0.06** |
+
+No middle. `generate_split_clip` predicts both branches over the whole latent and splices only the
+prediction, so `pred_a` sees a context converging on prompt B and CogVideoX's temporal-coherence
+prior drags the concept region to match. Either the object establishes itself early or it is gone.
+**exp120** sweeps `concept_guidance_scale` against exactly this.
+
+Weaker secondary signal: `concept_region: second` passed 8/13 against `first` 6/17. Not acted on —
+fixing the side is the positional shortcut `random` exists to prevent.
+
+## Do not train on the whole-clip variant
+
+It was proposed as a seam-free fallback target on the argument that A and B differ by one noun under
+one seed. Measured, that argument fails. Mean per-pixel |A − B| at the same seed is **56.5**, against
+**72.4** between A clips of two *unrelated* rows, with 74% of pixels moving more than 25 levels.
+The noun swap redraws the frame; the same seed does not hold the scene. Training on it would teach a
+global scene substitution, which is the opposite of frame_replace's minimal-edit premise. Church is
+milder (52.9 vs 86.4, 50% of pixels) and still not a controlled counterfactual.
+
+So `emit_whole_clip_target` earned its 2.1x once, as a diagnostic. exp121/exp122 turn it off.
+
 ## Status
-- [ ] Submitted.
-- [ ] Screened; `no-concept` count compared against exp066 run 2's 17.
-- [ ] Survivor `concept_region` balance checked.
-- [ ] Decision recorded: split target, whole-clip target, or both, for exp069.
+- [x] Submitted.
+- [x] Screened; `no-concept` 12 against exp066 run 2's 17.
+- [x] Survivor `concept_region` balance checked — 6 / 8, healthy.
+- [x] Decision recorded: **split target only**. Whole-clip rejected on the pixel-difference
+      measurement above.

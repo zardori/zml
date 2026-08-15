@@ -1,5 +1,5 @@
 ---
-status: superseded
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
@@ -8,7 +8,9 @@ takeaway: >
   split_step_frac 0.85) kept 30/30 as predicted but screens at only 7/30 usable — and 17 of the 30
   are rows where the base model never rendered a chain saw anywhere in the clip. The raised
   split_step_frac bought nothing (exp099 showed the knob is inert above ~0.5); the loss is prompt
-  framing. Superseded by exp117, which rebuilds on object-dominant prompts with the same seeds.
+  framing. Superseded as a *prompt set* by exp117, but run 2's 7 screened rows are live data: they
+  are merged into exp069's training set as its only wide-framing clips, so this is not archivable
+  while exp069 stands.
 ---
 # exp066 — split-prompt frame_replace dataset for "chain saw"
 
