@@ -55,8 +55,9 @@ unlearning_dataset
 # Sharing images with claude
 screenshots/
 
-# Report (local, not committed)
-report/
+# Generated report artifacts (LaTeX tables, weekly decks) — local, not committed.
+# Anchored: an unanchored `report/` also swallowed the zml/report/ package that builds them.
+/report/
 
 # Other
 *.pdf

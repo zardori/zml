@@ -10,9 +10,10 @@ Rows are labelled by method name only -- never by experiment number.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
+
+from zml.results_io import dover_score, latest_eval_scores
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_TEX = REPO_ROOT / "report" / "results_table.tex"
@@ -64,42 +65,12 @@ ROWS: list[TableRow] = [
 ]
 
 
-def latest_scores(output_dir: Path) -> dict[str, dict[str, float]]:
-    """Return the final-step ``{group: {metric: value}}`` scores for a run.
-
-    Prefers ``summary.json`` (last eval block); falls back to the highest-step
-    ``eval_step_*/metrics.json`` for older runs without a summary.
-    """
-    summary = output_dir / "summary.json"
-    if summary.exists():
-        evals = json.loads(summary.read_text()).get("eval", [])
-        if evals:
-            return evals[-1].get("scores", {})
-
-    step_dirs = sorted(
-        output_dir.glob("eval_step_*"),
-        key=lambda p: int(p.name.rsplit("_", 1)[-1]),
-    )
-    for step_dir in reversed(step_dirs):
-        metrics = step_dir / "metrics.json"
-        if metrics.exists():
-            return json.loads(metrics.read_text())
-
-    raise FileNotFoundError(f"No eval scores found under {output_dir}")
-
-
 def _format(value: float | None, decimals: int) -> str:
     return BLANK if value is None else f"{value:.{decimals}f}"
 
 
 def _get(group_scores: dict[str, float], key: str) -> float | None:
     return group_scores.get(key)
-
-
-def _get_dover(group_scores: dict[str, float]) -> float | None:
-    """DOVER is disabled on helios (mean pinned to 0.0); treat that as missing."""
-    value = group_scores.get("dover_aesthetic_mean")
-    return value if value else None
 
 
 def build_cells(scores: dict[str, dict[str, float]]) -> list[MetricCell]:
@@ -123,8 +94,8 @@ def build_cells(scores: dict[str, dict[str, float]]) -> list[MetricCell]:
             _format(_get(unrelated, "colorfulness_mean"), COLORFUL_DP),
         ),
         MetricCell(
-            _format(_get_dover(concept), DOVER_DP),
-            _format(_get_dover(unrelated), DOVER_DP),
+            _format(dover_score(concept), DOVER_DP),
+            _format(dover_score(unrelated), DOVER_DP),
         ),
     ]
 
@@ -157,7 +128,7 @@ def render_row(row: TableRow, cells: list[MetricCell]) -> str:
 def build_table() -> str:
     lines = [HEADER]
     for i, row in enumerate(ROWS):
-        cells = build_cells(latest_scores(row.output_dir))
+        cells = build_cells(latest_eval_scores(row.output_dir))
         lines.append(render_row(row, cells))
         # rule between method blocks (not after the last row)
         is_block_end = i + 1 == len(ROWS) or ROWS[i + 1].method != row.method

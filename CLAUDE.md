@@ -66,6 +66,8 @@ zml/
 │   │       └── church_closeup.csv
 │   └── face_identities/         # same shape: control sets + split/
 ├── tools/                       # utility scripts
+├── report/                      # generated, gitignored — LaTeX tables and the weekly decks
+│   └── weekly/<ISO week>/       # data.json (collected + curated), media/, index.html
 └── docs/                        # method write-ups & design notes
     ├── frame_replace.md         # main method: supervised SFT toward a concept-removed edit
     ├── split_prompt.md          # manufacturing partial-concept clips (A/B/C triples)
@@ -75,6 +77,7 @@ zml/
     ├── unhype.md                # UnHype: CLIP-guided hypernetwork unlearning (the paper method)
     ├── unhype_video_attempts.md # porting UnHype to CogVideoX (exp016-exp031)
     ├── partial_fire_search.md   # autonomous search for partial-fire (prompt, seed) pairs
+    ├── weekly_report.md         # how the weekly mentor deck is collected and curated
     └── experiment_registry.md   # notes.md frontmatter, INDEX.md, and the archive policy
 ```
 
@@ -166,6 +169,12 @@ them a per-target structure, not before.
   they are streamed through this machine.
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
 - `interactive.sh`: Opens an interactive SLURM session on the cluster.
+- `tools/weekly_report.py`: Builds the weekly mentor deck. `collect` gathers the week's runs,
+  metrics, `notes.md` diffs and video frames into `report/weekly/<week>/data.json` (local files and
+  git only — anything not pulled is listed as a gap, never dropped); a person then writes the
+  headline and per-experiment commentary into that file and `render` emits `index.html`. Re-running
+  `collect` merges fresh facts under the writing rather than overwriting it. Mechanism and knobs:
+  **`docs/weekly_report.md`**; what to include and how to write it: the `weekly-report` skill.
 
 ### Metrics Logging
 

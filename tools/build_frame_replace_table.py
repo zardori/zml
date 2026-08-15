@@ -15,9 +15,10 @@ caption, not in a column.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
+
+from zml.results_io import latest_eval_scores
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_TEX = REPO_ROOT / "report" / "frame_replace_results_table.tex"
@@ -68,42 +69,6 @@ ROWS: list[TableRow] = [
     TableRow("frame-replace (denoising-redirection, step 1000)",
              REPO_ROOT / "experiments/archive/frame_replace_fire/exp046_frame_replace_redirect/outputs_20260626_010355"),
 ]
-
-
-def scores_for(output_dir: Path, step: int | None) -> dict[str, dict[str, float]]:
-    """Return the ``{group: {metric: value}}`` scores for a run.
-
-    ``step=None`` selects the final eval; otherwise the eval at that exact step.
-    Prefers ``summary.json``; falls back to ``eval_step_*/metrics.json`` for
-    older runs without a summary.
-    """
-    summary = output_dir / "summary.json"
-    if summary.exists():
-        evals = json.loads(summary.read_text()).get("eval", [])
-        if evals:
-            if step is None:
-                return evals[-1].get("scores", {})
-            for entry in evals:
-                if entry.get("step") == step:
-                    return entry.get("scores", {})
-            raise ValueError(f"No eval at step {step} in {summary}")
-
-    if step is not None:
-        metrics = output_dir / f"eval_step_{step}" / "metrics.json"
-        if metrics.exists():
-            return json.loads(metrics.read_text())
-        raise FileNotFoundError(f"No eval at step {step} under {output_dir}")
-
-    step_dirs = sorted(
-        output_dir.glob("eval_step_*"),
-        key=lambda p: int(p.name.rsplit("_", 1)[-1]),
-    )
-    for step_dir in reversed(step_dirs):
-        metrics = step_dir / "metrics.json"
-        if metrics.exists():
-            return json.loads(metrics.read_text())
-
-    raise FileNotFoundError(f"No eval scores found under {output_dir}")
 
 
 def _format(value: float | None, decimals: int) -> str:
@@ -167,7 +132,7 @@ def render_row(method: str, cells: list[MetricCell]) -> str:
 def build_table() -> str:
     lines = [HEADER]
     for row in ROWS:
-        cells = build_cells(scores_for(row.output_dir, row.step))
+        cells = build_cells(latest_eval_scores(row.output_dir, row.step))
         lines.append(render_row(row.method, cells))
     lines.append(FOOTER)
     return "\n".join(lines) + "\n"
