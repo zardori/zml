@@ -230,7 +230,7 @@ and must stay that way. We preserve the classes, not the test items.
   split phase, and the successor to the knob above. `prediction` (the default, and every dataset up
   to exp122) keeps one latent and splices the prediction, which is what puts `pred_a` in a
   B-converging context in the first place; `trajectory` denoises each prompt on its own latent from
-  shared noise and splices once at `split_step`. Same cost either way. exp124 measures it, with the
+  shared noise and splices once at `split_step`. Same cost either way. exp127 measures it, with the
   6 currently-passing rows in its CSV as the coherence regression — independent trajectories share
   less context, and coherence across the seam is the thing that could pay for the yield.
 
@@ -258,9 +258,9 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp121 / exp122 | gen2 datasets: exp117/exp118 prompts under fresh seeds, ~14 more rows each | **done** — 12/30 and 14/30; seed control passes, and exp122 fixed church's region skew to 7/7 |
 | exp071 | reported ESR/PSR for the chain-saw LoRA | ready — wired to exp069's step-600 checkpoint |
 | exp072 | reported ESR/PSR for the church LoRA | **blocked**, and deliberately so: exp070 has no checkpoint worth 200 videos |
-| exp123 | `erase_esd_eta` [1.0, 1.5, 2.0] on the 33-row chain-saw merge | ready — attacks the freeze, see below |
-| exp124 | `split_mode` [prediction, trajectory] on exp120's 12 rows + 6 survivors | ready — exp120's prescribed follow-up |
-| exp125 | church rebuilt on the 27-row exp118+exp122 merge | ready, blocked on exp123 for the eta |
+| exp126 | `erase_esd_eta` [1.0, 1.5, 2.0] on the 33-row chain-saw merge | ready — attacks the freeze, see below |
+| exp127 | `split_mode` [prediction, trajectory] on exp120's 12 rows + 6 survivors | ready — exp120's prescribed follow-up |
+| exp128 | church rebuilt on the 27-row exp118+exp122 merge | ready, blocked on exp126 for the eta |
 
 ### The pilot's finding: erasure transfers, and it is concept-dependent
 
@@ -274,11 +274,11 @@ an unidentifiable plastic form. Preservation holds qualitatively (the other nine
 correctly) and clip score stays at base.
 
 Church never holds a zero for two consecutive checkpoints, and its top-5 climbs to 0.88 against a base
-of 0.95. Two of its three candidate causes are data artefacts that exp125 repairs (14 rows skewed
+of 0.95. Two of its three candidate causes are data artefacts that exp128 repairs (14 rows skewed
 10/4, one of them a 73%-blank target that still contained a church); the third is the concept itself —
 removing a frame-filling structure means redrawing the frame, where a chain saw can be swapped inside
 an untouched scene. This is what [`comparison_targets.md`](comparison_targets.md) §2.2 predicted, now
-half-measured: exp125 decides whether the prediction or the dataset explains exp070.
+half-measured: exp128 decides whether the prediction or the dataset explains exp070.
 
 ### The defect that blocks the chain-saw row: the concept clips freeze
 
@@ -296,7 +296,7 @@ Two properties make this its own failure mode rather than a repeat of nudity's:
   `quality` block, and `--rescore` backfills it on any x86_64 machine; helios omits the keys rather
   than writing 0.0.)
 
-exp123 sweeps `erase_esd_eta` to separate the two readings — the erase pressure is high enough that
+exp126 sweeps `erase_esd_eta` to separate the two readings — the erase pressure is high enough that
 freezing is the cheapest way to satisfy it, versus the LoRA having learned "chain-saw prompt → still
 life". Motion rising with erasure intact means the former; motion and top-1 rising together at every
 setting means the latter, and the fix moves to the retention branch.

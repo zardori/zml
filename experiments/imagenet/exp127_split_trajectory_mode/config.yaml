@@ -11,7 +11,7 @@
 # never evaluated in a B-converging context and the safe region never sees prompt A. Same cost: two
 # transformer calls per split step in both modes.
 #
-# Run: ./submit_job.py helios experiments/imagenet/exp124_split_trajectory_mode/config.yaml
+# Run: ./submit_job.py helios experiments/imagenet/exp127_split_trajectory_mode/config.yaml
 job_type: precompute
 method: frame_replace_split
 

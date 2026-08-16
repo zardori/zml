@@ -10,7 +10,7 @@ takeaway: >
   cost. Tested on exp120's 12 suppressed rows (known 0/12) plus 6 exp117 survivors as the coherence
   regression. Not submitted yet.
 ---
-# exp124 — splice the trajectories, not the predictions
+# exp127 — splice the trajectories, not the predictions
 
 ## The question
 `generate_split_clip` has always kept **one** latent: at each split-phase step it predicts under

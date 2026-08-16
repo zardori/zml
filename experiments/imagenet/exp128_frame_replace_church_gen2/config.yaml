@@ -11,21 +11,21 @@
 #
 # Build the merged dataset on the cluster BEFORE submitting (combined_dataset/ is gitignored):
 #   ./merge_dataset.sh --cluster helios \
-#     --output experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset \
+#     --output experiments/imagenet/exp128_frame_replace_church_gen2/combined_dataset \
 #     --source experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904_screened.json \
 #              experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904/latents \
 #     --source experiments/imagenet/exp122_split_church_gen2/outputs_20260816_002006_screened.json \
 #              experiments/imagenet/exp122_split_church_gen2/outputs_20260816_002006/latents
 #
-# Run: ./submit_job.py helios experiments/imagenet/exp125_frame_replace_church_gen2/config.yaml
+# Run: ./submit_job.py helios experiments/imagenet/exp128_frame_replace_church_gen2/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: object
 concept_target: "church"
 
 # 27 rows: exp118's re-screened 13 (9 first / 4 second) + exp122's 14 (7 / 7).
-metadata_file: experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset/metadata.json
-latents_dir: experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset/latents
+metadata_file: experiments/imagenet/exp128_frame_replace_church_gen2/combined_dataset/metadata.json
+latents_dir: experiments/imagenet/exp128_frame_replace_church_gen2/combined_dataset/latents
 
 retention_metadata_file: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/metadata.json
 retention_latents_dir: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/latents
@@ -35,8 +35,8 @@ retention_weight: 1.0
 nonfire_frame_weight: 0.0
 erase_input_latent: original
 erase_loss_space: velocity
-# SET FROM exp123 BEFORE SUBMITTING. 2.0 is exp070's value; keep it if exp123 finds no eta effect, so
-# this run isolates the data repair, and use exp123's winning arm if it does.
+# SET FROM exp126 BEFORE SUBMITTING. 2.0 is exp070's value; keep it if exp126 finds no eta effect, so
+# this run isolates the data repair, and use exp126's winning arm if it does.
 erase_esd_eta: 2
 
 control_concept_prompts: prompts/imagenet_objects/church.csv

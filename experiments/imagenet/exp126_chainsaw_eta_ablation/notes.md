@@ -9,7 +9,7 @@ takeaway: >
   steps on the enlarged 33-row gen2 dataset, with 2.0 reproducing exp069's setting so eta and dataset
   size stay separable. Gate: an arm that holds top-1 at 0.00 with motion above ~0.2. Not submitted yet.
 ---
-# exp123 — does weaker erase pressure buy back the motion?
+# exp126 — does weaker erase pressure buy back the motion?
 
 ## The question
 exp069 is the pilot's positive result and its problem in one run. Chain saw erases — top-1 0.00 from
@@ -69,7 +69,7 @@ submitting (the command is in the config header). All three sources were screene
 
 ## Downstream
 The winning arm's checkpoint replaces exp069's in the reported row (a successor to exp071), and its
-eta is what exp125 uses for the church rebuild.
+eta is what exp128 uses for the church rebuild.
 
 ## Status
 - [ ] `merge_dataset.sh` run on helios; row count asserted at 33.

@@ -233,12 +233,12 @@ scratch (`docs/split_prompt.md` §3.1–3.2).
 2. **Second concept: ImageNet objects** — **the pilot's erasure runs have landed, and they split.**
    exp069 erases chain saw semantically (top-1 0.506 → 0.00 from step 200, scene intact, on eval
    prompts with no object-free half); exp070 never erases church in the identical regime. So the
-   method transfers, and how far is concept-dependent. Two follow-ups are the live work: **exp123**
+   method transfers, and how far is concept-dependent. Two follow-ups are the live work: **exp126**
    (`erase_esd_eta` sweep) attacks exp069's one defect — the concept clips freeze, motion 0.010 vs
-   base 0.564, concept-conditional unlike nudity's global collapse — and **exp125** rebuilds church on
+   base 0.564, concept-conditional unlike nudity's global collapse — and **exp128** rebuilds church on
    repaired data. **exp071** reports the real 200-prompt ESR/PSR; exp072 is deliberately held. On the
    data side exp120 rejected `concept_guidance_scale` as a yield lever but confirmed the suppression
-   mechanism, which **exp124** (`split_mode: trajectory`) now targets; exp121/exp122 confirmed
+   mechanism, which **exp127** (`split_mode: trajectory`) now targets; exp121/exp122 confirmed
    re-seeding reproduces yield. ESR/PSR is reported under two ranking conventions (1000-way and
    restricted to the ten classes) because the papers do not state theirs — and exp065 shows it
    matters: NegPrompt reads ESR-1 70.9 one way and 17.2 the other. Write-up:

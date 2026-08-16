@@ -10,7 +10,7 @@ takeaway: >
   into new builds. But at gs 9 SEVEN of the 12 rows render the concept again (2 pass + 5 not-split)
   where zero did at gs 6 — raising CFG on the A branch does defeat the suppression, and the concept
   then leaks into the safe half, which is a different failure. That localizes the problem to the
-  shared latent context and prescribes exp124's dual-trajectory splice.
+  shared latent context and prescribes exp127's dual-trajectory splice.
 ---
 # exp120 — per-region CFG: can the concept branch hold its half?
 
@@ -94,7 +94,7 @@ given row flips sign between settings cannot be tuned into a reliable builder.
 **Where this points.** Both findings — the concept returns under stronger A-guidance, and it then
 contaminates the B half — say the two regions are coupled through the *shared latent*: `pred_a` and
 `pred_b` are computed on one tensor and only the prediction is spliced. That is exactly the third row
-of the reading table above ("CFG is the wrong instrument"), and its prescription is exp124: give each
+of the reading table above ("CFG is the wrong instrument"), and its prescription is exp127: give each
 branch its own trajectory during the split phase and splice once, so the concept region is denoised in
 a pure-A context and the safe region never sees prompt A at all.
 

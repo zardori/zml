@@ -8,7 +8,7 @@ takeaway: >
   of the prompts and not luck, and re-seeding a validated prompt set is a reliable ~1.6 h way to buy
   rows. Survivors skew 9 first / 3 second, which still leaves the merged chain-saw set balanced at
   33 rows / 19 first / 14 second (exp117 14 + exp066 7 + these 12). Zero blank targets. Dataset for
-  exp123.
+  exp126.
 ---
 # exp121 — chain-saw dataset, generation 2
 
@@ -52,10 +52,10 @@ variant is not a usable training target (see the config).
 - Zero blank targets under the new gate (see exp122 — church hit this and chain saw did not).
 
 ## Downstream
-exp123 trains on the 33-row merge (exp117 + exp066 + this). exp069 trained on the 21-row set.
+exp126 trains on the 33-row merge (exp117 + exp066 + this). exp069 trained on the 21-row set.
 
 ## Status
 - [x] Submitted; completed 2026-08-16 (job 20735917).
 - [x] Screened → `outputs_20260816_001953_screened.json`, 12 entries.
 - [x] Pass count compared against exp117's 14/30.
-- [ ] Merged with exp117 + exp066 for exp123 (`merge_dataset.sh`, run on the cluster).
+- [ ] Merged with exp117 + exp066 for exp126 (`merge_dataset.sh`, run on the cluster).

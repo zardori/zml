@@ -7,9 +7,9 @@ takeaway: >
   exp070 rebuilt on repaired data: 27 rows at 16 first / 11 second (was 14 at 10/4) with the two
   blank targets removed, one of which had a 73%-blank edit that still contained a church. Answers the
   question exp070 could not: does church resist frame_replace because it is scene-level, or because
-  its dataset was small, skewed and partly wrong? Blocked on exp123 for the eta. Not submitted yet.
+  its dataset was small, skewed and partly wrong? Blocked on exp126 for the eta. Not submitted yet.
 ---
-# exp125 — church, second attempt
+# exp128 — church, second attempt
 
 ## Why exp070 does not settle the church question
 It did not erase — top-1 oscillated 0.00 / 0.32 / 0.00 / 0.22 / 0.47 and trended *back* toward base,
@@ -35,8 +35,8 @@ exp070 field-for-field except the dataset, the step schedule and the eta:
 - **400 steps at `save_interval` 50** (exp070: 600 at 100). Checkpoint density is the point — exp070
   never showed a stable zero across two consecutive checkpoints, and at its resolution a transient one
   would have been invisible.
-- **`erase_esd_eta` comes from exp123.** If that ablation finds no eta effect, keep exp070's 2.0 so
-  this run isolates the data repair; if it does, use the winning arm. **Do not submit before exp123
+- **`erase_esd_eta` comes from exp126.** If that ablation finds no eta effect, keep exp070's 2.0 so
+  this run isolates the data repair; if it does, use the winning arm. **Do not submit before exp126
   reports** — a rebuild that changes data *and* eta at once cannot answer either question.
 
 ## What to watch
@@ -59,7 +59,7 @@ exp070 field-for-field except the dataset, the step schedule and the eta:
 | erases but destroys the scene | the erase and preserve pressures are irreconcilable for this class at this retention weight; `retention_weight` is then the next knob, not more data |
 
 ## Status
-- [ ] exp123 reported; eta chosen and recorded here.
+- [ ] exp126 reported; eta chosen and recorded here.
 - [ ] `merge_dataset.sh` run on helios; row count asserted at 27.
 - [ ] Submitted.
 - [ ] Result written up against exp070 and exp069.

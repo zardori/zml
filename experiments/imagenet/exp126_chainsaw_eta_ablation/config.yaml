@@ -13,7 +13,7 @@
 # Build the merged dataset on the cluster BEFORE submitting (combined_dataset/ is gitignored and the
 # .pt latents only exist there):
 #   ./merge_dataset.sh --cluster helios \
-#     --output experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset \
+#     --output experiments/imagenet/exp126_chainsaw_eta_ablation/combined_dataset \
 #     --source experiments/imagenet/exp117_split_chainsaw_closeup/outputs_20260815_014333_screened.json \
 #              experiments/imagenet/exp117_split_chainsaw_closeup/outputs_20260815_014333/latents \
 #     --source experiments/imagenet/exp066_split_chainsaw_dataset/outputs_20260808_235138_screened.json \
@@ -21,7 +21,7 @@
 #     --source experiments/imagenet/exp121_split_chainsaw_gen2/outputs_20260816_001953_screened.json \
 #              experiments/imagenet/exp121_split_chainsaw_gen2/outputs_20260816_001953/latents
 #
-# Run: ./submit_job.py helios experiments/imagenet/exp123_chainsaw_eta_ablation/config.yaml
+# Run: ./submit_job.py helios experiments/imagenet/exp126_chainsaw_eta_ablation/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: object
@@ -29,8 +29,8 @@ concept_target: "chain saw"
 
 # 33 rows, 19 first / 14 second: exp117's 14 + exp066 run 2's 7 (the only wide framings) + exp121's
 # 12. exp069 trained on the first two sources alone (21 rows).
-metadata_file: experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset/metadata.json
-latents_dir: experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset/latents
+metadata_file: experiments/imagenet/exp126_chainsaw_eta_ablation/combined_dataset/metadata.json
+latents_dir: experiments/imagenet/exp126_chainsaw_eta_ablation/combined_dataset/latents
 
 # Unchanged from exp069: the nine preserved classes, chain-saw anchors dropped so retention does not
 # pull against the erase branch.

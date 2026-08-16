@@ -387,7 +387,7 @@ in the context rather than in the guidance scale. `Config.split_mode` (added 202
 Cost is identical: two transformer calls per split step either way. The thing to watch is coherence
 across the seam, which currently comes from the shared noise *and* the shared latent — §2's exp076
 finding (the cut is hard at every `split_step_frac`, including with zero heal steps) is the reason to
-expect the noise carries most of it, and exp124 is the test, with six currently-passing rows in its
+expect the noise carries most of it, and exp127 is the test, with six currently-passing rows in its
 CSV as the regression check.
 
 ### 3.4 The whole-clip variant is a diagnostic, not a training target

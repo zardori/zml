@@ -11,7 +11,7 @@ takeaway: >
   (motion 0.010 vs base 0.564, -98%) and over-saturate (colorfulness +40%) while clip score stays at
   base — a "static poster". Unlike nudity (exp107, global motion loss), the freeze is
   concept-conditional: the unrelated set only loses 30%. exp071 reports the real 200-prompt row;
-  exp123 attacks the freeze via eta.
+  exp126 attacks the freeze via eta.
 ---
 # exp069 — frame_replace erasure of "chain saw"
 
@@ -120,7 +120,7 @@ a base class mean of ~0.66 (−30%), where the concept set loses 98%. exp107 loc
 collapse as a *global* property of the adapter; here the adapter mostly damages the prompts whose
 object it has learned to remove. Two readings, not yet separated: the LoRA has learned "when asked
 for a chain saw, emit a still life", or the model freezes whenever it is prevented from rendering
-what the prompt asks for. exp123's eta arms are the cheapest discriminator — a weaker erase pressure
+what the prompt asks for. exp126's eta arms are the cheapest discriminator — a weaker erase pressure
 that still erases should relax the freeze if it is a strength effect.
 
 **Caveat on every number above:** `eval_num_prompts: 9` of 20, and exp102 showed the live monitor is
@@ -130,7 +130,7 @@ classes) is the reported row.
 ## Downstream
 - **exp071** — reported ESR/PSR on the final checkpoint (`frame_replace_lora_step600`, chosen because
   erasure is flat from step 200 and picking would be selection on the test set).
-- **exp123** — `erase_esd_eta` ablation on the merged 33-row gen2 dataset, aimed at the freeze.
+- **exp126** — `erase_esd_eta` ablation on the merged 33-row gen2 dataset, aimed at the freeze.
 
 ## Status
 - [x] Datasets complete; config wired to exp117 + exp066 screened sets and exp068's anchors.

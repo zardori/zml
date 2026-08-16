@@ -11,7 +11,7 @@ takeaway: >
   over neon-green grass (colorfulness 98 vs base 64), step 400 a clean barn substitution. So the
   method's success is not concept-independent: localized objects erase, a frame-filling scene-level
   class does not, at 14 rows skewed 10 first / 4 second — one of which was later found to be a
-  73%-blank target that still contained a church. Rebuilt as exp125 on the 27-row exp118+exp122 merge
+  73%-blank target that still contained a church. Rebuilt as exp128 on the 27-row exp118+exp122 merge
   (16/11, blank targets removed). Do not spend exp072's 200-video eval on this checkpoint.
 ---
 # exp070 — frame_replace erasure of "church"
@@ -98,8 +98,8 @@ goes to a flat 0.00 and church does not move. Everything except the concept and 
 fixed, so this pair is the pilot's actual finding.
 
 ## Downstream
-- **exp125** — rebuild on the exp118 + exp122 merge (27 rows, 16 first / 11 second, blank targets
-  removed) at whichever eta exp123 picks. All three suspected causes are addressed at once, which is
+- **exp128** — rebuild on the exp118 + exp122 merge (27 rows, 16 first / 11 second, blank targets
+  removed) at whichever eta exp126 picks. All three suspected causes are addressed at once, which is
   the point: if the rebuild still oscillates, the cause is scene-level-ness and not data.
 - **exp072** stays blocked. Reporting a 200-video ESR/PSR row for a checkpoint that is 0.47 top-1 on
   the monitor would spend ~14 h of athena to publish noise.
@@ -107,4 +107,4 @@ fixed, so this pair is the pilot's actual finding.
 ## Status
 - [x] Datasets complete; config wired to exp118's screened set and exp068's anchors.
 - [x] Submitted; hit the 16 h wall at step ~550 with evals 100–500 complete.
-- [x] Result written up; superseded by exp125 for the erasure question.
+- [x] Result written up; superseded by exp128 for the erasure question.

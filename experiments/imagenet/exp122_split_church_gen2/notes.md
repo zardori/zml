@@ -71,7 +71,7 @@ videos next to the metadata and warns loudly when they are absent. Chain saw is 
 exp117 and exp121 have zero blank targets between them.
 
 ## Downstream
-exp125 trains on this merged with exp118's re-screened set (27 rows). exp070 trained on exp118 alone,
+exp128 trains on this merged with exp118's re-screened set (27 rows). exp070 trained on exp118 alone,
 pre-fix.
 
 ## Status
@@ -79,4 +79,4 @@ pre-fix.
 - [x] Screened → `outputs_20260816_002006_screened.json`, 14 entries.
 - [x] Pass count and region balance compared against exp118.
 - [x] Checked for degenerate blank clips — found two, and a screen defect behind them.
-- [ ] Merged with exp118 for exp125 (`merge_dataset.sh`, run on the cluster).
+- [ ] Merged with exp118 for exp128 (`merge_dataset.sh`, run on the cluster).
