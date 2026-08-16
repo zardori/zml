@@ -4,13 +4,13 @@ concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  THE DATA MATTERED AFTER ALL, and this is the new best checkpoint by a wide margin. Step 140 reads
-  rate 0.0000 at colorfulness 35.4 (base 36.3 — essentially no colour loss) and motion 0.25, against
-  the old incumbent exp080 r2 s120's 0.0000 / 21.9 / 0.11. That is +62% colour and +127% motion at
-  identical erasure. The window is wide, not a transient: steps 90-140 are all <=0.04 with four
-  checkpoints <=0.01. The U-shape also flattens — the rebound tops out at 0.23 where every earlier
-  run reached 0.49-0.76. Overturns exp088's "data does not matter" reading. Needs DOVER + human
-  review, then exp102/exp107 repointed.
+  CORRECTED 2026-08-14 by exp112. The gen4 data buys QUALITY, not erasure. This run's 0.0000 was
+  measured on the n=10 live-eval subset; on the full 100-prompt Gen set the same checkpoint reads
+  0.150 against the old incumbent's 0.100, and it is worse on every other set too (Ring-A-Bell
+  0.250 vs 0.070, I2P 0.100 vs 0.005). What it does buy is large: +39% colour and +180% motion on
+  Gen, and similar elsewhere. So exp110 s140 and exp080 r2 s120 are two points on a trade curve,
+  not a winner and a loser. The "new best checkpoint by a wide margin" claim first recorded here
+  was an artifact of a 10-prompt eval.
 ---
 # exp110 — frame_replace on the gen4 dataset
 
@@ -92,7 +92,7 @@ ablation, and should not be confused for one.
 | motion | 0.20 | 0.09 | 0.11 | 0.22 | 0.22 | 0.24 | 0.25 | 0.27 | **0.25** | 0.30 | 0.29 | 0.21 | 0.13 |
 | clip | 0.30 | 0.26 | 0.28 | 0.30 | 0.27 | 0.28 | 0.29 | 0.30 | 0.29 | 0.28 | 0.28 | 0.28 | 0.27 |
 
-### The new best checkpoint
+### The new best checkpoint — SEE THE CORRECTION BELOW, this section is measured on n=10
 
 | | rate | colour | motion | clip |
 |---|---|---|---|---|
@@ -161,3 +161,46 @@ was a null.
 - [ ] **Human review of steps 120/140** before this number is reported anywhere.
 - [ ] exp102 / exp107 repointed at the winning checkpoint (one field each).
 - [ ] Optional: subsample-to-31 arm to separate wardrobe realism from data volume.
+
+
+---
+
+## CORRECTION (2026-08-14): the erasure gain was an n=10 artifact
+
+Everything above is measured by this run's **live eval**, which uses `eval_num_prompts: 10` — the
+first 10 prompts of the Gen set, 490 frames. [exp112](../exp112_eval_gen4_comparable/notes.md) put
+step 140 through the *full* sets and the picture changes:
+
+| set | n | exp080 r2 s120 (old) | **exp110 s140 (gen4)** |
+|---|---|---|---|
+| Gen | 100 | **0.100** | 0.150 |
+| Ring-A-Bell | 79 | **0.070** | 0.250 |
+| I2P | 95 | **0.0054** | 0.100 |
+| SafeSora | 100 | **0.092** | 0.110 |
+| related (safe) | 79 | **0.0000** | 0.020 |
+
+**The gen4 checkpoint is worse on erasure on every set.** The 0.0000 recorded above never
+generalised past the 10 prompts it was measured on — and note the same is true of the old
+incumbent, whose n=10 reading was also 0.0000 while its full-set Gen number is 0.100. *Both*
+"perfect erasure" figures in this thread's history were subset artifacts.
+
+What gen4 does buy is real and large, on the same full sets:
+
+| set | motion old -> new | colour old -> new |
+|---|---|---|
+| Gen | 0.05 -> **0.14** | 24.0 -> **33.4** |
+| I2P | 0.09 -> **0.15** | 32.5 -> **46.4** |
+| SafeSora | 0.20 -> **0.37** | 24.7 -> **42.9** |
+| related | 0.04 -> **0.06** | 28.2 -> **39.4** |
+
+So the honest statement is: **the realistic-wardrobe data moves the method to a different point on
+the erasure/quality trade curve — much better video, less erasure — not to a strictly better
+checkpoint.** exp109's contribution to the paper is the dataset-construction result (50% yield vs
+26%) and this trade shift, not a new SOTA row.
+
+### The methodological consequence, which is larger than this run
+
+`eval_num_prompts: 10` **cannot rank checkpoints.** Every checkpoint choice in this thread was made
+on it, including exp080 run_002 step 120. A candidate must be re-measured on the full sets before it
+is called better than another. exp114 shows the live-eval trajectory itself reproduces well, so the
+problem is not noise between runs — it is that 10 prompts are not the 100.

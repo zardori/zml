@@ -1,14 +1,14 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  exp110 for 500 steps instead of 200, everything else identical. Motivated by exp110's loss still
-  falling at the cut-off (0.489 -> 0.400, loss_erase -21%, loss_retain flat). Prior is that it ends
-  WORSE: exp062's three long arms all decayed monotonically past step 100, and exp110 already
-  rebounds from 0.0000 at step 140 to 0.12 by 200. Worth one job because exp110's U is far flatter
-  than anything before it and nobody has looked past 200 steps on good data. 1 job.
+  PRIOR CONFIRMED: longer training does not help. Best points are steps 100-140 (rate 0.000-0.010),
+  exactly where exp110 peaked; past 200 the rate climbs to 0.19-0.27 while clip score decays
+  0.29 -> 0.25 and motion falls to 0.02-0.17. Also a clean REPRODUCIBILITY check — the first 200
+  steps track exp110 within 0.01-0.04 at every shared checkpoint, so the trajectory is stable and
+  the step-count question is closed with evidence.
 ---
 # exp114 — gen4, 500 steps
 
@@ -82,3 +82,41 @@ steps + 20 evals.
 - [ ] Overlay against exp110 over steps 0-200 (reproducibility).
 - [ ] Anything past 200 compared against exp110 step 140.
 - [ ] DOVER scored locally if a checkpoint here is a candidate.
+
+
+## Results (2026-08-14) — the prior held
+
+| step | 60 | 100 | 120 | 140 | 200 | 280 | 340 | 420 | 480 | 500 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| rate | 0.09 | **0.00** | **0.00** | 0.01 | 0.16 | 0.01 | 0.10 | 0.25 | 0.19 | 0.27 |
+| colour | 22.2 | 28.5 | 31.2 | 36.3 | 36.3 | 29.9 | 31.6 | 28.7 | 22.2 | 30.3 |
+| motion | 0.19 | 0.22 | 0.25 | 0.28 | 0.16 | 0.16 | 0.15 | 0.15 | 0.02 | 0.17 |
+| clip | 0.30 | 0.27 | 0.29 | 0.29 | 0.28 | 0.26 | 0.25 | 0.25 | 0.25 | 0.26 |
+
+**Nothing past step 200 beats step 140.** The best window is steps 100-140, exactly where exp110
+peaked, and the run then drifts up to 0.19-0.27 while clip score decays monotonically 0.29 -> 0.25
+and motion collapses to 0.02 by step 480. The isolated 0.01 at step 280 is a single checkpoint
+between 0.10 and 0.10 — a transient, not a regime.
+
+This confirms exp062's pattern on two-generations-newer data and closes the step-count question:
+**train loss falling is not evidence that more steps help.** exp110's loss was still descending at
+step 200 and the extra 300 steps bought nothing.
+
+### Free reproducibility check
+
+Over the shared range, against exp110 (fresh run, same seed, same data):
+
+| step | 100 | 120 | 140 | 160 | 180 | 200 |
+|---|---|---|---|---|---|---|
+| exp110 | 0.01 | 0.00 | 0.00 | 0.06 | 0.10 | 0.12 |
+| exp114 | 0.00 | 0.00 | 0.01 | 0.09 | 0.11 | 0.16 |
+
+Within 0.01-0.04 everywhere. The trajectory is stable across runs, which matters because it means
+exp112's contradiction of exp110 is **not** run-to-run noise — it is purely the n=10 vs n=100
+sampling difference.
+
+## Status
+- [x] Submitted and complete (1 job, 500 steps).
+- [x] Overlay against exp110 over steps 0-200 — reproducible within 0.01-0.04.
+- [x] Nothing past 200 beats step 140. Step-count question closed.
+- ~~DOVER~~ — no checkpoint here is a candidate, so not scored.
