@@ -9,10 +9,14 @@ model_id: THUDM/CogVideoX-5b
 prompts_csv: prompts/imagenet_objects.csv
 erased_class: "chain saw"
 
-# FILL IN with the exp069 checkpoint being reported (e.g. .../outputs_TIMESTAMP/frame_replace_lora_step600).
-lora_checkpoint_dir: experiments/imagenet/exp069_frame_replace_chainsaw/outputs_TIMESTAMP/frame_replace_lora_step600
+# exp069's FINAL checkpoint. Deliberately not the best of the six: erasure is flat at top-1 0.00 from
+# step 200 onward on the live monitor, so picking among them would be selection on the test set for
+# no measurable gain.
+lora_checkpoint_dir: experiments/imagenet/exp069_frame_replace_chainsaw/outputs_20260816_003333/frame_replace_lora_step600
 
 eval_inference_steps: 50
 disable_mlflow: true
 
-slurm_time: "0-10:00:00"
+# exp065 timed out at 163/200 in 10 h on these same 200 prompts. Generation is resumable, but one job
+# that finishes beats two that resume.
+slurm_time: "0-14:00:00"

@@ -78,6 +78,7 @@ class Config:
     split_step_frac: float = 0.85
     tail_prompt_mode: str = "c"  # "c" | "empty"; see split_prompt_precompute.Config
     concept_guidance_scale: float | None = None  # CFG on the concept branch only; see split_prompt_precompute.Config
+    split_mode: str = "prediction"  # "prediction" | "trajectory"; see split_prompt_precompute.Config
     # The concept latent mask is derived directly from (split_latent_frame, concept_region) — see
     # module docstring. The detector still runs to log per-frame confidences for human review, but
     # frame_concept_threshold no longer gates keep/skip.
@@ -124,6 +125,7 @@ class Config:
             width=self.width, split_latent_frame=self.split_latent_frame, concept_region=self.concept_region,
             split_jitter=self.split_jitter, split_step_frac=self.split_step_frac, output_dir=self.output_dir,
             tail_prompt_mode=self.tail_prompt_mode, concept_guidance_scale=self.concept_guidance_scale,
+            split_mode=self.split_mode,
         )
 
 
@@ -317,6 +319,7 @@ def main(config: Config) -> None:
                     "split_latent_frame": sf,
                     "split_step_frac": config.split_step_frac,
                     "tail_prompt_mode": config.tail_prompt_mode,
+                    "split_mode": config.split_mode,
                     "concept_guidance_scale": config.concept_guidance_scale or config.guidance_scale,
                     "boundary_margin": config.boundary_margin,
                     "donor_map": {str(k): v for k, v in donor_map.items()},

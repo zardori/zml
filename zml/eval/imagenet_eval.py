@@ -40,6 +40,7 @@ from zml.benchmarks.imagenet_classes import IMAGENETTE_CLASSES, IMAGENETTE_INDIC
 from zml.benchmarks.imagenet_classifier import ImageNetFrameClassifier
 from zml.eval.clip_score import VideoClipScorer
 from zml.eval.colorfulness import VideoColorfulnessScorer
+from zml.eval.dover_scorer import DOVER_AVAILABLE, VideoDoverScorer
 from zml.eval.eval_model import build_eval_pipeline
 from zml.eval.motion import VideoMotionScorer
 
@@ -227,11 +228,21 @@ def _quality_scores(video_dir: str, prompts: list[str]) -> dict[str, float]:
     clip = VideoClipScorer(video_dir=video_dir, prompts=prompts).process_videos()
     color = VideoColorfulnessScorer(video_dir=video_dir).process_videos()
     motion = VideoMotionScorer(video_dir=video_dir).process_videos()
-    return {
+    scores = {
         "clip_score_mean": float(np.mean(clip)) if clip else 0.0,
         "colorfulness_mean": float(np.mean(color)) if color else 0.0,
         "motion_score_mean": float(np.mean(motion)) if motion else 0.0,
     }
+    # The only instrument here that measures technical quality — which is what decides whether an ESR
+    # was earned by removing the object or bought by degrading the clip (exp069 froze its concept
+    # videos to motion 0.01 while erasing perfectly). Absent on helios (aarch64), so the keys are
+    # omitted rather than zero-filled: a 0.0 DOVER has been read as a quality score before.
+    # `--rescore` on any x86_64 machine backfills them from the saved mp4s at no GPU-job cost.
+    if DOVER_AVAILABLE:
+        dover = VideoDoverScorer(video_dir=video_dir).process_videos()
+        scores["dover_technical_mean"] = float(np.mean(dover["technical"])) if dover["technical"] else 0.0
+        scores["dover_aesthetic_mean"] = float(np.mean(dover["aesthetic"])) if dover["aesthetic"] else 0.0
+    return scores
 
 
 def score_existing(
@@ -328,10 +339,16 @@ if __name__ == "__main__":
     parser.add_argument("--prompts-csv", required=True, help="The prompt CSV the run was generated from")
     parser.add_argument("--erased-class", default=None,
                         help="Omit for a base-model run (reports ESR/PSR for every class in turn)")
+    # Provenance the report carries but re-scoring cannot recover from the videos. Without these the
+    # rewritten esr_psr.json would silently claim a NegPrompt run had no negative prompt.
+    parser.add_argument("--negative-prompt", default=None, help="Echo the run's negative prompt")
+    parser.add_argument("--lora-checkpoint-dir", default=None, help="Echo the run's LoRA checkpoint")
     args = parser.parse_args()
 
     score_existing(
         output_dir=args.rescore,
         class_prompts=load_class_prompts(args.prompts_csv),
         erased_class=args.erased_class,
+        lora_checkpoint_dir=args.lora_checkpoint_dir,
+        negative_prompt=args.negative_prompt,
     )

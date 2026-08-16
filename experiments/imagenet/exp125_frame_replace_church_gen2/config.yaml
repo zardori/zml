@@ -1,0 +1,68 @@
+# frame_replace erasure of CHURCH, second attempt — exp070 rebuilt on repaired data.
+#
+# exp070 did not erase: concept top-1 oscillated 0.00 / 0.32 / 0.00 / 0.22 / 0.47 and trended back
+# toward base (0.739). Three things were wrong with it, and this run fixes the two that are fixable:
+#   1. 14 rows, skewed 10 first / 4 second -> 27 rows at 16 first / 11 second (exp122's fresh seeds).
+#   2. One of those 14 rows (p4_s3305) had a 73%-blank edited target that still contained a church,
+#      i.e. 7% of the erase signal pointed the wrong way. The blank-target gate added to
+#      tools/screen_split_dataset.py removes it and one more like it.
+#   3. Church is scene-level rather than localized, which is NOT fixable by data. If this run still
+#      oscillates, that is the answer, and it is the pilot's real finding.
+#
+# Build the merged dataset on the cluster BEFORE submitting (combined_dataset/ is gitignored):
+#   ./merge_dataset.sh --cluster helios \
+#     --output experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset \
+#     --source experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904_screened.json \
+#              experiments/imagenet/exp118_split_church_closeup/outputs_20260815_014904/latents \
+#     --source experiments/imagenet/exp122_split_church_gen2/outputs_20260816_002006_screened.json \
+#              experiments/imagenet/exp122_split_church_gen2/outputs_20260816_002006/latents
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp125_frame_replace_church_gen2/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: object
+concept_target: "church"
+
+# 27 rows: exp118's re-screened 13 (9 first / 4 second) + exp122's 14 (7 / 7).
+metadata_file: experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset/metadata.json
+latents_dir: experiments/imagenet/exp125_frame_replace_church_gen2/combined_dataset/latents
+
+retention_metadata_file: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/metadata.json
+retention_latents_dir: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/latents
+retention_exclude: "church"
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+# SET FROM exp123 BEFORE SUBMITTING. 2.0 is exp070's value; keep it if exp123 finds no eta effect, so
+# this run isolates the data repair, and use exp123's winning arm if it does.
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/imagenet_objects/church.csv
+control_related_prompts: prompts/imagenet_objects/others_church.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/imagenet_objects/others_church.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+
+# 400 steps at save_interval 50. exp070 oscillated across its whole range rather than converging, so
+# the diagnostic value is in checkpoint *density* — a stable zero over two consecutive checkpoints is
+# the thing that was never observed and is what this run is looking for.
+steps: 400
+save_interval: 50
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp070 ran ~95 s/step amortized over its evals, slower than exp069's 66. 400 steps + 8 evals.
+slurm_time: "14:00:00"

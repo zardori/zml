@@ -201,6 +201,14 @@ and must stay that way. We preserve the classes, not the test items.
   object was never rendered dilute the erase signal with a no-op ("replace non-chainsaw frames with
   other non-chainsaw frames"). 0.10 / 0.4 for both pilot classes; see
   [`split_prompt.md`](split_prompt.md) §3.1 for why the second gate is a within-clip differential.
+- **`--max-degenerate-frac`** (same tool) — the third gate, added 2026-08-16, and the only one that
+  looks at the *edited target* rather than the source clip. A blank frame scores p(concept) ≈ 0 like
+  any concept-free frame, so a clip whose safe half never rendered gets a **perfect** contrast index,
+  passes, and is then edited by mirroring that blank half into the concept region. exp122's
+  `p22_s3353` scored +0.994 with a 49/49-blank target; exp118's `p4_s3305` was 73% blank *and* still
+  showed a church, and it trained in exp070. Default 0.1 of frames; needs the videos beside the
+  metadata and warns loudly when they are missing. Church hit this twice, chain saw never — expect it
+  on classes whose scenes have large bright backgrounds.
 - **`split_step_frac`**, **`concept_region`**, **`split_jitter`** — unchanged from
   [`split_prompt.md`](split_prompt.md) §4, including the positional-shortcut argument. Because the 20
   eval prompts per class are ordinary full-object scenes with no object-free half, evaluating on them
@@ -211,10 +219,20 @@ and must stay that way. We preserve the classes, not the test items.
   *worse* (2/5 against `c`'s 3/5), so prompt C's concept-deleting content is not why an early split
   loses the concept. Keep `c`, keep 0.85, and do not sweep this. `docs/split_prompt.md` §2.
 - **`concept_guidance_scale`** — CFG on the concept branch (`pred_a`) only; `None` reuses
-  `guidance_scale`. **The one sampler knob not yet ruled out**, and the only one aimed at the failure
-  that now dominates: the splice suppressing an object that plain prompt A renders fine at the same
-  seed (`docs/split_prompt.md` §3.3). Free — a scalar on predictions already computed. Too high and
-  CogVideoX saturates, so judge a sweep on clip quality as well as pass count. exp120 measures it.
+  `guidance_scale`. **Measured and rejected as a yield lever (exp120):** pass counts on the 12
+  suppressed rows are 0/12 at 6.0 (the control, exactly as predicted), 2/12 at 9.0, 3/12 at 12.0 —
+  against a pre-registered gate of 6/12. Leave it at `None`. What it *did* establish is the mechanism:
+  at 9.0 **seven** of the twelve render the object again, and five of those seven then have it in both
+  halves, so stronger A-conditioning defeats the suppression and loses the localization. Per-row
+  response is also non-monotone in the scale (rows that render at 9.0 vanish at 12.0), so part of the
+  effect is re-rolling the sample rather than strengthening the concept.
+- **`split_mode`** (`prediction` | `trajectory`) — where the two prompts are combined during the
+  split phase, and the successor to the knob above. `prediction` (the default, and every dataset up
+  to exp122) keeps one latent and splices the prediction, which is what puts `pred_a` in a
+  B-converging context in the first place; `trajectory` denoises each prompt on its own latent from
+  shared noise and splices once at `split_step`. Same cost either way. exp124 measures it, with the
+  6 currently-passing rows in its CSV as the coherence regression — independent trajectories share
+  less context, and coherence across the seam is the thing that could pay for the yield.
 
 ## 6. Status
 
@@ -226,7 +244,7 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp | what | status |
 |---|---|---|
 | exp064 | base-model ESR/PSR over all ten classes; the `Original` row and the sanity gate for classifier + prompts | **done** — gate passed, see below |
-| exp065 | NegPrompt baseline, chain saw + church (grid) | ran 2026-08-03, **timed out** at 163/200 and 164/200 with no report; `slurm_time` 10 h → 14 h, resubmit (resumable) |
+| exp065 | NegPrompt baseline, chain saw + church (grid) | **done** — and it splits by convention: 1000-way ESR-1 70.8 / 75.1 looks strong, restricted it is 17.1 / 0.2 with ESR-5 **0.00** for both. Most of its erasure is sibling confusion; report the restricted column |
 | exp066 | split-prompt frame_replace dataset, chain saw (30 triples, seeds 3201-3230) | run 1 kept 4/30; run 2 (`0.85`, construction mask) kept 30/30 but **screens at 7/30** — superseded by exp117 |
 | exp067 | split-prompt frame_replace dataset, church (30 triples, seeds 3301-3330) | run 1 kept 7/30; run 2 kept 30/30 but **screens at 3/30** — superseded by exp118 |
 | exp068 | preservation anchors, 10 classes x 3 prompts | **done** — 30 entries, 3 per class, `outputs_20260803_233647` |
@@ -234,11 +252,54 @@ until the pilot shows the method transfers, per the repo's "no grid before the m
 | exp117 | chain-saw dataset on object-dominant prompts, `emit_whole_clip_target` | **done** — 14/30 usable (was 7/30); moved the thread's diagnosis, see below |
 | exp118 | church dataset on object-dominant prompts, `emit_whole_clip_target` | **done** — 14/30 usable (was 3/30); survivors skew 10 first / 4 second |
 | exp119 | `tail_prompt_mode` [c, empty] x `split_step_frac` [0.3, 0.85], 5 chain-saw seeds | **done** — hypothesis rejected; the tail is not a lever. `docs/split_prompt.md` §2 |
-| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | **ready** — 21 rows (exp117's 14 + exp066's 7); needs `merge_dataset.sh` on the cluster first |
-| exp070 | frame_replace erasure of church, same regime | **ready** — exp118's 14 rows |
-| exp120 | `concept_guidance_scale` [6, 9, 12] on the 12 suppressed chain-saw rows | ready, not submitted |
-| exp121 / exp122 | gen2 datasets: exp117/exp118 prompts under fresh seeds, ~14 more rows each | ready, not submitted |
-| exp071 / exp072 | reported ESR/PSR for the two LoRAs | blocked on exp069 / exp070 |
+| exp069 | frame_replace erasure of chain saw, exp062's eta=2 regime | **done — the pilot's positive result.** top-1 0.506 → 0.00 from step 200, semantically (see below) |
+| exp070 | frame_replace erasure of church, same regime | **done — negative.** Never erased; top-1 oscillated 0.00/0.32/0.00/0.22/0.47 and trended back to base |
+| exp120 | `concept_guidance_scale` [6, 9, 12] on the 12 suppressed chain-saw rows | **done** — 0/12 → 2/12 → 3/12, gate not met; knob rejected, mechanism confirmed (§5) |
+| exp121 / exp122 | gen2 datasets: exp117/exp118 prompts under fresh seeds, ~14 more rows each | **done** — 12/30 and 14/30; seed control passes, and exp122 fixed church's region skew to 7/7 |
+| exp071 | reported ESR/PSR for the chain-saw LoRA | ready — wired to exp069's step-600 checkpoint |
+| exp072 | reported ESR/PSR for the church LoRA | **blocked**, and deliberately so: exp070 has no checkpoint worth 200 videos |
+| exp123 | `erase_esd_eta` [1.0, 1.5, 2.0] on the 33-row chain-saw merge | ready — attacks the freeze, see below |
+| exp124 | `split_mode` [prediction, trajectory] on exp120's 12 rows + 6 survivors | ready — exp120's prescribed follow-up |
+| exp125 | church rebuilt on the 27-row exp118+exp122 merge | ready, blocked on exp123 for the eta |
+
+### The pilot's finding: erasure transfers, and it is concept-dependent
+
+exp069 and exp070 are the same recipe — same eta, retention anchors, LR and step budget — differing
+only in the concept and its dataset. **Chain saw erases and church does not.**
+
+Chain saw goes to top-1 0.00 from step 200 through 600 on the 20 full-object eval prompts. Those
+prompts have no object-free half, so the positional shortcut cannot explain it, and the frames agree
+with the classifier: the workbench, plank, tool rack and lighting survive and the saw is replaced by
+an unidentifiable plastic form. Preservation holds qualitatively (the other nine classes still render
+correctly) and clip score stays at base.
+
+Church never holds a zero for two consecutive checkpoints, and its top-5 climbs to 0.88 against a base
+of 0.95. Two of its three candidate causes are data artefacts that exp125 repairs (14 rows skewed
+10/4, one of them a 73%-blank target that still contained a church); the third is the concept itself —
+removing a frame-filling structure means redrawing the frame, where a chain saw can be swapped inside
+an untouched scene. This is what [`comparison_targets.md`](comparison_targets.md) §2.2 predicted, now
+half-measured: exp125 decides whether the prediction or the dataset explains exp070.
+
+### The defect that blocks the chain-saw row: the concept clips freeze
+
+exp069's erasure comes with a **"static poster"** signature on the concept set: motion 0.010 against a
+base of 0.564 (−98%), present already at step 100, with colorfulness +40% and clip score unchanged.
+The clips are still images with boosted saturation.
+
+Two properties make this its own failure mode rather than a repeat of nudity's:
+
+- **It is concept-conditional.** The unrelated set loses 30% of its motion, the concept set 98%. In
+  nudity, exp107 located the motion collapse as a *global* property of the adapter.
+- **DOVER cannot see it.** Technical scores are 0.084 (concept) and 0.078 (unrelated) against a base
+  of 0.100 — no separation. DOVER measures spatial/technical quality, not temporal liveness, so on
+  this failure `motion_score` is the instrument. (`imagenet_eval` now records DOVER in its per-class
+  `quality` block, and `--rescore` backfills it on any x86_64 machine; helios omits the keys rather
+  than writing 0.0.)
+
+exp123 sweeps `erase_esd_eta` to separate the two readings — the erase pressure is high enough that
+freezing is the cheapest way to satisfy it, versus the LoRA having learned "chain-saw prompt → still
+life". Motion rising with erasure intact means the former; motion and top-1 rising together at every
+setting means the latter, and the fix moves to the retention branch.
 
 **exp117/exp118 — the prompt reframe worked, and then changed the question.** Both classes went to
 14/30 usable, and the reframe is the measured cause: same seeds, same sampler, only A and B rewritten.

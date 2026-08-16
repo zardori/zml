@@ -94,8 +94,27 @@ the concept screen, so nothing was poisoned — but `p21_s3322`'s whole-clip A c
 which means a whole-clip-based rescue would have admitted a blank video. One more reason the
 detector differential is the right screen, and a reason to check gen2 for the same.
 
+## Correction, 2026-08-16: a third degenerate clip DID get through — 14 rows → 13
+
+"Nothing was poisoned" above was wrong, and exp122's check is what found it. **`p4_s3305` passed the
+screen** (contrast index +0.918, concept max 0.2877) with **16/49 blank frames in the source clip and
+36/49 in its edited target** — and the frames that are not blank show a church, so the
+"concept-removed" target still contains the concept. It was one of the 14 rows **exp070 trained on**.
+
+The cause is not this build; it is that the screen's differential runs on the source clip's
+confidences, where a blank frame is indistinguishable from a legitimately concept-free one — so a
+blank safe half *maximises* the separation score and then gets mirrored into the concept region.
+`tools/screen_split_dataset.py` now rejects on the edited target's blank-frame share; the full
+argument is in exp122's notes.
+
+Re-screened keep list: **13 rows, 9 first / 4 second** (`p4_s3305` dropped, `p9_s3310` re-labelled
+from `no-concept` to `blank-target`). `outputs_20260815_014904_screened.json` has been rewritten
+in place — **exp070 trained on the pre-fix 14-row version**, which is part of why its result should
+not be read as this dataset's verdict.
+
 ## Status
 - [x] Submitted.
 - [x] Screened; `no-concept` 11 and `not-split` 5 against exp067 run 2's 17 and 10.
 - [x] Substitute buildings confirmed church-free — whole-clip B peaks at 0.064.
 - [x] Survivor `concept_region` balance checked — **10 / 4, skewed**; exp122 rebalances.
+- [x] Re-screened 2026-08-16 with the blank-target gate: 13 rows, 9 / 4.

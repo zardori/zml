@@ -35,6 +35,20 @@ Prefer this tool to decide what to train on, and keep seam contrast for diagnosi
 failed. ``tools/screen_split_face_dataset.py`` is the absolute-threshold-only ancestor of this file,
 still in place because exp115/exp116's published keep-lists were selected with it.
 
+The blank-target gate
+---------------------
+The differential above is computed on the *source* clip's confidences, and a blank frame scores
+p(concept) ≈ 0 like any other concept-free frame. So a clip whose safe half never rendered gets a
+**perfect** contrast index, passes, and is then edited by mirroring that blank half into the concept
+region — producing a training target that is mostly white. Two rows found this way on 2026-08-16:
+``exp118/p4_s3305`` (16/49 blank in the source, 36/49 in the target — and it was in exp070's training
+set) and ``exp122/p22_s3353`` (24/49 → **49/49**, a fully blank target with contrast index +0.994).
+
+Hence the third gate, and note what it screens: the ``_edited`` clip, i.e. **the thing training
+actually regresses onto**, not the source the other two gates read. It needs the videos, so it is
+skipped with a warning when they are not next to the metadata (they are gitignored, but
+``pull_results.sh`` fetches them).
+
 Thresholds are deliberately CLI arguments rather than a per-concept table: ``build_detector`` is the
 one place the codebase maps a concept string to behaviour, and this tool must not become a second
 one. Calibrations measured on exp064's base-model reference, to pass explicitly:
@@ -51,6 +65,9 @@ import statistics
 from dataclasses import dataclass
 from pathlib import Path
 
+from zml.benchmarks.check_for_object import read_bgr_frames
+from zml.benchmarks.frame_quality import degenerate_frame_mask
+
 # CogVideoX packs 49 pixel frames into 13 latent frames: latent frame 0 covers a single pixel frame
 # and every later one covers 4, so latent frame `sf` starts at pixel frame 1 + 4*(sf-1).
 PIXEL_FRAMES_PER_LATENT = 4
@@ -62,6 +79,13 @@ MIN_CONCEPT_MAX = 0.10
 # genuine splits score 0.87/0.63/0.49, the next row down scores 0.18) and keeps every clip that
 # survived visual review in both classes.
 MIN_CONTRAST_INDEX = 0.4
+# Fraction of the edited target's frames allowed to be structureless. Every clean row measured so far
+# scores exactly 0.0 and the two known-bad ones score 0.73 and 1.0, so anything in between is
+# arbitrary; 0.1 (~5 of 49 frames) leaves room for an isolated bad frame without admitting a half-
+# blank target.
+MAX_DEGENERATE_FRAC = 0.1
+# Which decoded clip carries the training target. `_original` is the pre-edit combined clip.
+EDITED_VIDEO_SUFFIX = "_edited.mp4"
 
 
 @dataclass(frozen=True)
@@ -77,6 +101,7 @@ class ScreenResult:
     safe_mean: float
     contrast_index: float
     verdict: str
+    degenerate_frac: float | None = None
 
 
 def seam_pixel_frame(split_latent_frame: int) -> int:
@@ -99,18 +124,39 @@ def contrast_index(concept_half: list[float], safe_half: list[float]) -> float:
     return (concept_mean - safe_mean) / total if total > 0 else 0.0
 
 
-def screen_entry(entry: dict, min_concept_max: float, min_contrast: float) -> ScreenResult:
+def degenerate_fraction(videos_dir: Path | None, stem: str) -> float | None:
+    """Share of structureless frames in the row's edited target, or None when it cannot be read."""
+    if videos_dir is None:
+        return None
+    path = videos_dir / f"{stem}{EDITED_VIDEO_SUFFIX}"
+    if not path.exists():
+        return None
+    frames = read_bgr_frames(str(path))
+    if not frames:
+        return 1.0
+    flags = degenerate_frame_mask(frames)
+    return sum(flags) / len(flags)
+
+
+def screen_entry(entry: dict, min_concept_max: float, min_contrast: float,
+                 videos_dir: Path | None = None, max_degenerate: float = MAX_DEGENERATE_FRAC) -> ScreenResult:
     concept_half, safe_half = split_halves(entry)
     concept_max = max(concept_half)
     index = contrast_index(concept_half, safe_half)
-    if concept_max < min_concept_max:
+    stem = Path(entry["latent_path"]).name.removesuffix("_x0edited.pt")
+    degenerate = degenerate_fraction(videos_dir, stem)
+    # Checked first: a blank target is a build failure, and its blankness is *why* the concept gates
+    # look good, so reporting it as "pass" or "no-concept" would hide the cause.
+    if degenerate is not None and degenerate > max_degenerate:
+        verdict = "blank-target"
+    elif concept_max < min_concept_max:
         verdict = "no-concept"  # prompt A never rendered it; nothing to erase
     elif index < min_contrast:
         verdict = "not-split"  # concept is there, but the safe half has it too
     else:
         verdict = "pass"
     return ScreenResult(
-        stem=Path(entry["latent_path"]).name.removesuffix("_x0edited.pt"),
+        stem=stem,
         seed=int(entry["seed"]),
         split_latent_frame=entry["split_latent_frame"],
         concept_region=entry["concept_region"],
@@ -119,15 +165,17 @@ def screen_entry(entry: dict, min_concept_max: float, min_contrast: float) -> Sc
         safe_mean=statistics.mean(safe_half),
         contrast_index=index,
         verdict=verdict,
+        degenerate_frac=degenerate,
     )
 
 
 def print_results(results: list[ScreenResult]) -> None:
     print(f"{'stem':14} {'sf':>3} {'region':>7} {'conc_max':>9} {'conc_mean':>10} "
-          f"{'safe_mean':>10} {'contrast':>9}  verdict")
+          f"{'safe_mean':>10} {'contrast':>9} {'blank':>6}  verdict")
     for r in results:
+        blank = "  n/a" if r.degenerate_frac is None else f"{r.degenerate_frac:6.2f}"
         print(f"{r.stem:14} {r.split_latent_frame:3d} {r.concept_region:>7} {r.concept_max:9.4f} "
-              f"{r.concept_mean:10.4f} {r.safe_mean:10.4f} {r.contrast_index:+9.3f}  {r.verdict}")
+              f"{r.concept_mean:10.4f} {r.safe_mean:10.4f} {r.contrast_index:+9.3f} {blank}  {r.verdict}")
 
 
 def region_balance(results: list[ScreenResult]) -> dict[str, int]:
@@ -157,6 +205,12 @@ def main() -> int:
     parser.add_argument("--min-pass-frac", type=float, default=None,
                         help="Exit non-zero if the pass fraction falls below this")
     parser.add_argument("--limit", type=int, default=None, help="Screen only the first N entries")
+    parser.add_argument("--videos-dir", default=None,
+                        help="Where the _edited.mp4 targets live (default: <metadata dir>/videos)")
+    parser.add_argument("--max-degenerate-frac", type=float, default=MAX_DEGENERATE_FRAC,
+                        help="Blank-frame share above which the edited target is rejected")
+    parser.add_argument("--no-blank-check", action="store_true",
+                        help="Skip the blank-target gate even if the videos are present")
     args = parser.parse_args()
 
     metadata_path = Path(args.metadata)
@@ -164,17 +218,33 @@ def main() -> int:
     if not entries:
         raise SystemExit(f"{metadata_path} has no entries.")
 
-    results = [screen_entry(e, args.min_concept_max, args.min_contrast_index) for e in entries]
+    videos_dir = None if args.no_blank_check else Path(args.videos_dir or metadata_path.parent / "videos")
+    if videos_dir is not None and not videos_dir.is_dir():
+        print(f"WARNING: {videos_dir} not found — the blank-target gate is OFF. Rows whose safe half "
+              f"never rendered score a perfect contrast index and will pass. Pull the videos and "
+              f"re-run before training on this set.")
+        videos_dir = None
+
+    results = [
+        screen_entry(e, args.min_concept_max, args.min_contrast_index, videos_dir, args.max_degenerate_frac)
+        for e in entries
+    ]
     print_results(results)
 
-    counts = {v: sum(1 for r in results if r.verdict == v) for v in ("pass", "not-split", "no-concept")}
+    verdicts = ("pass", "not-split", "no-concept", "blank-target")
+    counts = {v: sum(1 for r in results if r.verdict == v) for v in verdicts}
     survivors = [r for r in results if r.verdict == "pass"]
     pass_frac = len(survivors) / len(results)
     print(f"\n{len(results)} clips | pass {counts['pass']} ({pass_frac:.0%}) | "
-          f"not-split {counts['not-split']} | no-concept {counts['no-concept']}")
+          f"not-split {counts['not-split']} | no-concept {counts['no-concept']} | "
+          f"blank-target {counts['blank-target']}")
     if counts["no-concept"]:
         print(f"{counts['no-concept']} clips never rendered the concept at all — a prompt/framing "
               f"problem, not a sampler one (see exp116: controlling framing nearly doubled face yield).")
+    if counts["blank-target"]:
+        print(f"{counts['blank-target']} clips would have trained on a (near-)blank target. These pass "
+              f"the concept gates *because* the blank half reads as concept-free — see the module "
+              f"docstring.")
 
     if survivors:
         balance = region_balance(survivors)

@@ -251,18 +251,34 @@ contrast index
 ci = (mean(concept_half) - mean(safe_half)) / (mean(concept_half) + mean(safe_half))     ∈ [-1, 1]
 ```
 
-and requires two things of a row, because either alone is insufficient (§2's two false verdicts):
+and requires three things of a row, because no one of them is sufficient (§2's two false verdicts,
+plus the blank-target case below):
 
 | gate | rejects | verdict when it fails |
 |---|---|---|
+| `--max-degenerate-frac` | the edited target never rendered | `blank-target` |
 | `--min-concept-max` | prompt A never rendered the concept anywhere | `no-concept` |
 | `--min-contrast-index` | it rendered, but the safe half has it too | `not-split` |
 
-Defaults are 0.10 and 0.4. The contrast threshold sits inside a clear gap in the church data (the
+Defaults are 0.1, 0.10 and 0.4. The contrast threshold sits inside a clear gap in the church data (the
 three genuine splits score 0.87 / 0.63 / 0.49, the next row down 0.18) and keeps every clip that
 survived visual review in both classes. Thresholds are CLI arguments and not a per-concept table on
 purpose: `build_detector` is the one place the codebase maps a concept string to behaviour, and this
 must not become a second one.
+
+**The blank-target gate, and why the differential needs it.** A blank frame scores p(concept) ≈ 0
+exactly like a legitimately concept-free one, so a clip whose safe half never rendered gets a *perfect*
+separation score — the blanker it is, the better it screens. It then passes into `edit_latent_reflected`,
+which mirrors that blank half into the concept region, and the result is a training target that is
+mostly white. Two rows were found this way on 2026-08-16, both church: exp122's `p22_s3353` (contrast
+index **+0.994**, edited target **49/49 blank frames**) and exp118's `p4_s3305` (36/49 blank, and the
+frames that are not blank still show a church) — the second of which had already trained in exp070.
+
+So the gate is checked **first** and it reads the `_edited` clip, i.e. the thing training actually
+regresses onto, where the other two gates read the source clip's logged confidences. That costs a
+video decode, so it is skipped with a loud warning when the videos are not next to the metadata
+(`--videos-dir` overrides, `--no-blank-check` disables). Reuses
+`zml/benchmarks/frame_quality.py::degenerate_frame_mask`, the same structure test used for eval clips.
 
 `--write-filtered` writes the surviving entries to the **experiment root**, not under `outputs_*/`,
 which is gitignored — a filtered set living there never reaches the cluster (the mistake that aborted
@@ -338,11 +354,41 @@ is converging on prompt B. CogVideoX's temporal-coherence prior then argues the 
 pulls the concept region toward the substitute. Either the object establishes itself early enough to
 hold its half or it is gone — hence no middle.
 
-`concept_guidance_scale` raises CFG on the concept branch alone, at zero extra compute (both
-branches' conditional and unconditional predictions are already computed; it is a scalar on them).
-exp120 sweeps it over the 12 exp117 rows that failed *despite* plain A rendering the object, with the
-base value as a control arm. Watch clip quality as well as pass count: high CFG on CogVideoX
-saturates, and a row bought at the cost of a degraded clip is not a usable row.
+**exp120 tested this and produced a split verdict: the mechanism is confirmed, the obvious knob is
+not the cure.** `concept_guidance_scale` raises CFG on the concept branch alone, at zero extra
+compute. Swept over the 12 exp117 rows that failed *despite* plain A rendering the object, with the
+base value as a control arm:
+
+| concept guidance | renders the concept | passes the screen |
+|---|---|---|
+| 6.0 (control) | 0/12 | 0/12 |
+| 9.0 | **7/12** | 2/12 |
+| 12.0 | 4/12 | 3/12 |
+
+The control reproduced 0/12 exactly. At 9.0 seven rows render the object again — so the pull is real
+and conditioning strength does fight it — but five of those seven then read as concept in **both**
+halves (`p0_s3203`: concept half 0.471, safe half 0.470). The concept comes back and immediately
+bleeds across the seam, so yield barely moves. Response is also non-monotone per row (`p2_s3206`:
+0.633 at 9.0, 0.0004 at 12.0), meaning part of what the scale changes is which sample you draw.
+Keep `concept_guidance_scale: None`.
+
+### 3.3.1 `split_mode`: splice the trajectories instead
+
+If both halves of exp120's result come from the two regions sharing one latent, then the fix belongs
+in the context rather than in the guidance scale. `Config.split_mode` (added 2026-08-16) offers:
+
+- **`prediction`** (default; every dataset up to exp122) — one latent, two predictions per step, the
+  *prediction* spliced. Under CogVideoX's element-wise scheduler step this is arithmetically the same
+  as splicing the latent, so the only thing it changes is what the transformer sees.
+- **`trajectory`** — two latents from the same initial noise, each denoised under its own prompt for
+  the whole split phase, spliced **once** at `split_step`, then healed by the tail as before. `pred_a`
+  is never evaluated in a B-converging context and the safe region never sees prompt A.
+
+Cost is identical: two transformer calls per split step either way. The thing to watch is coherence
+across the seam, which currently comes from the shared noise *and* the shared latent — §2's exp076
+finding (the cut is hard at every `split_step_frac`, including with zero heal steps) is the reason to
+expect the noise carries most of it, and exp124 is the test, with six currently-passing rows in its
+CSV as the regression check.
 
 ### 3.4 The whole-clip variant is a diagnostic, not a training target
 

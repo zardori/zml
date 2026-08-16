@@ -1,0 +1,74 @@
+# erase_esd_eta ablation for chain saw, on the enlarged gen2 dataset.
+#
+# exp069 answered the pilot's question (chain saw erases, semantically) and exposed the defect that
+# now blocks it: the concept clips freeze. Motion 0.010 against a base of 0.564, already at step 100,
+# with colorfulness +40% and clip score at base — a still image, not a broken video. eta is the knob
+# aimed at that: it scales how far the target extrapolates PAST the donor, so it sets erase pressure
+# independently of the learning rate. exp086 (nudity) found the erasure/degeneracy trade-off moves
+# materially between 1.5 and 2.0.
+#
+# The 2.0 arm reproduces exp069's setting on the larger dataset, so eta and dataset size stay
+# separable: 2.0-vs-exp069 is the data effect, 1.0/1.5-vs-2.0 is the eta effect.
+#
+# Build the merged dataset on the cluster BEFORE submitting (combined_dataset/ is gitignored and the
+# .pt latents only exist there):
+#   ./merge_dataset.sh --cluster helios \
+#     --output experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset \
+#     --source experiments/imagenet/exp117_split_chainsaw_closeup/outputs_20260815_014333_screened.json \
+#              experiments/imagenet/exp117_split_chainsaw_closeup/outputs_20260815_014333/latents \
+#     --source experiments/imagenet/exp066_split_chainsaw_dataset/outputs_20260808_235138_screened.json \
+#              experiments/imagenet/exp066_split_chainsaw_dataset/outputs_20260808_235138/latents \
+#     --source experiments/imagenet/exp121_split_chainsaw_gen2/outputs_20260816_001953_screened.json \
+#              experiments/imagenet/exp121_split_chainsaw_gen2/outputs_20260816_001953/latents
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp123_chainsaw_eta_ablation/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: object
+concept_target: "chain saw"
+
+# 33 rows, 19 first / 14 second: exp117's 14 + exp066 run 2's 7 (the only wide framings) + exp121's
+# 12. exp069 trained on the first two sources alone (21 rows).
+metadata_file: experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset/metadata.json
+latents_dir: experiments/imagenet/exp123_chainsaw_eta_ablation/combined_dataset/latents
+
+# Unchanged from exp069: the nine preserved classes, chain-saw anchors dropped so retention does not
+# pull against the erase branch.
+retention_metadata_file: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/metadata.json
+retention_latents_dir: experiments/imagenet/exp068_imagenet_preservation/outputs_20260803_233647/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+# The swept axis. 2.0 is exp069's value and the control.
+erase_esd_eta: [1.0, 1.5, 2.0]
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+
+# 300 steps, not exp069's 600: erasure was flat at top-1 0.00 from step 200 to step 600, so the back
+# half of that run measured nothing. save_interval halved to 50 because a lower eta is expected to
+# erase later and more gradually — the interesting window is where erasure and motion cross.
+steps: 300
+save_interval: 50
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp069 ran 66 s/step + 6 evals in 11.1 h. Half the steps, same eval count.
+slurm_time: "10:00:00"

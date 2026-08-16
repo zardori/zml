@@ -1,0 +1,51 @@
+# Does denoising the two prompts on SEPARATE trajectories recover the rows the splice suppresses?
+#
+# exp120 settled half of this. Raising CFG on the concept branch brought the chain saw back in 7 of
+# the 12 suppressed rows (0/12 at the 6.0 control), so the suppression is real and conditioning
+# strength does fight it — but 5 of those 7 then had the concept in BOTH halves, and only 2-3 rows
+# ended up usable. The concept returns and immediately bleeds across the seam, which says the two
+# regions are coupled through the shared latent rather than through the guidance scale.
+#
+# split_mode: trajectory removes that coupling instead of pushing against it. Each prompt denoises
+# its own latent from the same initial noise and the two are spliced ONCE at split_step, so pred_a is
+# never evaluated in a B-converging context and the safe region never sees prompt A. Same cost: two
+# transformer calls per split step in both modes.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp124_split_trajectory_mode/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# 18 rows = exp120's 12 suppressed rows (known 0/12 under `prediction`, so any pass is signal) plus
+# 6 exp117 SURVIVORS, which are the regression half of the experiment: independent trajectories share
+# less context than spliced predictions, so rows that currently work are where a coherence cost would
+# show up. The 6 are 3 `first` / 3 `second` and span the confidence range (0.848 down to 0.137).
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_trajectory.csv
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Field-for-field exp117/exp120. resolve_split seeds its RNG per row, so every row resolves to the
+# same (split_latent_frame, concept_region) it had there and the `prediction` arm is a
+# reproducibility check as well as the control.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+# The swept axis. `prediction` is the control and must reproduce 12 fails / 6 passes.
+split_mode: [prediction, trajectory]
+
+# Held at the default: exp120 rejected it as a yield lever, and varying both would confound the two.
+concept_guidance_scale: null
+
+concept: object
+concept_target: "chain saw"
+frame_concept_threshold: 0.05   # logging only since 543eed8
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false
+
+# 18 rows at exp066 run 2's measured 197 s/row is ~1 h plus model load. 2 grid jobs.
+slurm_time: "0-02:30:00"

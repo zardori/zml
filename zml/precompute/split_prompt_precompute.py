@@ -101,6 +101,25 @@ class Config:
     # region's own conditioning against that pull, and costs nothing — it is a scalar on predictions
     # that are already computed.
     concept_guidance_scale: float | None = None
+    # Where the two prompts are combined during the split phase.
+    #
+    #   "prediction" (default, every dataset up to exp122) - one latent, two predictions per step,
+    #       and the *prediction* is spliced. Cheap and coherent, but pred_a is evaluated on a latent
+    #       whose other region is converging on prompt B, so the concept region is under constant
+    #       pull from the substitute (see concept_guidance_scale above).
+    #   "trajectory" - two latents from the same initial noise, each denoised under its own prompt,
+    #       spliced ONCE at split_step and healed by the tail from there. The concept region is then
+    #       denoised in a pure-A context and the safe region never sees prompt A at all.
+    #
+    # Same cost either way: two transformer calls per split step in both modes.
+    #
+    # Why this exists: exp120 confirmed the pull is real and rejected CFG as the cure. Raising
+    # concept_guidance to 9 brought the concept back in 7 of 12 suppressed rows, but 5 of those 7 then
+    # had the concept in BOTH halves — the branch's own context is the coupling, so the fix has to be
+    # in the context, not in the guidance scale. Cost to weigh: coherence across the seam comes from
+    # the shared initial noise (exp076 found the cut is hard at every split_step_frac, including with
+    # zero heal steps), but two independent trajectories share less than two spliced predictions do.
+    split_mode: str = "prediction"
     output_dir: str = "."
     videos_subdir: str = "videos"
     # Save the combined + A + B clean latents (for later donor-edit / paired-baseline dataset use).
@@ -121,6 +140,16 @@ def resolve_split(config: Config, rng: random.Random) -> tuple[int, str]:
     if region not in ("first", "second"):
         raise ValueError(f"concept_region must be 'first'|'second'|'random', got {config.concept_region!r}")
     return sf, region
+
+
+SPLIT_MODES = ("prediction", "trajectory")
+
+
+def validated_split_mode(mode: str) -> str:
+    """``Config.split_mode``, rejected early rather than silently falling back to the default."""
+    if mode not in SPLIT_MODES:
+        raise ValueError(f"split_mode must be one of {SPLIT_MODES}, got {mode!r}")
+    return mode
 
 
 TAIL_PROMPT_MODES = ("c", "empty")
@@ -182,6 +211,34 @@ def generate_plain_clip(pipe, prompt: str, seed: int, config: Config) -> torch.T
 _generate_plain = generate_plain_clip
 
 
+def _splice(concept_side: torch.Tensor, safe_side: torch.Tensor, sf: int, concept_region: str) -> torch.Tensor:
+    """``safe_side`` everywhere, with the concept region taken from ``concept_side``.
+
+    Both tensors are (B, F, C, H, W) with frames on dim 1, and both modes splice on the same frame
+    index — the difference is only whether the tensors are predictions or latents.
+    """
+    out = safe_side.clone()
+    if concept_region == "first":
+        out[:, :sf] = concept_side[:, :sf]
+    else:  # "second"
+        out[:, sf:] = concept_side[:, sf:]
+    return out
+
+
+def _scheduler_step(pipe, noise_pred, latents, t, t_back, old_pred, extra_step_kwargs):
+    """One denoising step -> ``(latents, old_pred)``, mirroring the pipeline.
+
+    DDIM takes ``(pred, t, sample)``; DPM-solver++ is a multistep whose state is the *caller's*
+    ``old_pred``. The scheduler object keeps no step counter of its own — it derives the previous
+    timestep from the one passed in — which is what lets two trajectories share one scheduler.
+    """
+    if not isinstance(pipe.scheduler, CogVideoXDPMScheduler):
+        return pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0], None
+    return pipe.scheduler.step(
+        noise_pred, old_pred, t, t_back, latents, **extra_step_kwargs, return_dict=False,
+    )
+
+
 @torch.no_grad()
 def generate_split_clip(
     pipe, prompt_a: str, prompt_b: str, prompt_c: str, seed: int, config: Config,
@@ -193,10 +250,14 @@ def generate_split_clip(
     ``[split:]``; "first" -> ``[:split]``. Shares its initial noise with ``generate_plain_clip`` for the
     same seed, so the combined clip is comparable to the plain A/B/C clips. Reused by the dataset
     builder (``frame_replace_split_precompute``).
+
+    ``config.split_mode`` chooses *where* the two prompts are combined during the split phase; both
+    modes cost the same two transformer calls per step. See ``Config.split_mode``.
     """
     device = pipe._execution_device
     concept_guidance = config.concept_guidance_scale or config.guidance_scale
     do_cfg = max(config.guidance_scale, concept_guidance) > 1.0
+    trajectory = validated_split_mode(config.split_mode) == "trajectory"
     emb_a = _cfg_embeds(pipe, prompt_a, do_cfg)
     emb_b = _cfg_embeds(pipe, prompt_b, do_cfg)
     emb_tail = _cfg_embeds(pipe, tail_prompt(prompt_c, config.tail_prompt_mode), do_cfg)
@@ -218,27 +279,32 @@ def generate_split_clip(
         if pipe.transformer.config.use_rotary_positional_embeddings else None
     )
 
-    old_pred = None
+    # In trajectory mode `latents` is the A-conditioned trajectory and `latents_b` the B-conditioned
+    # one, both from the same initial noise; each carries its own multistep state.
+    latents_b = latents.clone() if trajectory else None
+    old_pred = old_pred_b = None
     for i, t in enumerate(timesteps):
+        t_back = timesteps[i - 1] if i > 0 else None
+        if trajectory and i == split_step:  # happens once; after it the tail runs on one latent
+            latents = _splice(latents, latents_b, sf, concept_region)
         if i < split_step:
             pred_a = _predict(pipe, latents, emb_a, t, rope, concept_guidance, do_cfg)
-            pred_b = _predict(pipe, latents, emb_b, t, rope, config.guidance_scale, do_cfg)
-            noise_pred = pred_b.clone()  # concept-free everywhere, then overwrite the concept region with A
-            if concept_region == "first":
-                noise_pred[:, :sf] = pred_a[:, :sf]
-            else:  # "second"
-                noise_pred[:, sf:] = pred_a[:, sf:]
+            if trajectory:
+                pred_b = _predict(pipe, latents_b, emb_b, t, rope, config.guidance_scale, do_cfg)
+                latents_b, old_pred_b = _scheduler_step(
+                    pipe, pred_b, latents_b, t, t_back, old_pred_b, extra_step_kwargs)
+                latents_b = latents_b.to(emb_a.dtype)
+                noise_pred = pred_a  # the whole A trajectory advances on A; only its concept half is kept
+            else:
+                pred_b = _predict(pipe, latents, emb_b, t, rope, config.guidance_scale, do_cfg)
+                noise_pred = _splice(pred_a, pred_b, sf, concept_region)
         else:
             noise_pred = _predict(pipe, latents, emb_tail, t, rope, config.guidance_scale, do_cfg)  # heal seam
-        # Mirror the pipeline: DDIM takes (pred, t, sample); DPM-solver++ is a stateful multistep.
-        if not isinstance(pipe.scheduler, CogVideoXDPMScheduler):
-            latents = pipe.scheduler.step(noise_pred, t, latents, **extra_step_kwargs, return_dict=False)[0]
-        else:
-            latents, old_pred = pipe.scheduler.step(
-                noise_pred, old_pred, t, timesteps[i - 1] if i > 0 else None, latents,
-                **extra_step_kwargs, return_dict=False,
-            )
+        latents, old_pred = _scheduler_step(pipe, noise_pred, latents, t, t_back, old_pred, extra_step_kwargs)
         latents = latents.to(emb_a.dtype)
+
+    if trajectory and split_step >= num_steps:  # split_step_frac 1.0: no tail step reached the merge
+        latents = _splice(latents, latents_b, sf, concept_region)
 
     return latents.permute(0, 2, 1, 3, 4).contiguous()  # (B, F, C, H, W) -> (B, C, F, H, W)
 
@@ -294,7 +360,7 @@ def main(config: Config) -> None:
                 "stem": stem, "seed": seed,
                 "prompt_a": row["prompt_a"], "prompt_b": row["prompt_b"], "prompt_c": row["prompt_c"],
                 "split_latent_frame": sf, "concept_region": region, "split_step_frac": config.split_step_frac,
-                "tail_prompt_mode": config.tail_prompt_mode,
+                "tail_prompt_mode": config.tail_prompt_mode, "split_mode": config.split_mode,
                 "videos": paths,
             })
             with open(os.path.join(config.output_dir, "metadata.json"), "w") as f:

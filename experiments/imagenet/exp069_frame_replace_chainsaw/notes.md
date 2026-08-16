@@ -1,13 +1,17 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  frame_replace erasure of 'chain saw' — does the method erase an ImageNet object class,
-  semantically rather than positionally? Unblocked by exp117; trains on 21 screened rows merged from
-  exp117 (14 closeup) and exp066 run 2 (7 wide), the wide ones deliberately kept as the only
-  counterweight to the closeup prompt template. Needs merge_dataset.sh run on the cluster first.
+  THE PILOT'S POSITIVE RESULT: frame_replace erases an ImageNet object class, semantically. Concept
+  top-1 0.506 -> 0.00 from step 200 onward on the 20 full chain-saw eval prompts, which have no
+  object-free half, so the positional shortcut is ruled out; frames confirm the workshop scene
+  survives and only the saw is replaced. The defect is a NEW failure mode: the concept clips freeze
+  (motion 0.010 vs base 0.564, -98%) and over-saturate (colorfulness +40%) while clip score stays at
+  base — a "static poster". Unlike nudity (exp107, global motion loss), the freeze is
+  concept-conditional: the unrelated set only loses 30%. exp071 reports the real 200-prompt row;
+  exp123 attacks the freeze via eta.
 ---
 # exp069 — frame_replace erasure of "chain saw"
 
@@ -74,12 +78,62 @@ Live eval writes `summary.json` every `save_interval`; read that first.
   few eval videos before concluding the method failed — erasing only at closeup framing is a
   different (and more informative) failure than not erasing.
 
+## Results (`outputs_20260816_003333`, helios, 11.1 h, 600/600 steps, exit 0)
+
+Live monitor, n=9 concept prompts and 9 unrelated. Base row is exp064's chain-saw class.
+
+| step | top-1 | top-5 | clip | colorfulness | motion | DOVER tech | unrel. motion |
+|---|---|---|---|---|---|---|---|
+| base | 0.506 | 0.795 | 0.322 | 49.4 | 0.564 | — | ~0.66 (9-class mean) |
+| 100 | 0.11 | 0.25 | 0.30 | 60 | 0.040 | 0.077 | 0.38 |
+| 200 | **0.00** | 0.17 | 0.32 | 61 | 0.010 | 0.089 | 0.54 |
+| 300 | **0.00** | 0.00 | 0.28 | 73 | 0.010 | 0.084 | 0.51 |
+| 400 | **0.00** | 0.11 | 0.30 | 63 | 0.030 | 0.090 | 0.45 |
+| 500 | **0.00** | 0.39 | 0.31 | 66 | 0.020 | 0.101 | 0.46 |
+| 600 | **0.00** | 0.27 | 0.32 | 69 | 0.010 | 0.084 | 0.46 |
+
+DOVER was backfilled locally with `tools/score_dover.py` — helios writes 0.0 there (aarch64).
+
+**1. The erasure is real, and it is semantic.** Top-1 is 0.00 from step 200 on, and the eval prompts
+are ordinary full chain-saw scenes with no object-free half — so a LoRA that had only learned the
+positional rule "copy the clean half onto the other" could not have moved them. Frames from
+`eval_step_600/concept/video_0.mp4` show why the classifier is right: the workbench, the plank, the
+tool rack and the lighting are all intact, and where the saw was there is an orange-and-blue plastic
+form with no bar, no chain and no teeth. Removal, not scene destruction. **This is the answer the
+object pilot was set up to get.**
+
+**2. Preservation holds, qualitatively.** Unrelated clips (cassette player on a desk, French horn on
+a chair) render correctly and stay recognizable at step 600. Concept clip score is at base (0.32 vs
+0.322), so the clips still match their prompts as scenes.
+
+**3. The defect is a "static poster" signature, and it is new.** Concept motion is 0.010 against a
+base of 0.564 — a 98% loss, present already at step 100 — with colorfulness up 40% (69 vs 49) and
+clip score flat. Every concept clip is effectively a still image with boosted saturation. DOVER
+technical reads 0.084 on the concept set and 0.078 on the unrelated one, against a base of 0.100 for
+this class: both sets sit ~16-22% below base and **DOVER does not separate the frozen concept clips
+from the healthy unrelated ones at all.** That is consistent with these being clean *stills* rather
+than broken video, and it is the caveat to carry: DOVER measures spatial/technical quality, not
+temporal liveness, so on this failure mode `motion_score` is the instrument and DOVER is not.
+
+**4. The freeze is concept-conditional, which differs from nudity.** Unrelated motion is 0.46 against
+a base class mean of ~0.66 (−30%), where the concept set loses 98%. exp107 located nudity's motion
+collapse as a *global* property of the adapter; here the adapter mostly damages the prompts whose
+object it has learned to remove. Two readings, not yet separated: the LoRA has learned "when asked
+for a chain saw, emit a still life", or the model freezes whenever it is prevented from rendering
+what the prompt asks for. exp123's eta arms are the cheapest discriminator — a weaker erase pressure
+that still erases should relax the freeze if it is a strength effect.
+
+**Caveat on every number above:** `eval_num_prompts: 9` of 20, and exp102 showed the live monitor is
+a prefix subset that is unbiased at base but blind after training. exp071 (all 200 prompts, all ten
+classes) is the reported row.
+
 ## Downstream
-exp071 runs the full 200-video ESR/PSR eval on the resulting checkpoint. The live numbers here are a
-progress signal, not the reported metric.
+- **exp071** — reported ESR/PSR on the final checkpoint (`frame_replace_lora_step600`, chosen because
+  erasure is flat from step 200 and picking would be selection on the test set).
+- **exp123** — `erase_esd_eta` ablation on the merged 33-row gen2 dataset, aimed at the freeze.
 
 ## Status
 - [x] Datasets complete; config wired to exp117 + exp066 screened sets and exp068's anchors.
-- [ ] `merge_dataset.sh` run on the target cluster.
-- [ ] Submitted.
-- [ ] Checkpoint chosen for exp071; results written up.
+- [x] `merge_dataset.sh` run on the target cluster.
+- [x] Submitted; completed 2026-08-16 (job 20735958, helios).
+- [x] Checkpoint chosen for exp071 (step 600); results written up.
