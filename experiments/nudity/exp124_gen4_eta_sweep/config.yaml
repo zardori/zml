@@ -1,34 +1,38 @@
-# Higher eta on the FULL gen4-100 dataset — the follow-up exp123's two arms jointly point at.
+# Completing the eta curve on the clean-75 dataset: [4.0, 7.0] joins exp123's 2.0 and 3.0.
 #
-# exp123 (partial, through step 160) separated the mechanisms:
-#   - Floor fix alone (clean-75 @ eta 2) made erasure WORSE than full-100 @ eta 2 on the same
-#     25-prompt subset (0.26 vs 0.123 at step 140) — so the target floor does not bind in the
-#     200-step window, and the dirty-25 may even carry useful boundary supervision. The full 100
-#     is therefore the better-evidenced dataset for this sweep.
-#   - eta 3 vs eta 2 on identical data beat it at every step past 40 (0.11 vs 0.26 at s140;
-#     0.17 vs 0.26 at matched colour ~35). The erase push is eta*(donor - teacher); gen4's fitted
-#     donors shrank the gap, and eta compensates. eta=2 was tuned on the old baggy-sack gaps.
+# DATASET DECISION (user, 2026-08-16): keep the clean-75. The earlier "clean-75 hurt" reading was a
+# PHASE CONFOUND, now corrected: with 75 targets each example is visited 4/3 as often per step, and
+# the U-shape tracks per-example visits, not steps. Comparing at matched steps put the clean run
+# deep in its rebound (7.5 visits) against full-100 at its trough (5.6). At matched visits the two
+# read 0.14 vs 0.123 on the calibrated first-25 subset — parity within single-run noise. So the
+# clean set costs nothing on erasure dynamics and buys supervision whose detector floor is 0.0016
+# instead of 0.198, which also reads far better in a methods section.
 #
-# This runs eta [3.0, 4.0] on the full gen4-100:
-#   run_001 eta 3.0 — replicates exp123 r2's winning eta on the full data; its comparison against
-#                     exp123 r2 (same eta, 75 vs 100 targets) is a free second read on the
-#                     clean-vs-full question at the eta that matters.
-#   run_002 eta 4.0 — the untested end. Watch clip score: eta 3 held 0.27-0.29, but stronger
-#                     extrapolation is where text conditioning historically starts to slip.
+# ETA. The erase push is eta * (donor - teacher). gen4's fitted donors sit much closer to the nude
+# teacher than the old baggy sacks did — if the gap is roughly a third, then eta ~6-7 here matches
+# the OLD recipe's effective displacement at eta 2. exp123 r2 already showed 2 -> 3 is monotonic
+# (0.26 -> 0.11 at s140). This grid tests 4.0 and 7.0; with exp123's arms that is a four-point eta
+# curve (2, 3, 4, 7) on one dataset, one eval (n=25), one seed.
 #
-# Reference points on the SAME first-25 subset this config evaluates on (n=25):
-#   old ckpt (exp080 r2 s120)   0.1200      gen4-100 ckpt (exp110 s140)  0.1233
-#   exp123 r2 s140 (eta3/75)    0.1100      base                         ~0.41
-# The bar: beat ~0.12 at colour >=30 / clip >=0.28. Any winner then gets the full exp112 battery
-# before any claim — n=25 ranks arms, it does not produce reportable numbers.
+# RISKS AT 7.0, stated up front: the target is extrapolated 7x past the teacher along the donor
+# direction — well off-manifold. Expect a deeper, earlier trough (eta 3's already hit colour 16.9);
+# the window may compress leftward toward steps 40-80. Watch clip score above all — eta 3 held
+# 0.27-0.29, and conditioning collapse is the failure mode that would end the eta line. If 7.0
+# degenerates without a usable window but 4.0 improves on 3.0, the answer lies between and one
+# more arm (5.0-ish) closes it.
+#
+# BAR, on the shared first-25 subset (same instrument, same prompts): old ckpt 0.1200, gen4-100
+# ckpt 0.1233, exp123 r2 s140 0.1100. A winner reads below ~0.10 at colour >=30 / clip >=0.28 on
+# TWO adjacent checkpoints, then survives the full exp112 battery. n=25 ranks arms; it does not
+# produce reportable numbers.
 #
 # Run: ./submit_job.py helios experiments/nudity/exp124_gen4_eta_sweep/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity
 
-metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset/metadata.json
-latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset/latents
+metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/metadata.json
+latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/latents
 
 retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
 retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
@@ -37,7 +41,7 @@ retention_weight: 1.0
 nonfire_frame_weight: 0.0
 erase_input_latent: original
 erase_loss_space: velocity
-erase_esd_eta: [3.0, 4.0]
+erase_esd_eta: [4.0, 7.0]
 
 control_concept_prompts: prompts/cogvideox_nudity.csv
 

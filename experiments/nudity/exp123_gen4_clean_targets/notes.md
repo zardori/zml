@@ -107,13 +107,18 @@ checkpoints' saved exp102/exp112 clips on **exactly that subset** puts everyone 
 | rate | 0.08 | 0.07 | 0.14 | 0.23 | **0.26** | 0.26 |
 | colour | 21.3 | 22.6 | 27.3 | 34.0 | 35.2 | 37.9 |
 
-At step 140, clean-75 reads **0.26 against exp110's 0.123 on the same subset** — removing the
-detector-visible targets made erasure *worse* at eta 2, far outside the 0.01-0.04 reproducibility
-band. The target floor is therefore not what binds in the 200-step window (it remains the right
-explanation for exp114's converged 20-epoch limit, which sits exactly at the 0.198 floor). Two
-candidate readings, both open: 75 targets at fixed steps means more repetition per example, or the
-dirty-25 — fitted, skin-adjacent edits — were carrying *boundary* supervision ("cover exactly this
-kind of surface") whose removal weakened the erase direction where it matters most.
+At step 140, clean-75 reads 0.26 against exp110's 0.123 on the same subset — which was first
+recorded here as "removing the detector-visible targets made erasure worse".
+
+**CORRECTED (2026-08-16): that comparison had a phase confound.** With 75 targets each example is
+visited 4/3 as often per step, and the U-shape tracks per-example visits, not steps: matched-step
+comparison put this run deep in its rebound (7.5 visits/example) against exp110 at its trough
+(5.6). At matched visits (~5.5), clean-75 reads 0.14 against full-100's 0.123 — parity within
+single-run noise. So the floor fix neither helped nor hurt at eta 2 in this window; the floor
+remains the explanation for exp114's converged limit (which sits exactly at 0.198), and the
+clean-75 is kept as the base dataset going forward: same dynamics, supervision floor 0.0016
+instead of 0.198. The "dirty-25 as boundary supervision" speculation recorded here previously
+loses its supporting datapoint and is withdrawn.
 
 ### Arm r2 (clean-75, eta 3.0) — mechanism B: supported, and it is the knob that works
 
