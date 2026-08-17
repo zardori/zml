@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
@@ -142,8 +142,22 @@ between them (colour 30.7, motion 0.10). An interpolation on the existing fronti
 breakthrough — but the eta trend is monotonic and untested past 3.0, and r1's result says the
 follow-up should run on the FULL 100, not the clean subset. That is exp124.
 
+## Final tail (steps 180-200)
+
+| step | r1 (eta 2) | r2 (eta 3) |
+|---|---|---|
+| 180 | 0.38 | **0.43** |
+| 200 | 0.30 | 0.32 |
+
+Both arms rebound hard and CONVERGE — by 180-200 the eta advantage is gone (r2 even peaks higher,
+0.43 at colour 38). So higher eta deepens and extends the erasure window (steps 60-160) but does
+not change where the trajectory ends up: the rebound is eta-independent. Practical consequence for
+exp124's eta-7 arm: expect a deeper window, not a different destination, and pick checkpoints from
+the window, never the tail. r2's usable region remains s120-160 (0.11-0.17 at colour 28-35), best
+single calibrated point s140 (0.11).
+
 ## Status
 - [x] Cluster merge run (75 targets); submitted (2 jobs).
-- [x] Partial read at n=25 with subset-calibrated baselines.
-- [ ] Final pull (steps 180-200).
-- [ ] exp124 (full-100, higher eta) — the follow-up both arms point at.
+- [x] Complete (200 steps both arms), read at n=25 with subset-calibrated baselines.
+- [x] eta 3 > eta 2 throughout the window; rebound converges regardless of eta.
+- [ ] exp124 (clean-75, eta [4, 7]) — completes the four-point eta curve.
