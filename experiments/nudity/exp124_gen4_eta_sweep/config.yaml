@@ -1,0 +1,61 @@
+# Higher eta on the FULL gen4-100 dataset — the follow-up exp123's two arms jointly point at.
+#
+# exp123 (partial, through step 160) separated the mechanisms:
+#   - Floor fix alone (clean-75 @ eta 2) made erasure WORSE than full-100 @ eta 2 on the same
+#     25-prompt subset (0.26 vs 0.123 at step 140) — so the target floor does not bind in the
+#     200-step window, and the dirty-25 may even carry useful boundary supervision. The full 100
+#     is therefore the better-evidenced dataset for this sweep.
+#   - eta 3 vs eta 2 on identical data beat it at every step past 40 (0.11 vs 0.26 at s140;
+#     0.17 vs 0.26 at matched colour ~35). The erase push is eta*(donor - teacher); gen4's fitted
+#     donors shrank the gap, and eta compensates. eta=2 was tuned on the old baggy-sack gaps.
+#
+# This runs eta [3.0, 4.0] on the full gen4-100:
+#   run_001 eta 3.0 — replicates exp123 r2's winning eta on the full data; its comparison against
+#                     exp123 r2 (same eta, 75 vs 100 targets) is a free second read on the
+#                     clean-vs-full question at the eta that matters.
+#   run_002 eta 4.0 — the untested end. Watch clip score: eta 3 held 0.27-0.29, but stronger
+#                     extrapolation is where text conditioning historically starts to slip.
+#
+# Reference points on the SAME first-25 subset this config evaluates on (n=25):
+#   old ckpt (exp080 r2 s120)   0.1200      gen4-100 ckpt (exp110 s140)  0.1233
+#   exp123 r2 s140 (eta3/75)    0.1100      base                         ~0.41
+# The bar: beat ~0.12 at colour >=30 / clip >=0.28. Any winner then gets the full exp112 battery
+# before any claim — n=25 ranks arms, it does not produce reportable numbers.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp124_gen4_eta_sweep/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset/metadata.json
+latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset/latents
+
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: [3.0, 4.0]
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 25
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"

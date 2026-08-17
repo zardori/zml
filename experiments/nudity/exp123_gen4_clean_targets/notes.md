@@ -1,5 +1,5 @@
 ---
-status: ready
+status: active
 concept: nudity
 method: frame_replace
 thread: nudity
@@ -88,3 +88,57 @@ Should print `Merged 4 sources -> 75 targets`.
 - [ ] Cluster merge run; submitted (2 jobs).
 - [ ] Arms read against exp110 (n=10 caveat) and, for any winner, the full exp112 battery.
 - [ ] If neither arm recovers: homogeneous outerwear+traditional arm.
+
+
+## Partial results (2026-08-16, through step 160 of 200)
+
+Calibration first: exp123 evaluates on the first 25 Gen prompts. Rescoring the two existing
+checkpoints' saved exp102/exp112 clips on **exactly that subset** puts everyone on one scale:
+
+| checkpoint | first-25 Gen rate |
+|---|---|
+| old (exp080 r2 s120) | 0.1200 |
+| gen4-100 (exp110 s140) | 0.1233 |
+
+### Arm r1 (clean-75, eta 2.0) — mechanism A alone: refuted for this regime, possibly inverted
+
+| step | 60 | 80 | 100 | 120 | 140 | 160 |
+|---|---|---|---|---|---|---|
+| rate | 0.08 | 0.07 | 0.14 | 0.23 | **0.26** | 0.26 |
+| colour | 21.3 | 22.6 | 27.3 | 34.0 | 35.2 | 37.9 |
+
+At step 140, clean-75 reads **0.26 against exp110's 0.123 on the same subset** — removing the
+detector-visible targets made erasure *worse* at eta 2, far outside the 0.01-0.04 reproducibility
+band. The target floor is therefore not what binds in the 200-step window (it remains the right
+explanation for exp114's converged 20-epoch limit, which sits exactly at the 0.198 floor). Two
+candidate readings, both open: 75 targets at fixed steps means more repetition per example, or the
+dirty-25 — fitted, skin-adjacent edits — were carrying *boundary* supervision ("cover exactly this
+kind of surface") whose removal weakened the erase direction where it matters most.
+
+### Arm r2 (clean-75, eta 3.0) — mechanism B: supported, and it is the knob that works
+
+| step | 60 | 80 | 100 | 120 | 140 | 160 |
+|---|---|---|---|---|---|---|
+| rate | 0.03 | 0.12 | 0.00* | 0.12 | **0.11** | 0.17 |
+| colour | 16.9 | 17.0 | 21.5 | 28.4 | 30.7 | 35.5 |
+| motion | 0.04 | 0.03 | 0.06 | 0.11 | 0.10 | 0.11 |
+
+Same data, same eval, only eta: **eta 3 beats eta 2 at every step past 40**, and at matched colour
+(~35) reads 0.17 vs 0.26. The erase push is `eta * (donor - teacher)`; fitted donors shrank the gap
+and raising eta compensates. Clip score holds 0.27-0.29 throughout, so text conditioning survives
+eta 3.
+
+*The step-100 0.0000 (3/1225 frames) sits in the degenerate trough (colour 21.5) between two 0.12
+neighbours — an isolated dip even at n=25, per the standing rule not a checkpoint.
+
+### Where r2 s140 lands
+rate 0.11 vs old 0.120 / gen4-100 0.123 on the same subset — erasure parity with both, quality
+between them (colour 30.7, motion 0.10). An interpolation on the existing frontier, not a
+breakthrough — but the eta trend is monotonic and untested past 3.0, and r1's result says the
+follow-up should run on the FULL 100, not the clean subset. That is exp124.
+
+## Status
+- [x] Cluster merge run (75 targets); submitted (2 jobs).
+- [x] Partial read at n=25 with subset-calibrated baselines.
+- [ ] Final pull (steps 180-200).
+- [ ] exp124 (full-100, higher eta) — the follow-up both arms point at.
