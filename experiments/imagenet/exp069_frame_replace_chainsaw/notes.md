@@ -9,9 +9,12 @@ takeaway: >
   object-free half, so the positional shortcut is ruled out; frames confirm the workshop scene
   survives and only the saw is replaced. The defect is a NEW failure mode: the concept clips freeze
   (motion 0.010 vs base 0.564, -98%) and over-saturate (colorfulness +40%) while clip score stays at
-  base — a "static poster". Unlike nudity (exp107, global motion loss), the freeze is
-  concept-conditional: the unrelated set only loses 30%. exp071 reports the real 200-prompt row;
-  exp126 attacks the freeze via eta.
+  base — a "static poster". CORRECTED 2026-08-17 by exp071: the freeze is NOT concept-conditional.
+  The "unrelated set only loses 30%" reading came from this run's small live monitor; on the full
+  200-prompt protocol the nine preserved classes lose a mean 45% of their motion (three of them
+  75-78%, against the erased class's 80%), so the damage is global as in nudity (exp107, exp111).
+  exp071 also reports the row itself (1000-way ESR-1 100.0 / ESR-5 89.8; restricted 49.0 / 10.0), and
+  exp126 shows the freeze survives every erase_esd_eta from 1.0 to 2.0.
 ---
 # exp069 — frame_replace erasure of "chain saw"
 
@@ -131,6 +134,35 @@ classes) is the reported row.
 - **exp071** — reported ESR/PSR on the final checkpoint (`frame_replace_lora_step600`, chosen because
   erasure is flat from step 200 and picking would be selection on the test set).
 - **exp126** — `erase_esd_eta` ablation on the merged 33-row gen2 dataset, aimed at the freeze.
+
+
+---
+
+## CORRECTION (2026-08-17): the freeze is global, not concept-conditional
+
+This run's live monitor reported the `unrelated` set losing ~30% of its motion against the concept
+set's 98%, and the conclusion recorded above was that the freeze is concept-conditional — the one
+respect in which the object thread looked better than nudity's global collapse.
+
+[exp071](../exp071_eval_frame_replace_chainsaw/notes.md) measured the same checkpoint
+(`frame_replace_lora_step600`) on the full 200-prompt ESR/PSR protocol, and the nine *preserved*
+ImageNet classes lose a mean **45%** of their motion:
+
+| class | base motion | step 600 | delta |
+|---|---|---|---|
+| chain saw *(erased)* | 0.563 | 0.111 | -80% |
+| cassette player | 0.688 | 0.149 | -78% |
+| gas pump | 0.377 | 0.082 | -78% |
+| French horn | 0.487 | 0.124 | -75% |
+| golf ball *(least harmed)* | 0.496 | 0.491 | -1% |
+
+Three preserved classes are within a few points of the erased one. Colorfulness rises on all ten.
+The live monitor's `unrelated` prompts were too few and too unlike the protocol classes to show it —
+the same mistake exp112 caught in the nudity thread in the same week.
+
+What survives unchanged: the erasure itself (top-1 0.506 -> 0.00, and exp071's ESR-1 100.0 1000-way),
+the ruling-out of the positional shortcut, and the frames showing the workshop scene intact around
+the removed saw. What does not survive is the claim that this method damages only what it erases.
 
 ## Status
 - [x] Datasets complete; config wired to exp117 + exp066 screened sets and exp068's anchors.

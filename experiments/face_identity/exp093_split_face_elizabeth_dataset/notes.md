@@ -1,13 +1,17 @@
 ---
-status: ready
+status: done
 concept: face
 method: frame_replace_split/precompute
 thread: face_identity
 takeaway: >
-  Split-prompt frame_replace dataset for Queen Elizabeth II, 30 triples (seeds 7701-7730), identical
-  recipe to exp092 (Obama). Confirmed as the second pilot identity by exp090's actual gate numbers
-  (superseding this experiment's original Angela Merkel target — see exp090's notes.md). Not yet
-  submitted.
+  BUILT 30/30, SCREENS 0/30 — exp096 is blocked. Every row fails the Obama-calibrated 0.30 gate on
+  the original clip, and the misses are narrow: peak orig_max is 0.302 / 0.299 / 0.282 / 0.280, i.e.
+  clustered just under the threshold rather than absent. That tracks exp090 exactly, where Elizabeth's
+  base id_sim is 0.3272 against Obama's 0.5081 — the base model renders her much more weakly, so a
+  gate tuned on Obama rejects her whole set. Two readings, and the thread owner has to pick: the
+  threshold is identity-relative and needs rescaling per identity, or Elizabeth is too weak a target
+  to erase and the second pilot identity should change. Note the whole-clip A gate does clear 0.30 on
+  6 rows (up to 0.444), so the prompts do sometimes render her — it is the split that loses her.
 ---
 # exp093 — split-prompt frame_replace dataset for Queen Elizabeth II
 
@@ -47,9 +51,58 @@ run locally for this CSV (`Anti-cheat check passed`) and re-enforced at generati
 Feeds exp096 (`target_variant` fixed to whichever exp095 finds better) — fill its
 `metadata_file`/`latents_dir` with this run's `outputs_{timestamp}`.
 
+## Results (2026-08-12) — built clean, screens to nothing
+
+Built **30/30 with zero skips** (3.3 h on helios, `outputs_20260811_185219`). The build is fine; the
+screen is the problem.
+
+`tools/screen_split_face_dataset.py` at its defaults (`MIN_ORIGINAL_MAX_CONFIDENCE` 0.30,
+`MIN_WHOLECLIP_A_MAX_CONFIDENCE` 0.30) keeps **0 of 30**.
+
+| | best rows |
+|---|---|
+| `orig_max` (identity in the original clip) | 0.302, 0.299, 0.282, 0.280, 0.279, 0.256 |
+| `wc_a_max` (identity in the whole-clip A target) | 0.444, 0.439, 0.429, 0.363, 0.232, 0.235 |
+
+Nine rows read exactly 0.000 on `orig_max`, but the top of the distribution sits *at* the gate rather
+than far below it — this is a near-miss set, not an empty one.
+
+### Why: the gate is calibrated on Obama
+
+exp090's base-model numbers make this predictable in hindsight:
+
+| identity | base id_sim | base identified_rate |
+|---|---|---|
+| Barack Obama | 0.5081 | 0.8667 |
+| Queen Elizabeth II | 0.3272 | 0.6000 |
+
+CogVideoX renders Elizabeth at roughly two-thirds of Obama's identity strength, and `IDENTITY_THRESHOLD`
+itself is 0.23 — so a 0.30 screening gate sits *above* her base-model average. exp115/exp116's
+keep-lists were selected with these same defaults on Obama, where 0.30 is comfortably below his 0.508.
+
+### The fork this leaves
+
+1. **Rescale the gate per identity** (e.g. as a fraction of that identity's exp090 base id_sim). Then
+   Elizabeth's 0.28-0.30 rows are legitimate positives and this dataset is usable, and exp115/exp116's
+   Obama yields should be re-derived under the same rule for consistency.
+2. **Change the second pilot identity.** exp090 ranked Trump (0.4876) and Biden (0.4504) well above
+   Elizabeth; either would give a second identity the base model actually renders. This costs a new
+   CSV and one precompute job, and makes the pilot's two columns comparable in a way Obama/Elizabeth
+   are not.
+
+The `wc_a_max` column is the evidence that this is a threshold/target question rather than a broken
+build: six rows clear 0.30 on the whole-clip A target (up to 0.444), so the prompts *can* render her.
+
+**This is not the same failure exp116 diagnosed for Obama.** There the problem was framing and the fix
+was prompt rewriting (30% -> 50/63%). Here the prompts render her about as well as the base model ever
+does; the ceiling is the model's grasp of the identity.
+
 ## Status
 - [x] exp090 confirms Queen Elizabeth II as the second pilot identity (not Merkel — see Why).
 - [x] `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples) and anti-cheat checked.
-- [ ] Submitted.
-- [ ] Dataset reviewed — splice quality and whole-clip quality, separately.
-- [ ] `split_step_frac` matches exp092's final decision.
+- [x] Submitted and complete (helios, 3.3 h, 30/30 built, 0 skipped).
+- [x] Screened: **0/30 at the default gates.**
+- [ ] **Decide the fork above** — rescale the gate per identity, or swap the second pilot identity.
+      exp096 and exp098 are blocked until this is settled.
+- [ ] Dataset reviewed by eye — splice quality and whole-clip quality, separately. Worth doing on the
+      six `wc_a_max` > 0.30 rows before concluding the set is unusable.

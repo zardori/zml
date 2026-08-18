@@ -269,6 +269,18 @@ def collect(window: Window) -> dict:
     }
 
 
+def _has_results_outside_window(record: ExperimentRecord) -> bool:
+    """Whether any output dir of this experiment carries results, ignoring the window.
+
+    ``record.runs`` holds only the runs the window overlaps, so a baseline measured weeks ago and
+    still quoted this week would otherwise be reported as un-pulled.
+    """
+    exp_dir = REPO_ROOT / record.rel_dir
+    if not exp_dir.is_dir():
+        return False
+    return any(run.has_results for run in artifacts.discover_runs(record.exp_id, exp_dir, REPO_ROOT))
+
+
 def _gaps(records: list[ExperimentRecord]) -> list[dict]:
     """Experiments the week clearly touched but whose results are not on this machine.
 
@@ -281,6 +293,11 @@ def _gaps(records: list[ExperimentRecord]) -> list[dict]:
         if record.has_local_results or record.status in PLANNED_STATUSES:
             continue
         if not record.notes_change:
+            continue
+        # Results pulled for an earlier week are still on this machine; only the *window* filter
+        # hid them. Flagging those would tell the reader to re-pull data they already have, and
+        # would print "not on this machine" next to numbers the deck quotes from disk.
+        if _has_results_outside_window(record):
             continue
         number = "".join(ch for ch in record.exp_id if ch.isdigit()).lstrip("0")
         gaps.append({

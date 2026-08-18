@@ -1,14 +1,16 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  exp120's prescribed follow-up: the concept-suppression pull is real but CFG is the wrong instrument,
-  so remove the coupling instead of pushing against it. New split_mode: trajectory denoises prompt A
-  and prompt B on separate latents from shared noise and splices ONCE at split_step, at identical
-  cost. Tested on exp120's 12 suppressed rows (known 0/12) plus 6 exp117 survivors as the coherence
-  regression. Not submitted yet.
+  THE YIELD FIX. `split_mode: trajectory` takes exp120's 12 known-suppressed rows from 0/12 to
+  12/12 passing, at identical cost, while 5 of the 6 exp117 survivors still pass — 17/18 (94%)
+  against the `prediction` control's 6/18 (33%). The control arm reproduced its pre-registered
+  12 fails / 6 passes exactly, so the comparison is valid. This confirms exp120's diagnosis: the
+  suppression was the shared latent dragging the concept region toward the substitute, not the
+  conditioning strength, and removing the coupling beats pushing against it (exp120's gs 9 recovered
+  only 7/12 and leaked the concept into the safe half). Seam-by-eye review still pending.
 ---
 # exp127 — splice the trajectories, not the predictions
 
@@ -69,8 +71,59 @@ not giving these rows their exp117 splits and neither arm means anything.
 targets (exp122), but it cannot see a broken seam — check 3-4 clips frame-by-frame at the boundary in
 the trajectory arm specifically.
 
+## Results (2026-08-17) — the suppressed rows flip, and the survivors hold
+
+Both arms built 18/18 with zero skips (~1.0 h each on helios). Screened at
+`--min-concept-max 0.10`, the thread's standard threshold:
+
+| arm | pass | no-concept | not-split | blank-target | region balance |
+|---|---|---|---|---|---|
+| `prediction` *(control)* | **6/18 (33%)** | 12 | 0 | 0 | 3 first / 3 second |
+| **`trajectory`** | **17/18 (94%)** | 1 | 0 | 0 | 10 first / 7 second |
+
+### The validity check passed exactly
+
+The `prediction` arm returned **12 fails / 6 passes**, and they are the pre-registered rows: p0–p11
+(the exp120 suppressed set) all screen `no-concept`, p12–p17 (the exp117 survivors) all pass. So
+`resolve_split` gave these rows their exp117 splits and the arms are comparable.
+
+### 0/12 -> 12/12 on the suppressed rows
+
+Every one of exp120's suppressed rows renders the concept under `trajectory`, most of them strongly:
+
+| row | prediction conc_max | **trajectory conc_max** |
+|---|---|---|
+| p0_s3203 | 0.0406 | **0.5684** |
+| p3_s3207 | 0.0102 | **0.5903** |
+| p6_s3220 | 0.0957 | **0.8051** |
+| p7_s3222 | 0.0911 | **0.8100** |
+| p8_s3224 | 0.0003 | **0.7347** |
+| p10_s3228 | 0.0097 | **0.5418** |
+| p11_s3230 | 0.0107 | **0.4677** |
+
+Contrast indices on the flipped rows are +0.84 to +0.999, i.e. the concept lands in its own half and
+the safe half stays clean — which is what exp120's gs 9 could *not* do (5 of its 7 recovered rows
+screened `not-split`, the concept leaking into the safe half). Removing the coupling is strictly
+better than pushing against it.
+
+This is the outcome row 1 of "Reading it" predicted: **trajectory mode is the yield fix.**
+
+### The one regression
+
+`p13_s3216` goes the other way: conc_max 0.8137 -> 0.0640, a pass that becomes `no-concept`. Its
+contrast index stays high (+0.917), so the split still works — the concept simply renders faintly in
+a pure-A context at this seed. One row in 18 is a cheap price against +11, but it means trajectory
+mode is not a strict superset of prediction and a rebuild should screen, not assume.
+
+Coherence did **not** break: zero `not-split` and zero `blank-target` in either arm, and the region
+balance stays workable at 10 first / 7 second. exp076's reading — that the shared initial noise, not
+the shared latent, is what buys cross-seam coherence — survives this test.
+
 ## Status
-- [ ] Submitted.
-- [ ] `prediction` arm confirmed at 12 fails / 6 passes.
-- [ ] Pass counts per arm; seam checked by eye on the trajectory arm.
+- [x] Submitted (grid, 2 jobs, 2026-08-16, ~1.0 h each on helios).
+- [x] `prediction` arm confirmed at 12 fails / 6 passes.
+- [x] Pass counts per arm: 6/18 vs 17/18.
+- [ ] **Seam checked by eye on the trajectory arm** (3-4 clips frame-by-frame at the boundary) — the
+      screen cannot see a broken seam, and this is the one failure mode it would miss.
 - [ ] `docs/split_prompt.md` §3.3 updated with the outcome.
+- [ ] Rebuild the chain-saw and church datasets on `split_mode: trajectory` and re-count yield.
