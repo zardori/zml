@@ -1,0 +1,72 @@
+# Is rank-8 the bottleneck? lora_rank [32, 128] at eta 4 on the clean-75 — exp124's winning regime
+# with the one knob human review pointed at.
+#
+# WHY. exp124's eta-4 arm produced the deepest erasure regime the thread has at n=25 (steps 60-160
+# all <=0.04, two exact 0/1225 zeros) and its s160 dominates the old incumbent outright (rate 0.030
+# vs 0.120 first-25, colour 32.0 vs 24.0, motion and clip equal). But human review reads the window
+# clips as visibly distorted, and the trajectory shows why that might be structural: at every eta,
+# erasure depth and global degradation move together (the s200 colour blowout to 53.5 is a single
+# style direction with a huge coefficient on it). A rank-8 adapter can only implement a large
+# displacement as a few coarse global directions, so the clothing component and its collateral ride
+# the same vector. The erase mapping gen4 asks for — cover skin across 8 wardrobe categories and
+# varied framings — is intrinsically multi-directional. And the closest comparable method
+# (T2VUnlearning's Receler eraser, same base model) uses rank 128: 16x ours.
+#
+# WHY ETA 4 AND NOT 7: eta 7 never recovers inside 200 steps (colour 10-23, clip 0.22-0.25
+# throughout) — plausibly target realizability, not capacity, since a 7x-extrapolated target is far
+# off-manifold and no adapter capacity fixes an unrealizable target. eta 4 is where capacity vs
+# realizability disentangle: if rank restores clip/colour while holding the window, rank was
+# binding; if distortion persists at rank 128, the extrapolation itself is the limit and the eta-4
+# rank-8 window is as good as this line gets.
+#
+# alpha follows rank (alpha/rank = 1.0, matching every run in the thread) — sweeping rank at fixed
+# alpha would silently shrink the adapter scale and confound the comparison.
+#
+# Rebound risk, stated: more capacity also means more capacity to memorize the 75 targets, so the
+# rebound may arrive earlier or harder. Checkpoints come from inside the window; the tail is not
+# the read.
+#
+# BAR, unchanged from exp124 (first-25 subset, n=25): old ckpt 0.120, gen4-100 ckpt 0.123,
+# exp124-eta4 s160 0.030 at colour 32/clip 0.27. A rank arm wins if it holds rate <=0.05 across two
+# adjacent checkpoints at clip >=0.28 and colour >=30 — i.e. the same window, without the
+# distortion review flagged. Winner gets the full exp112 battery + human review before any claim.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp125_gen4_rank_sweep/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/metadata.json
+latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/latents
+
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 4.0
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: [32, 128]
+# lora_alpha deliberately OMITTED: scripts/unlearn.py now derives alpha = rank when unset (the
+# thread's universal alpha/rank = 1.0 scale). Listing both would go through submit_job's Cartesian
+# grid and produce mismatched rank/alpha combinations.
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 25
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"

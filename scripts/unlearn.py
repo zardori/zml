@@ -39,6 +39,11 @@ if __name__ == "__main__":
     method = params.pop("method", "esd")
     params.pop("slurm_time", None)  # infra key, not a training param
     params.pop("job_type", None)  # infra key, selects the entrypoint; not a training param
+    # alpha/rank = 1.0 is this project's universal LoRA scale; deriving alpha lets a config sweep
+    # lora_rank as a grid without a paired alpha list (submit_job grids are Cartesian, so two
+    # paired lists would produce mismatched combinations).
+    if "lora_rank" in params and "lora_alpha" not in params:
+        params["lora_alpha"] = float(params["lora_rank"])
     if method not in METHODS:
         raise ValueError(f"Unknown method '{method}'. Valid options: {list(METHODS)}")
 
