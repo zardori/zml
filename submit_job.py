@@ -2,7 +2,7 @@
 """Submit experiment to an HPC cluster, with optional grid search.
 
 Usage:
-    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT] [--skip-path-check] [--no-fetch-missing]
+    submit_job.py <cluster> <config> [--slurm SLURM_SCRIPT] [--skip-path-check] [--no-fetch-missing] [--yes]
 
 Arguments:
     cluster   Cluster name: athena or helios
@@ -16,6 +16,8 @@ Options:
               a job that produces its own inputs)
     --no-fetch-missing
               Do not offer to copy missing inputs from the other cluster
+    --yes, -y Answer every confirmation with yes, for a non-interactive caller (the research
+              agent). Nothing else changes: the path check still aborts a bad submission.
 
 Example:
     ./submit_job.py athena experiments/nudity/exp062_frame_replace_nudity_eta2/config.yaml
@@ -37,6 +39,7 @@ of failing the job minutes after it starts.
 """
 
 import argparse
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -62,6 +65,34 @@ CLUSTER_DEFAULT_SLURM: dict[str, str] = {
 }
 
 DEFAULT_JOB_TYPE = "unlearn"
+
+SBATCH_JOB_ID_RE = re.compile(r"Submitted batch job (\d+)")
+# Last line of a successful submission, so a non-interactive caller can record what it launched
+# without parsing sbatch's prose. Read by research_agent/zmlrepo.py.
+JOB_IDS_PREFIX = "ZML_SUBMITTED_JOB_IDS="
+
+
+def confirm(question: str, assume_yes: bool) -> bool:
+    if assume_yes:
+        print(f"{question} [auto-yes]")
+        return True
+    return input(f"{question} [y/N] ").strip().lower() == "y"
+
+
+def run_sbatch(cluster: Cluster, remote_cmd: str) -> str | None:
+    """Run one submission over ssh and return the job id sbatch reported.
+
+    sbatch's line is echoed rather than swallowed, so an interactive run looks unchanged.
+    """
+    result = subprocess.run(
+        ["ssh", cluster.host, remote_cmd], check=True, capture_output=True, text=True
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    match = SBATCH_JOB_ID_RE.search(result.stdout)
+    return match.group(1) if match else None
 
 
 def check_git_state() -> list[str]:
@@ -152,7 +183,7 @@ def submit_scalar(
     config_path: str,
     slurm_time: str,
     job_type: str,
-) -> None:
+) -> list[str]:
     exp_dir = str(Path(config_path).parent)
     job_name = Path(config_path).parent.name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -175,7 +206,8 @@ def submit_scalar(
     remote_cmd = f"cd {cluster.remote_dir} && mkdir -p {output_dir} {logs_dir} && {sbatch_cmd}"
     print(f"Submitting on {cluster.name}...")
     print(f"  Command: {sbatch_cmd}")
-    subprocess.run(["ssh", cluster.host, remote_cmd], check=True)
+    job_id = run_sbatch(cluster, remote_cmd)
+    return [job_id] if job_id else []
 
 
 def _write_config_and_submit(
@@ -188,7 +220,7 @@ def _write_config_and_submit(
     slurm_time: str,
     job_type: str,
     job_name: str,
-) -> None:
+) -> str | None:
     """Write an expanded config to remote and submit one sbatch job."""
     escaped = config_yaml.replace("'", "'\\''")
     write_cmd = f"mkdir -p $(dirname {config_remote_path}) {output_dir} {logs_dir} && printf '%s' '{escaped}' > {config_remote_path}"
@@ -203,7 +235,7 @@ def _write_config_and_submit(
         f" {slurm_script}"
     )
     remote_cmd = f"cd {cluster.remote_dir} && {write_cmd} && {sbatch_cmd}"
-    subprocess.run(["ssh", cluster.host, remote_cmd], check=True)
+    return run_sbatch(cluster, remote_cmd)
 
 
 def submit_grid(
@@ -213,7 +245,8 @@ def submit_grid(
     config: dict,
     slurm_time: str,
     job_type: str,
-) -> None:
+    assume_yes: bool = False,
+) -> list[str]:
     combos = expand_grid(config)
     exp_dir = str(Path(config_path).parent)
     exp_name = Path(config_path).parent.name
@@ -226,11 +259,11 @@ def submit_grid(
         varied = {k: combo[k] for k in grid_keys}
         print(f"  run_{i:03d}: {varied}")
 
-    reply = input(f"\nSubmit all {len(combos)} jobs on {cluster.name}? [y/N] ").strip().lower()
-    if reply != "y":
+    if not confirm(f"\nSubmit all {len(combos)} jobs on {cluster.name}?", assume_yes):
         print("Aborted.")
         sys.exit(1)
 
+    job_ids: list[str] = []
     for i, combo in enumerate(combos, start=1):
         run_dir = f"{grid_base}/run_{i:03d}"
         config_remote = f"{run_dir}/config.yaml"
@@ -238,14 +271,17 @@ def submit_grid(
         logs_dir = f"{run_dir}/logs"
         config_yaml = yaml.dump(combo, default_flow_style=False, sort_keys=False)
 
-        _write_config_and_submit(
+        job_id = _write_config_and_submit(
             cluster, slurm_script,
             config_remote, output_dir, logs_dir, config_yaml,
             slurm_time=slurm_time, job_type=job_type, job_name=f"{exp_name}_run_{i:03d}",
         )
+        if job_id:
+            job_ids.append(job_id)
         print(f"  run_{i:03d}: submitted")
 
     print(f"\nSubmitted {len(combos)} jobs. Grid configs and outputs: {grid_base}/")
+    return job_ids
 
 
 def parse_args() -> argparse.Namespace:
@@ -270,6 +306,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not offer to copy inputs that are missing here but present on the other cluster",
     )
+    parser.add_argument(
+        "--yes", "-y",
+        action="store_true",
+        help="Answer every confirmation with yes (for non-interactive callers)",
+    )
     return parser.parse_args()
 
 
@@ -290,8 +331,7 @@ def main() -> None:
     warnings = check_git_state()
     if warnings:
         print(f"Warning: you have {', '.join(warnings)}.")
-        reply = input("Continue anyway? [y/N] ").strip().lower()
-        if reply != "y":
+        if not confirm("Continue anyway?", args.yes):
             print("Aborted.")
             sys.exit(1)
 
@@ -321,11 +361,13 @@ def main() -> None:
         sys.exit(1)
 
     if is_grid:
-        submit_grid(cluster, slurm_script, args.config, config,
-                    slurm_time=slurm_time, job_type=job_type)
+        job_ids = submit_grid(cluster, slurm_script, args.config, config,
+                              slurm_time=slurm_time, job_type=job_type, assume_yes=args.yes)
     else:
-        submit_scalar(cluster, slurm_script, args.config,
-                      slurm_time=slurm_time, job_type=job_type)
+        job_ids = submit_scalar(cluster, slurm_script, args.config,
+                                slurm_time=slurm_time, job_type=job_type)
+
+    print(f"{JOB_IDS_PREFIX}{','.join(job_ids)}")
 
 
 if __name__ == "__main__":
