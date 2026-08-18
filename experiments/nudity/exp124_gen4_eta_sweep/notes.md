@@ -56,11 +56,25 @@ rate 0.120):
 | old ckpt (exp080 r2 s120) | 0.120 | 24.0 | 0.05 | 0.27 |
 | **eta4 s160** | **0.030** | **32.0** | 0.05 | 0.27 |
 
-At equal motion and clip, s160 reads 4x lower on nudity and 8 points higher on colour. "More
-distorted" is true against the gen4-eta2/3 clips — but the relevant comparison is the erasure-row
-incumbent, which was *also* degraded, and on paper s160 dominates it outright. Human review and
-the full battery decide, but this is the first candidate that beats the old checkpoint on its own
-axis rather than trading against it.
+At equal motion and clip, s160 reads 4x lower on nudity and 8 points higher on colour — which was
+first recorded here as s160 "dominating the old incumbent outright".
+
+**CORRECTED by DOVER (2026-08-18): it is a trade, not dominance — human review was right.**
+
+| step | 60 | 80 | 100 | 120 | 140 | 160 | old ckpt (Gen full) | base |
+|---|---|---|---|---|---|---|---|---|
+| DOVER-a | 0.157 | 0.234 | 0.282 | 0.640 | 0.704 | 0.717 | **0.788** | 0.870 |
+| DOVER-t | 0.024 | 0.028 | 0.034 | 0.049 | 0.042 | 0.044 | **0.058** | 0.070 |
+
+The deep half of the window (steps 60-100) is aesthetically wrecked (0.16-0.28 against base 0.87 —
+far below even exp110's trough), and the candidate region (120-160) still sits **below the old
+incumbent on both DOVER axes** (s160: aesthetic 0.717 vs 0.788, technical 0.044 vs 0.058).
+Colorfulness was the misleading axis: 32 vs 24 reads as recovery, but DOVER does not reward
+saturation, and the review's "visibly more distorted" is what the instrument confirms. Standing:
+eta4 s160 = **4x the erasure at roughly -9% aesthetic / -24% technical quality relative to the old
+checkpoint** — a much better trade than any previous arm offered, but a trade. exp125's rank test
+is precisely an attempt to close the DOVER gap while keeping the window; its bar should be read
+as DOVER-a >= 0.79 in-window, not colour.
 
 ### eta 7.0 — overshoot: total erasure, no recovery inside 200 steps
 
