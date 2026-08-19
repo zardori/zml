@@ -16,12 +16,25 @@
 # reappears with the same distortion, capacity was not the binding constraint and the eta-4 rank-8
 # candidate stands as this line's best.
 #
-# One arm, rank 32 only. 128 was Receler's design point but exp125 showed the dynamics get harder
-# to control with rank; establish the effect at 32 first, then decide whether 128 earns a job.
+# TWO ARMS, completing a rank x eta 2x2 whose rank-8 cells already exist (user suggestion,
+# 2026-08-19):
 #
-# Slower per-step displacement may also shift the window right — 200 steps at 2.5e-5-equivalent
-# pace is exp124's schedule, so the window should land in roughly the same step range; if the run
-# ends still descending, extend before concluding anything.
+#                    eta 2.0                          eta 4.0
+#   rank 8    exp123 r1 (0.26 @ s140, mild)    exp124 r1 (0.00-0.04 window, distorted)
+#   rank 32   run_001 (this)                   run_002 (this)
+#
+#   run_002 vs exp124 r1 isolates RANK at the working eta: does capacity fix the distortion?
+#   run_001 vs exp123 r1 isolates RANK at the gentle eta: can capacity SUBSTITUTE for push —
+#     i.e. with garment-specific directions available, does the small eta-2 displacement erase
+#     without ever entering the degenerate trough? If yes, that is the best possible outcome:
+#     erasure without the distortion eta-4 pays for.
+#   run_001 vs run_002 isolates eta at rank 32.
+#
+# Rank 128 (Receler's design point) waits: exp125 showed dynamics get harder with rank; establish
+# the effect at 32 first.
+#
+# Slower per-step displacement may also shift the window right — if a run ends still descending,
+# extend before concluding anything.
 #
 # Run: ./submit_job.py helios experiments/nudity/exp129_gen4_rank32_lr_scaled/config.yaml
 method: frame_replace
@@ -38,7 +51,7 @@ retention_weight: 1.0
 nonfire_frame_weight: 0.0
 erase_input_latent: original
 erase_loss_space: velocity
-erase_esd_eta: 4.0
+erase_esd_eta: [2.0, 4.0]   # grid -> 2 jobs; completes a rank x eta 2x2, see header
 
 control_concept_prompts: prompts/cogvideox_nudity.csv
 
