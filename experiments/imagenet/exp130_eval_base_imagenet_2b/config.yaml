@@ -1,0 +1,23 @@
+# Base-model ESR/PSR reference on CogVideoX-2B (docs/imagenet_objects.md), exp064's role for the
+# 2B switch mandated in GOAL.md: T2VUnlearning's Table 4 (the ImageNet numbers) is 2B-only, so a
+# same-base-model comparison needs an `Original` row measured on 2B, not the 5b one exp064 already
+# gives us. No lora_checkpoint_dir and no erased_class: this evaluates the unmodified CogVideoX-2b
+# over all ten classes and reports ESR/PSR with each class in turn as the hypothetical erased one,
+# plus mean/std across the ten -- the whole published `Original` row from a single generation pass.
+# Run before any 2B dataset or training spend, per GOAL.md's "assume 2B needs the same sanity gate
+# rather than reusing 5b's numbers".
+# Run: ./submit_job.py athena experiments/imagenet/exp130_eval_base_imagenet_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv   # 10 classes x 20 prompts, seeds baked in; num_frames stays 49 (default)
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# 200 videos @ 50 steps. exp064 measured 5.71 h for the identical protocol on 5b (athena); 2b is the
+# smaller model (fewer transformer params, same VAE/frame count) so generation should be at or below
+# that per-video cost. Keeping exp064's allotment for headroom since this is the first 2b job in the
+# repo and per-video cost has not been measured here yet. Resumable if it runs out of wall clock.
+slurm_time: "0-10:00:00"
