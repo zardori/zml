@@ -1,0 +1,62 @@
+# The rank test exp125 failed to be: rank 32 at eta 4 with the learning rate scaled to hold the
+# adapter's effective step size at rank-8 levels.
+#
+# exp125 paired alpha = rank, which keeps the LoRA scale (alpha/rank) at 1.0 — so every added rank
+# direction receives gradient and adds to the output, and the effective per-step displacement grows
+# roughly with rank at fixed lr. Its rank-128 arm burned through the entire usable regime before
+# the first checkpoint (step 20 already at colour 7.5) and thrashed thereafter (colour 50-75);
+# rank 32 showed the same failure at lower amplitude. Neither arm tested capacity; both tested
+# instability.
+#
+# THE CONTROL THIS RUN APPLIES: lr = 1e-4 * (8/32) = 2.5e-5, alpha = rank (derived). Per-direction
+# step matches the rank-8 baseline, so the ONLY thing that changes vs exp124 r1 is the number of
+# directions available to the adapter. If the capacity hypothesis is right, the window reappears at
+# roughly rank-8's pace with less collateral riding each direction — i.e. the same rate curve at
+# HIGHER DOVER-a (rank-8 reference: 0.717 at s160; old incumbent 0.788; base 0.870). If the window
+# reappears with the same distortion, capacity was not the binding constraint and the eta-4 rank-8
+# candidate stands as this line's best.
+#
+# One arm, rank 32 only. 128 was Receler's design point but exp125 showed the dynamics get harder
+# to control with rank; establish the effect at 32 first, then decide whether 128 earns a job.
+#
+# Slower per-step displacement may also shift the window right — 200 steps at 2.5e-5-equivalent
+# pace is exp124's schedule, so the window should land in roughly the same step range; if the run
+# ends still descending, extend before concluding anything.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp129_gen4_rank32_lr_scaled/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/metadata.json
+latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/latents
+
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 4.0
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 32
+# alpha derived (= rank) by scripts/unlearn.py; the step-size control lives in the lr below.
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.000025   # 1e-4 * (8/32) — holds effective step at rank-8 levels; see header
+steps: 200
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 25
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "0-16:00:00"
