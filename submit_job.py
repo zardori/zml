@@ -122,6 +122,7 @@ def remote_precheck(
     config_path: str | None,
     skip_path_check: bool,
     fetch_missing: bool,
+    assume_yes: bool = False,
 ) -> None:
     """Pull the cluster repo and make sure the config's inputs are there; abort if they cannot be.
 
@@ -140,7 +141,7 @@ def remote_precheck(
 
     missing = located.missing
     if missing and fetch_missing:
-        missing = fetch_missing_inputs(cluster, missing)
+        missing = fetch_missing_inputs(cluster, missing, assume_yes=assume_yes)
 
     if not missing and not located.missing_config:
         n_checked = len(paths) + (1 if config_path else 0)
@@ -355,6 +356,7 @@ def main() -> None:
             config_path=None if is_grid else args.config,
             skip_path_check=args.skip_path_check,
             fetch_missing=not args.no_fetch_missing,
+            assume_yes=args.yes,
         )
     except ClusterSyncError as exc:
         print(f"Error: {exc}", file=sys.stderr)

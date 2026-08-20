@@ -221,6 +221,15 @@ def _confirm_transfer(
         print(f"    {item.rel_path}  ({format_size(item.size_bytes)})  <- {item.abs_path}")
     if assume_yes:
         return True
+    if not sys.stdin.isatty():
+        # Nobody is there to answer: reading stdin would either hang or blow up with an EOFError
+        # whose traceback says nothing about the missing --yes. Fail with the actionable reason.
+        raise ClusterSyncError(
+            f"cross-cluster copy needed ({len(items)} path(s), {format_size(total)}, "
+            f"{source.name} -> {target.name}) but stdin is not a terminal; "
+            "re-run with --yes to approve transfers non-interactively, "
+            "or --no-fetch-missing to skip them"
+        )
     prompt = f"Copy {len(items)} path(s), {format_size(total)}, {source.name} -> {target.name}? [Y/n] "
     return input(prompt).strip().lower() in ("", "y", "yes")
 
