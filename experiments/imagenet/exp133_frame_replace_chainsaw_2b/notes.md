@@ -1,13 +1,24 @@
 ---
-status: active
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Submitted to helios (job 20923171, git c1bcde6), started 2026-08-20T18:18. Too early to read:
-  at step 49/600 train/loss is flat (2.172 -> 2.195, no eval checkpoint yet), which is expected
-  before the first save_interval (100) — exp069's 5b run did not show erasure until step 200.
-  Nothing to conclude until at least the first eval checkpoint lands.
+  RECIPE TRANSFERS. Concept top-1 on the 9-prompt live set follows exp069's 5b trajectory almost
+  exactly: 0.09 -> 0.00 by step 200, holding at 0.00 (one blip of 0.01 at step 500) through step
+  600 — erasure is real and stable at eta 2.0, same as 5b. Top-5 settles around 0.11-0.14, not
+  0.00, so residual signal survives the way it did on 5b (exp071's restricted-convention ESR-5 was
+  only 10.0 despite ESR-1 49.0). The live-set motion signature is DIFFERENT from 5b, and better:
+  concept motion drops 0.339 -> 0.140 (step 100 -> step 600, -59%) but the 9-prompt "unrelated"
+  sample actually RISES 0.349 -> 0.473 (+35%), the opposite of exp071's finding that the preserved
+  classes lose a mean 45% of their motion on 5b. Per exp071's own lesson this is a 9-prompt live
+  sample, not the protocol — it does not settle whether the freeze is concept-conditional at 2B;
+  it only means 2B's live monitor does not show the global collapse 5b's did, which is worth
+  checking against the full 200-prompt run rather than assuming it. Final checkpoint
+  (`frame_replace_lora_step600`) is the one to report, same "no reason to deviate" logic as
+  exp071 (erasure is flat at 0.00 from step 200 through 600, so choosing among checkpoints would
+  be selection on the eval set). Unblocks exp134: the full ESR/PSR pass this pilot has been
+  building toward.
 ---
 # exp133 — frame_replace erasure of CHAIN SAW, on CogVideoX-2B
 
@@ -65,9 +76,37 @@ not a hyperparameter confound exp126 already investigated separately.
 ## Downstream
 A checkpoint that erases (even with the freeze) is the input to the 2B counterpart of exp071: a
 full 200-prompt `esr_psr` eval, which is the number this whole sub-thread has been building toward
-— it is what gets compared against GOAL.md's target table.
+— it is what gets compared against GOAL.md's target table. That eval is exp134.
+
+## Results (2026-08-20) — recipe transfers, live-set motion signature differs from 5b
+
+Completed on helios in 3.7 h (600/600 steps, job 20923171).
+
+| step | concept top-1 | concept top-5 | concept motion | unrelated motion |
+|---|---|---|---|---|
+| 100 | 0.09 | 0.28 | 0.339 | 0.349 |
+| 200 | 0.00 | 0.11 | 0.208 | 0.505 |
+| 300 | 0.00 | 0.22 | 0.222 | 0.378 |
+| 400 | 0.00 | 0.11 | 0.171 | 0.432 |
+| 500 | 0.01 | 0.14 | 0.200 | 0.502 |
+| 600 | 0.00 | 0.11 | 0.140 | 0.473 |
+
+Concept top-1 lands at 0.00 by step 200 and holds (one 0.01 blip at step 500) — the same trajectory
+and same stabilization step as exp069 on 5b. Top-5 does not reach 0.00 (settles 0.11-0.22), matching
+exp071's finding that residual signal survives 5b's erasure too under top-5.
+
+The motion story is not a repeat of 5b's: concept motion falls -59% (0.339 -> 0.140, step 100 to
+600) while the 9-prompt "unrelated" sample *rises* 35% (0.349 -> 0.473) instead of collapsing with
+it. On 5b (exp071, full 200-prompt protocol) the nine preserved classes lost a mean 45% of their
+motion despite an even smaller live sample suggesting otherwise — so this run's live signal is not
+proof the freeze is concept-conditional at 2B, only that the same small-sample optimism exp069 had
+(later overturned by exp071) is present here too, in the opposite direction of what would be
+worrying. Only the full 200-prompt run resolves it.
 
 ## Status
 - [x] Submitted (helios job 20923171, 2026-08-20T18:18).
-- [ ] Concept top-1 checked against exp069's 5b trajectory (0.506 → 0.00 by step ~200).
-- [ ] Motion score checked against GOAL.md's 0.15 guard floor.
+- [x] Completed 2026-08-20T22:02 (exit 0, 3.7h of a 12h budget).
+- [x] Concept top-1 checked against exp069's 5b trajectory (0.506 → 0.00 by step ~200): matches —
+      2B goes 0.09 → 0.00 by step 200, holds to step 600.
+- [ ] Motion score checked against GOAL.md's 0.15 guard floor and the full-protocol preserved-class
+      mean — needs exp134 (9-prompt live motion is not the protocol, per exp071's lesson).
