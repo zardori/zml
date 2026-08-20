@@ -1,10 +1,13 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  Submitted to helios (job 20923171, git c1bcde6), started 2026-08-20T18:18. Too early to read:
+  at step 49/600 train/loss is flat (2.172 -> 2.195, no eval checkpoint yet), which is expected
+  before the first save_interval (100) — exp069's 5b run did not show erasure until step 200.
+  Nothing to conclude until at least the first eval checkpoint lands.
 ---
 # exp133 — frame_replace erasure of CHAIN SAW, on CogVideoX-2B
 
@@ -65,6 +68,6 @@ full 200-prompt `esr_psr` eval, which is the number this whole sub-thread has be
 — it is what gets compared against GOAL.md's target table.
 
 ## Status
-- [ ] Submitted.
+- [x] Submitted (helios job 20923171, 2026-08-20T18:18).
 - [ ] Concept top-1 checked against exp069's 5b trajectory (0.506 → 0.00 by step ~200).
 - [ ] Motion score checked against GOAL.md's 0.15 guard floor.
