@@ -1,0 +1,55 @@
+# First split-prompt (partial-concept) dataset build on CogVideoX-2B: does the trajectory-mode
+# recipe that fixed yield on 5b (exp127: 33% -> 94% on the same rows) transfer to the base model
+# GOAL.md now targets?
+#
+# exp130 cleared the rendering gate for 2B (chain saw restricted top-1 0.885, no degenerate class),
+# but that only tests the *unmodified* model. frame_replace's harder dependency is the split-prompt
+# sampler itself -- conditioning one temporal region on prompt A and the other on prompt B, healed by
+# prompt C -- which exp120/exp127 showed is sensitive to how the two branches share context during
+# denoising. That mechanism was tuned entirely on 5b and has never run on 2B.
+#
+# Single variable changed from exp127's `trajectory` arm: model_id. Everything else -- prompts,
+# split geometry, split_mode itself -- is identical, so a yield change is attributable to the base
+# model, not a confound.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp131_split_chainsaw_2b/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# exp117's 30 triples -- the closeup-framing prompts that took 5b chain-saw yield from 7/30 to
+# 14/30 (prediction mode) and screened 5/6 under trajectory mode in exp127's subset. Reusing them
+# rather than writing new prompts isolates the base-model variable.
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup.csv
+model_id: THUDM/CogVideoX-2b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Field-for-field exp117/exp121/exp127.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+
+# exp127's yield fix, not the exp117/exp121 default (`prediction`) -- no reason to re-run the known-
+# worse mode on a new base model when the better one costs the same (two transformer calls per split
+# step either way, per frame_replace_split_precompute's module docstring).
+split_mode: trajectory
+concept_guidance_scale: null
+
+concept: object
+concept_target: "chain saw"
+# Logging only (frame_concept_threshold no longer gates keep/skip, since 543eed8): reused from 5b's
+# chain-saw calibration (exp064/exp066) as a starting point. Detector scores may shift on 2B-rendered
+# clips; screen_split_dataset.py's within-clip differential is what actually decides pass/fail, so
+# recalibrate this only if the screened frame_confidences look miscalibrated on review, not before.
+frame_concept_threshold: 0.05
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false
+
+# 30 rows, trajectory mode (same per-step cost as prediction). exp121 measured 30 rows / prediction
+# mode at 1h37m on 5b; 2B is the smaller model so generation should be at or below that. Keeping
+# exp121's headroom since this is the first 2B precompute job in the repo.
+slurm_time: "0-03:00:00"

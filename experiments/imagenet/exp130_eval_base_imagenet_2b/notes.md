@@ -1,10 +1,18 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  GATE PASSED, and it passed better than 5b did. Restricted (10-way) `Original` row: ESR-1 10.60,
+  ESR-5 2.09, PSR-1 89.40, PSR-5 97.91 — all four cells beat T2VUnlearning's published Original
+  (21.62/5.09/78.38/94.91) in the direction that matters for a baseline (lower ESR, higher PSR), and
+  no class is degenerate: restricted top-1 ranges 0.52 (English springer, the one weak spot) to 1.00
+  (church). Per-class flips the 5b ordering — church renders at restricted top-1 1.00, chain saw at
+  0.88, so "church is the hard scene-level class" (exp070/exp128's 5b finding) is not established at
+  2B from this run alone. 1000-way per-class top1 (chain saw 0.369, church 0.549) is lower than 5b's
+  (0.513/0.733), so 2B is weaker on fine-grained taxonomy but at least as strong on rendering the
+  object recognizably. Unblocks 2B dataset/training spend; exp131 is the first one.
 ---
 # exp130 — base-model ESR/PSR on CogVideoX-2B
 
@@ -65,7 +73,45 @@ A passing gate makes this the `Original` row for every future 2B object-erasure 
 is `needs_human` territory if it looks like a genuine 2B rendering weakness rather than a fixable
 dtype/prompt issue.
 
+## Results (`outputs_20260819_215924`, athena, 4h35m, job 3007742)
+
+Restricted (10-way) `Original` row, mean over all ten leave-one-out choices of erased class:
+
+| | ESR-1 | ESR-5 | PSR-1 | PSR-5 |
+|---|---|---|---|---|
+| T2VUnlearning `Original` (2B, published) | 21.62 ± 20.13 | 5.09 ± 8.23 | 78.38 ± 2.24 | 94.91 ± 0.92 |
+| exp064 `Original` (5b, ours) | ~9.91 ± 9.57 | 3.44 | 90.09 ± 1.06 | 96.56 |
+| **exp130 `Original` (2B, ours)** | **10.60 ± 13.30** | **2.09 ± 4.27** | **89.40 ± 1.48** | **97.91 ± 0.47** |
+
+All four cells land on the "healthier baseline than the paper's" side, consistent with exp064's 5b
+row — this is expected for an `Original` row (nothing erased) and not itself a result, but it rules
+out a degenerate measurement (dtype/prompt/classifier bug), which is what this gate exists to catch.
+
+Restricted per-class top-1 (all ten classes render well; no near-zero class):
+
+| class | top-1 | | class | top-1 |
+|---|---|---|---|---|
+| tench | 0.889 | | French horn | 0.949 |
+| English springer | **0.524** (weakest) | | garbage truck | 1.000 |
+| cassette player | 0.905 | | gas pump | 0.853 |
+| chain saw | 0.885 | | golf ball | 0.943 |
+| church | **1.000** | | parachute | 0.993 |
+
+**The ordering that mattered for the 5b thread does not obviously hold at 2B.** exp064/exp069/exp070
+found chain saw the easy pilot class and church the hard scene-level one at 5b (1000-way top-1 0.513
+vs 0.733, and church never erased in exp070/exp128). At 2B, restricted top-1 has church *higher* than
+chain saw (1.000 vs 0.885) — church renders essentially perfectly. 1000-way top-1 (the `per_class`
+block, not `restricted`) shows both classes lower on 2B than they were on 5b (chain saw 0.369 vs
+0.513, church 0.549 vs 0.733), so 2B is weaker on fine-grained ImageNet taxonomy but not on rendering
+the object clearly enough for the ten-way protocol. This says nothing about whether church will
+erase any easier on 2B — that is a training-time question, not a rendering one — only that the base
+rendering gate does not predict the 5b difficulty split.
+
+No dtype problem surfaced: ESR-1/PSR-1 sum close to 100 as expected for a leave-one-out `Original`
+row, and no per-class top-1 is near zero.
+
 ## Status
-- [ ] Submitted.
-- [ ] Results pulled; `Original` row recorded for 2B.
-- [ ] Per-class weak spots noted, compared against exp064's 5b list.
+- [x] Submitted; completed 2026-08-20 (job 3007742, athena, 4h35m of a 10h allotment).
+- [x] Results pulled; `Original` row recorded for 2B (table above).
+- [x] Per-class weak spots noted: English springer is the only visibly weak class (0.524 restricted
+      top-1); chain saw and church are both strong, unlike the 5b split.
