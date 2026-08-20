@@ -1,0 +1,27 @@
+# Preservation (retention-anchor) latents for the ImageNet object protocol, rebuilt on CogVideoX-2B.
+#
+# exp068's anchors were generated on 5b, and unlearn_frame_replace.py hard-asserts the retention
+# metadata's `scaling_factor` against the training model's own VAE (zml/unlearn/unlearn_frame_replace.py:346-349)
+# -- checked against the two models' HF configs: 2b's VAE scaling_factor is 1.15258426, 5b's is 0.7,
+# so they are different VAE calibrations (not just different transformers) and exp068 would fail that
+# assert immediately if pointed at a 2B run. A 2B frame_replace training run needs its own retention
+# set before it can start.
+#
+# Field-for-field exp068 except model_id. Same prompts (disjoint from the eval set on purpose --
+# preserve the classes, not the test items), same 30-clip, generation-only, no-detection recipe.
+# Run: ./submit_job.py athena experiments/imagenet/exp132_imagenet_preservation_2b/config.yaml
+job_type: precompute
+method: preservation
+
+csv_path: prompts/imagenet_preservation.csv   # 10 classes x 3 prompts, seeds 4301-4330
+
+model_id: THUDM/CogVideoX-2b
+num_inference_steps: 50
+guidance_scale: 6.0
+save_videos: false
+
+# exp068 (5b, same recipe) was budgeted 8h; 2B is the smaller transformer and this run has no split/
+# edit/detection overhead (exp131's heavier split-mode 2B job did 30 rows in 2305s = ~38 min). Kept
+# well above that measured cost since this is a different job type on a cluster with no prior 2B
+# preservation timing.
+slurm_time: "0-02:00:00"
