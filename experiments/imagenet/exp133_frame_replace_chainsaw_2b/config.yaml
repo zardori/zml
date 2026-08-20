@@ -1,0 +1,70 @@
+# frame_replace erasure of the CHAIN SAW class on CogVideoX-2B -- the training run exp131 (dataset)
+# and exp132 (retention set) unblocked. GOAL.md moved the object thread's base model to 2B so its
+# ESR/PSR is comparable to T2VUnlearning's Table 4, which is 2B-only for the objects protocol.
+#
+# Single variable changed from exp069 (5b, same concept, same eta=2 regime): model_id, plus the
+# dataset and retention set that follow from it (exp131's 2B split-prompt build in place of
+# exp066+exp117's 5b merge, exp132's 2B preservation anchors in place of exp068's 5b ones -- both
+# swaps are forced by the VAE `scaling_factor` mismatch exp131 found, not a choice). Recipe
+# (lora_rank/alpha, lr, steps, eta, timestep range, eval cadence) is otherwise field-for-field
+# exp069, so any difference in the resulting ESR/PSR is attributable to the base model, not a
+# confound with hyperparameters exp126 already investigated separately on 5b.
+#
+# No merge needed: exp131 is a single screened source (unlike exp069's exp066+exp117 merge), so
+# metadata_file/latents_dir point straight at it -- same pattern exp070 used for exp118 alone.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp133_frame_replace_chainsaw_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# exp131's 25 screened rows (83% pass, trajectory mode, 12 first / 13 second -- balanced enough to
+# use without a rebalancing pass).
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+
+# exp132's 2B preservation anchors (30 entries, 10 classes x 3, scaling_factor 1.15258426 -- checked
+# against exp131's dataset entries, which carry the same value). retention_exclude drops the chain-
+# saw anchors so retention does not pull against the erase branch, same role as in exp069/exp070.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged from exp069/exp126: eta=2.0 is the only arm that held top-1 0.00 at every checkpoint
+# without oscillating (exp126's eta ablation), so it is the regime to carry into the first 2B run,
+# not a fresh sweep.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Same eval prompts as exp069/exp071 -- these are concept text, not tied to a base model, so reusing
+# them keeps the eventual ESR/PSR comparison apples-to-apples with the 5b row.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp069 (5b, identical step/eval budget) ran 10.9h against a 16h allotment. 2B is the smaller
+# transformer (2B vs 5b params) and exp131's 2B split-precompute ran well inside its own budget, so
+# 12h keeps proportionally similar headroom without assuming a specific speedup ratio we haven't
+# measured for this job type.
+slurm_time: "12:00:00"

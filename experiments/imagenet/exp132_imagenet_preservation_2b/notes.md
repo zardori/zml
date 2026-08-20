@@ -1,10 +1,16 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: preservation/precompute
 thread: imagenet
 takeaway: >
-  Not yet run.
+  Clean rebuild, nothing to diagnose. `metadata.json` has exactly 30 entries (10 classes x 3
+  prompts, matching exp068's shape) and every entry carries `scaling_factor: 1.15258426` — the
+  2B VAE value, confirming the swap from 5b's 0.7 actually took and the assert in
+  `unlearn_frame_replace.py` will pass. Generation-only (no detection/screening, same as exp068),
+  so nothing here is a research finding beyond "the anchors exist and are keyed to the right
+  VAE" — but that was the blocker exp131 flagged for starting 2B `frame_replace` training.
+  Unblocks exp133.
 ---
 # exp132 — preservation anchors for the ImageNet object protocol, on CogVideoX-2B
 
@@ -43,5 +49,5 @@ Feeds the 2B chain-saw `frame_replace` training run (`retention_metadata_file` /
 protocol without a rebuild.
 
 ## Status
-- [ ] Submitted.
-- [ ] `metadata.json` has 30 entries with `scaling_factor: 1.15258426`.
+- [x] Submitted.
+- [x] `metadata.json` has 30 entries with `scaling_factor: 1.15258426`.
