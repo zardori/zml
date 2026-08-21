@@ -10,7 +10,7 @@ takeaway: >
   capacity-substitutes-for-push signal. The eta-4 arm ended mid-window with colour still
   recovering. Fresh 400-step run, shared range doubles as reproducibility check. 2 jobs.
 ---
-# exp130 — rank 32, 400 steps
+# exp136 — rank 32, 400 steps
 
 Rationale in the config header. The 2x2's rank-8 cells are exp123 r1 / exp124 r1; exp129 holds the
 truncated rank-32 curves this extends.

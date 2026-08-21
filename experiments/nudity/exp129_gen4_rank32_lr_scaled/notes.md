@@ -9,7 +9,7 @@ takeaway: >
   ended at its best point STILL DESCENDING: 0.08 at colour 31.0 / clip 0.28 — rank-8's bottom rate
   at +9 colour, no rebound in sight, the capacity-substitutes-for-push signal cut off where it got
   interesting. eta-4 reproduced the degenerate trough at shifted phase (window s100-200, colour
-  13-23 still recovering at the end). No bar verdict possible; exp130 extends both to 400 steps.
+  13-23 still recovering at the end). No bar verdict possible; exp136 extends both to 400 steps.
 ---
 # exp129 — rank 32, lr-scaled
 
@@ -51,11 +51,11 @@ that both hit step 200 before their decision points.
 turned around, rank 32 sits 9 colour points higher with clip 0.28 and the curve still pointing
 down. If that continues below 0.05 at held DOVER, it is erasure with no degenerate trough at all —
 the mechanism-C prediction (capacity lets garment-specific directions replace the coarse shared
-push). exp130 answers it at 400 steps.
+push). exp136 answers it at 400 steps.
 
 DOVER scoring of both arms ran locally after the pull; numbers land in the metrics files.
 
 ## Status
 - [x] Submitted and complete (2 jobs, 200 steps).
 - [x] Read against the rank-8 cells; both arms truncated before the bar could be applied.
-- [ ] Superseded operationally by [exp130](../exp130_rank32_extended/notes.md) (400 steps).
+- [ ] Superseded operationally by [exp136](../exp136_rank32_extended/notes.md) (400 steps).

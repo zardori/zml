@@ -22,7 +22,7 @@
 # 0.28. The eta-2 arm passing would be the method's best possible outcome — erasure at gentle push
 # with capacity doing the work, no degenerate trough at all.
 #
-# Run: ./submit_job.py helios experiments/nudity/exp130_rank32_extended/config.yaml
+# Run: ./submit_job.py helios experiments/nudity/exp136_rank32_extended/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity
