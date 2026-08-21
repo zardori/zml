@@ -1,10 +1,21 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  MODEST DOSE-RESPONSE, ONE ARM WORTH A FULL EVAL. Both etas reach erased-class top-1 0.00 at least
+  as fast as exp133's eta=2.0 (2.5: by step 150; 3.0: by step 200, after one oscillation at step 150
+  — top-1 0.27, detection_rate 0.33, that resolves by step 200 and holds through 300). The
+  differentiator is top-5, exp134's flagged residual-signal problem: eta=2.5 settles at 0.14 by
+  step 300, inside exp133's own 0.11-0.22 range — no improvement. eta=3.0 reaches top-5 0.00 at
+  steps 250 and 300, a level none of exp133's six checkpoints (0.11-0.28) ever touched. Motion stays
+  far from the 5b freeze range (0.01-0.05) on both arms — final concept motion 0.20 (eta 2.5) / 0.18
+  (eta 3.0), against exp133's own step-300 read of 0.22 — so neither arm is trading the residual-top5
+  win for the motion floor. N=9 live sample, so a single-video flip either way is within noise; not
+  a settled result, a lead. Sends only eta=3.0's step-300 checkpoint to exp137 for the full
+  200-prompt protocol — eta=2.5 answers nothing exp134 didn't already establish, so it doesn't get a
+  slot.
 ---
 # exp135 — erase_esd_eta sweep above 2.0, chain saw on CogVideoX-2B
 
@@ -77,7 +88,43 @@ eta=2.0 trajectory is attributable to the eta value alone.
 - **Whether 2.5 and 3.0 move together or diverge** — a monotonic trend argues for chasing eta
   further; both landing at the same place as each other (and as 2.0) argues the knob is saturated.
 
+## Results (2026-08-21)
+
+Completed on helios: run_001 (eta=2.5) in 2.5h, run_002 (eta=3.0) in 2.5h, both against a 6h budget.
+
+Live 9-prompt monitor, erased-class (chain saw) top-1 / top-5 / motion by step:
+
+| step | eta=2.0 (exp133)* | eta=2.5 | eta=3.0 |
+|---|---|---|---|
+| 100 | 0.09 / 0.28 / 0.34 | 0.03 / 0.26 / 0.30 | 0.07 / 0.22 / 0.30 |
+| 150 | — | 0.00 / 0.27 / 0.23 | 0.27 / 0.42 / 0.20 |
+| 200 | 0.00 / 0.11 / 0.21 | 0.00 / 0.00 / 0.22 | 0.00 / 0.20 / 0.18 |
+| 250 | — | 0.00 / 0.08 / 0.18 | 0.00 / 0.00 / 0.21 |
+| 300 | 0.00 / 0.22 / 0.22 | 0.00 / 0.14 / 0.20 | 0.00 / 0.00 / 0.18 |
+
+*exp133 was only checkpointed every 100 steps, so 150/250 are blank; its own step-600 endpoint was
+top-1 0.00 / top-5 0.11 / motion 0.14.
+
+Reading against the three falsification conditions:
+- **No dose-response**: not quite met — top-1 reaches 0 at least as fast at both etas, and eta=3.0's
+  top-5 does something eta=2.0 never showed (hits 0.00, twice). eta=2.5's top-5 (0.14 final) doesn't
+  clear exp133's own range, so *that* arm alone would have been a null result.
+- **Motion floor breached early**: not met. Both arms' concept motion stays in the 0.18-0.23 band
+  throughout, nowhere near the 5b freeze range (0.01-0.05) exp126 found, and not obviously worse than
+  exp133's own step-300 read (0.22).
+- **Oscillation returns**: met, partially, for eta=3.0 only — step 150 shows top-1 back up to 0.27,
+  top-5 0.42, object_detection_rate 0.33, before resolving to 0.00/0.00 by step 250 and holding
+  through 300. Same shape as exp133's own single 0.01 blip at step 500, just larger — a mid-run wobble
+  the final checkpoint doesn't carry, not disqualifying on its own.
+
+**Decision**: eta=2.5 is a null result — it reaches the same top-5 floor exp134 already reported, so
+evaluating it on the full protocol would spend a slot re-confirming exp134's finding. eta=3.0's
+step-300 checkpoint is the one live signal in this thread that top-5 residual can move at all;
+whether that survives N=200 (vs. this N=9) is exactly the question exp134 raised and this run alone
+can't answer. Sent to exp137 for the full `esr_psr` pass, alongside all four GOAL.md guards.
+
 ## Status
-- [ ] Submitted.
-- [ ] Live-monitor trajectories checked against exp133's eta=2.0 run.
-- [ ] Decision made on whether either arm's checkpoint is worth the full 200-prompt `esr_psr` eval.
+- [x] Submitted (helios job 20933423 / 20933424, both completed 2026-08-21T19:55 / 20:07).
+- [x] Live-monitor trajectories checked against exp133's eta=2.0 run — see table above.
+- [x] Decision made: eta=2.5 gets no further spend; eta=3.0's step-300 checkpoint goes to exp137 for
+      the full 200-prompt `esr_psr` eval.

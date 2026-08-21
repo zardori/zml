@@ -1,0 +1,24 @@
+# Reported ESR/PSR for exp135's eta=3.0 chain-saw checkpoint -- the direct comparison to exp134's
+# eta=2.0 row. exp135's live 9-prompt monitor was the only run so far to show erased-class top-5
+# hitting 0.00 (steps 250 and 300), where exp133/exp134's eta=2.0 never got below 0.11. This tests
+# whether that survives the full 200-video protocol, the exact question exp134 raised.
+# Run: ./submit_job.py athena experiments/imagenet/exp137_eval_frame_replace_chainsaw_eta3_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp135 run_002's (erase_esd_eta: 3.0) FINAL checkpoint. Same "no reason to deviate" logic as
+# exp071/exp134: the live monitor holds top-1 0.00 / top-5 0.00 at both step 250 and 300, so this is
+# not a selection pick, it's the last checkpoint trained.
+lora_checkpoint_dir: experiments/imagenet/exp135_chainsaw_eta_high_2b/grid_20260821_100902/run_002/outputs/frame_replace_lora_step300
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp134 (eta=2.0, identical protocol) ran 5.3h of a 14h budget on athena. Nothing about this eval
+# changes cost -- same model, same 200 prompts, same inference steps, only the LoRA weights differ --
+# so matching exp134's budget rather than re-deriving it.
+slurm_time: "0-14:00:00"
