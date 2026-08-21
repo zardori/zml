@@ -1,14 +1,15 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
 takeaway: >
-  The valid version of exp125's capacity test, extended to a rank x eta 2x2: rank 32 at eta
-  [2.0, 4.0], lr scaled to 2.5e-5 so effective step matches rank-8. The rank-8 cells exist
-  (exp123 r1, exp124 r1), so each comparison is one variable. eta-4 arm asks whether capacity
-  fixes the distortion; eta-2 arm asks whether capacity SUBSTITUTES for push — erasure without
-  the trough at all, the best possible outcome. DOVER-led bar. 2 jobs.
+  The lr control WORKED (no exp125 thrash, clip 0.28-0.30 through most of both runs) but linear
+  lr-in-rank scaling overcorrected the pace and 200 steps truncated both arms mid-story. eta-2
+  ended at its best point STILL DESCENDING: 0.08 at colour 31.0 / clip 0.28 — rank-8's bottom rate
+  at +9 colour, no rebound in sight, the capacity-substitutes-for-push signal cut off where it got
+  interesting. eta-4 reproduced the degenerate trough at shifted phase (window s100-200, colour
+  13-23 still recovering at the end). No bar verdict possible; exp130 extends both to 400 steps.
 ---
 # exp129 — rank 32, lr-scaled
 
@@ -33,3 +34,28 @@ winning.
 - [ ] Submitted (1 job).
 - [ ] Window compared to exp124 r1 at matched steps; DOVER-a on the window locally.
 - [ ] If it wins: rank-128 arm decision, then full exp112 battery + human review.
+
+
+## Results (2026-08-21) — truncated, but the eta-2 signal is real
+
+| | rank 8 (exp123 r1 / exp124 r1) | rank 32 (this) |
+|---|---|---|
+| eta 2 trough | 0.07-0.08 @ colour 21-23 (s60-80), rebounds to 0.26+ | **0.08 @ colour 31.0, clip 0.28 (s200) — still descending, no rebound** |
+| eta 4 window | s60-160, <=0.04, DOVER-a 0.72 at exit | s100-200, <=0.04, colour 13-23 **still recovering at horizon** |
+
+The pace ran ~1.5-2x slower than rank-8 rather than matched — linear-in-rank lr scaling
+overcorrects (the honest scaling likely sits nearer sqrt(rank)). Consequence: smooth, stable arms
+that both hit step 200 before their decision points.
+
+**The eta-2 arm is the result worth extending.** At the same rate where rank-8 bottomed out and
+turned around, rank 32 sits 9 colour points higher with clip 0.28 and the curve still pointing
+down. If that continues below 0.05 at held DOVER, it is erasure with no degenerate trough at all —
+the mechanism-C prediction (capacity lets garment-specific directions replace the coarse shared
+push). exp130 answers it at 400 steps.
+
+DOVER scoring of both arms ran locally after the pull; numbers land in the metrics files.
+
+## Status
+- [x] Submitted and complete (2 jobs, 200 steps).
+- [x] Read against the rank-8 cells; both arms truncated before the bar could be applied.
+- [ ] Superseded operationally by [exp130](../exp130_rank32_extended/notes.md) (400 steps).
