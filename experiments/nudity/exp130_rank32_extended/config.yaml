@@ -1,0 +1,61 @@
+# exp129 extended to 400 steps — both arms ended mid-story at 200.
+#
+# The lr control (2.5e-5 at rank 32) worked as designed: no exp125-style thrash, smooth descent,
+# clip holding 0.28-0.30 for most of both runs. But linear-in-rank lr scaling overcorrected the
+# pace somewhat (troughs arrived ~1.5-2x later than rank-8's), so 200 steps truncated both arms
+# before their decision points:
+#
+#   eta 2.0 ended at its BEST point still descending: 0.08 at colour 31.0 / clip 0.28 (s200) —
+#     the same rate rank-8 bottomed out at (0.07-0.08) but at colour 31 vs rank-8's 21-23, and
+#     with no rebound inside the horizon. This is the "capacity substitutes for push" signal, cut
+#     off exactly where it got interesting.
+#   eta 4.0 ended mid-window (s100-200 all <=0.04, zeros at 140/200) with colour still recovering
+#     (12.9 -> 23.1 and rising). Rank-8's equivalent decision region — window persisting into
+#     recovered colour — sits past this run's horizon.
+#
+# This rerun is identical except steps 400 (fresh run; no resume support — the shared 0-200 range
+# doubles as a free reproducibility check) and save_interval 40 to keep the eval budget flat.
+# Coarser sampling is acceptable: the question is where each arm's late trajectory settles, not
+# window microstructure.
+#
+# BAR unchanged (DOVER-led): two adjacent checkpoints at rate <=0.05, DOVER-a >= 0.79, clip >=
+# 0.28. The eta-2 arm passing would be the method's best possible outcome — erasure at gentle push
+# with capacity doing the work, no degenerate trough at all.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp130_rank32_extended/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/metadata.json
+latents_dir: experiments/nudity/exp109_split_nudity_gen4_dataset/combined_dataset_clean75/latents
+
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: [2.0, 4.0]
+
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 32
+# alpha derived (= rank) by scripts/unlearn.py; step-size control is the lr below.
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.000025
+steps: 400
+save_interval: 40
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 25
+eval_inference_steps: 50
+global_seed: 42
+
+slurm_time: "1-0:00:00"
