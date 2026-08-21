@@ -1,0 +1,79 @@
+# erase_esd_eta sweep above 2.0, for chain saw on CogVideoX-2B.
+#
+# exp134 (full 200-prompt ESR/PSR on exp133's eta=2.0 / step-600 checkpoint) landed the reported 2B
+# row and it plateaus far short of GOAL.md's bar: restricted ESR-1 49.90 / ESR-5 15.61 against the
+# 92.38 / 77.09 target, while PSR-1 82.71 and PSR-5 93.19 clear their guards with room to spare
+# (54.03 / 82.14) and the erased-class motion guard passes too (0.390 against a 0.15 floor, base was
+# 0.840). Restricted top-5 on chain saw itself barely moves (0.844 vs base 1.0), so the object mostly
+# survives as a non-top-1 guess -- residual signal, not full removal. And the number is close to a
+# coincidence: exp071's 5b row under the identical eta=2.0 recipe (but a different, larger 33-row
+# dataset) landed at almost the same place (ESR-1 49.0, ESR-5 10.0), so the ceiling looks like a
+# property of the eta=2.0 erase pressure, not of model scale or this dataset's size.
+#
+# eta has only ever been swept up to 2.0 (exp126, 5b): 1.0/1.5 oscillated, 2.0 was the only arm that
+# held top-1 flat at every checkpoint, so it became the fixed value for every run since, including
+# exp133. Nothing above 2.0 has been tried on either model. exp134 shows 2B has headroom to push
+# harder before hitting the motion floor -- erased-class motion is at 0.390 against the 0.15 guard,
+# a wider margin than exp133's live monitor's own read suggested, and the nine preserved classes
+# only lost a mean ~32% of their motion (computed against exp130's base numbers) rather than being
+# destroyed. This sweeps eta past 2.0 to see whether more erase pressure closes the ESR gap, and how
+# much of that margin it costs.
+#
+# Single variable changed from exp133: erase_esd_eta swept to [2.5, 3.0] in place of the fixed 2.0.
+# Steps cut to 300 (half of exp133's 600) because exp133's own live monitor was already flat by step
+# 200 -- the interesting window for a stronger eta is early, same reasoning exp126 used to justify
+# its own 300-step budget on 5b.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp135_chainsaw_eta_high_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Same dataset as exp133: exp131's 25 screened rows (83% pass, trajectory mode, 12 first / 13
+# second).
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+
+# Same retention set as exp133: exp132's 2B preservation anchors, chain-saw anchors excluded.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+# The swept axis. exp133/exp134's fixed value (2.0) is intentionally NOT repeated as a third arm --
+# it is already measured and reported, so re-running it here would just burn budget on a known point.
+erase_esd_eta: [2.5, 3.0]
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+
+# Half of exp133's 600: its live monitor was already flat (top-1 0.00) by step 200, so the back half
+# of that run measured nothing. save_interval halved to 50, same as exp126, so a stronger eta's
+# earlier crossover into the motion floor (if it happens) is still caught.
+steps: 300
+save_interval: 50
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp133 (2B, 600 steps) ran 3.7h against a 12h budget. 300 steps should be roughly half that work;
+# 6h keeps similar proportional headroom without assuming the per-step cost is identical at a
+# different eta.
+slurm_time: "0-06:00:00"
