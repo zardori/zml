@@ -24,6 +24,7 @@ from diffusers import CogVideoXPipeline
 from peft import LoraConfig, get_peft_model
 from tqdm.auto import tqdm
 
+from zml.precompute import merge_frame_replace_datasets
 from zml.unlearn.eval import EvalPrompt, evaluate, load_eval_prompts
 from zml.unlearn.metrics_log import MetricsRecorder
 from zml.utils import set_seed
@@ -73,6 +74,17 @@ class Config:
     retention_metadata_file: str | None = None
     retention_latents_dir: str | None = None
     retention_weight: float = 1.0
+    # Repo-relative path to a JSON file of extra [metadata_file, latents_dir] pairs to merge with
+    # the primary source above before training, via
+    # zml.precompute.merge_frame_replace_datasets.merge (the same logic merge_dataset.sh drives over
+    # ssh). None (default) trains on metadata_file/latents_dir alone, unchanged from before this
+    # field existed. A *file* rather than a plain list field on purpose: submit_job.py treats any
+    # top-level list-valued config field as a grid-search axis (expand_grid in submit_job.py), so a
+    # literal `extra_sources: [[...], [...]]` here would silently fan out into one job per source
+    # instead of one job trained on all of them merged. Set this instead of running merge_dataset.sh
+    # by hand when every source's precompute output already lives on the cluster this job runs on —
+    # the merge then happens once, at job start, on the compute node itself.
+    extra_sources_file: str | None = None
     # Drop retention anchors whose metadata `class_name` equals this. One preservation dataset can
     # then cover every class in an object-erasure protocol while each run anchors only the classes it
     # must preserve — anchoring the erased class itself would fight the erase branch directly.
@@ -307,10 +319,25 @@ def main(config: Config) -> None:
     control_related = load_eval_prompts(config.control_related_prompts)
     control_unrelated = load_eval_prompts(config.control_unrelated_prompts)
 
-    with open(config.metadata_file) as f:
+    metadata_file = config.metadata_file
+    latents_dir = config.latents_dir
+    if config.extra_sources_file is not None:
+        # Merge in-process, on this compute node, instead of the ssh + merge_dataset.sh step every
+        # earlier multi-source run (exp069, nudity's exp080) required beforehand — the sources named
+        # here must already exist wherever zml.paths.resolve_input_path finds them on this cluster.
+        with open(config.extra_sources_file) as f:
+            extra_sources: list[list[str]] = json.load(f)
+        merged_dir = os.path.join(config.output_dir, "merged_dataset")
+        os.makedirs(merged_dir, exist_ok=True)
+        sources = [(config.metadata_file, config.latents_dir)] + [tuple(s) for s in extra_sources]
+        merge_frame_replace_datasets.merge(sources, merged_dir)
+        metadata_file = os.path.join(merged_dir, "metadata.json")
+        latents_dir = os.path.join(merged_dir, "latents")
+
+    with open(metadata_file) as f:
         metadata: list[dict] = json.load(f)
     if not metadata:
-        raise ValueError(f"No entries in {config.metadata_file}; precompute produced no targets.")
+        raise ValueError(f"No entries in {metadata_file}; precompute produced no targets.")
 
     pipe = CogVideoXPipeline.from_pretrained(config.model_id, torch_dtype=DTYPE).to(device)
     pipe.vae.enable_slicing()
@@ -462,7 +489,7 @@ def main(config: Config) -> None:
             # Erase branch: pull the fire prompt toward its edited (fireless) latent.
             erase_entry = random.choice(metadata)
             erase_view = _target_view(erase_entry, config.target_variant)
-            x0_edited = _load_target_latent(config.latents_dir, erase_view["latent_path"], device)
+            x0_edited = _load_target_latent(latents_dir, erase_view["latent_path"], device)
             # "original" noises the pre-edit fire latent (x0_input) while still regressing toward
             # the edited fireless latent (x0_target) — a fire->fireless redirection on the states
             # the model actually traverses. "edited" keeps plain reconstruction (x0_input == x0_target).
@@ -471,7 +498,7 @@ def main(config: Config) -> None:
                     "erase_input_latent='original' needs 'original_latent_path' for this target_variant; "
                     "re-run the precompute with the original-latent-saving version."
                 )
-                x0_input = _load_target_latent(config.latents_dir, erase_view["original_latent_path"], device)
+                x0_input = _load_target_latent(latents_dir, erase_view["original_latent_path"], device)
             else:
                 x0_input = x0_edited
             erase_frame_mask = _fire_frame_mask(erase_view, config.nonfire_frame_weight, device)

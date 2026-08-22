@@ -1,10 +1,19 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT falsified, though the yield sits a bit below exp131's. `tools/screen_split_dataset.py` on the
+  full 30-row build: 22/30 pass (73%), 0 not-split, 8 no-concept, 0 blank-target — against exp131's
+  25/30 (83%) on the same csv/recipe/model with fresh seeds only. A 10-point drop, all of it in
+  `no-concept` (prompt/framing misses, same failure category as every prior build) and zero
+  `not-split` failures (trajectory mode's fix still holds on these seeds too), so this lands inside
+  the falsification band's "not seed luck" reading, just at the lower end of it — closer to a
+  confirmation than exp131's own margin over exp121's 5b analogue (40% vs 47%). Survivors balance 12
+  first / 10 second. Screened set written to `outputs_20260822_023755_screened.json`. Merged with
+  exp131 (25 rows) the chain-saw 2B training set is now 47 rows, 24 first / 23 second — handed to
+  exp139.
 ---
 # exp138 — second-generation chain-saw split-prompt dataset on CogVideoX-2B
 
@@ -58,7 +67,28 @@ so any yield difference from exp131 is attributable to seed alone.
   rebalancing pass before training (exp121's 12 rows skewed 9/3, absorbed fine into the larger
   merge; exp138's own skew, if any, should be checked the same way before exp139 trains on it).
 
+## Result
+
+`tools/screen_split_dataset.py` on the full 30-row `metadata.json`:
+
+```
+30 clips | pass 22 (73%) | not-split 0 | no-concept 8 | blank-target 0
+surviving concept_region balance: 12 first / 10 second
+```
+
+Against exp131's 25/30 (83%) on the identical prompts/recipe/model with only the seeds changed,
+this is a real but modest drop, entirely inside the `no-concept` bucket (5 → 8) with `not-split`
+still at zero — the trajectory-mode fix generalizes across seeds, and the loss is prompt/framing
+sensitivity to the seed draw, not a regression in the splice mechanism. Falls short of "within noise
+of exp131" but nowhere near the falsification band (below ~50%, or nailing 100%), so read as
+confirmation with a wider margin than exp121's 5b analogue (12/30=40% vs exp117's 14/30=47%, a
+7-point gap against this run's 10-point one) — both readings say yield is a property of the
+prompt/recipe/model combination, with seed-to-seed variance on the order of 10 points either way.
+
 ## Status
-- [ ] Submitted.
-- [ ] Screened, yield and failure breakdown checked against exp131.
-- [ ] Merge with exp131 assembled and handed to a training run if yield supports it.
+- [x] Submitted (helios job 20944564, 2026-08-22).
+- [x] Completed 2026-08-22T04:01 (exit 0, 37min of a 3h budget).
+- [x] Screened, yield and failure breakdown checked against exp131: 22/30 (73%) vs 25/30 (83%), same
+      failure category (no-concept only), not seed luck.
+- [x] Merge with exp131 assembled (`extra_sources_file` on exp139's config, in-process at job start
+      via the new `Config.extra_sources_file` field) and handed to exp139.

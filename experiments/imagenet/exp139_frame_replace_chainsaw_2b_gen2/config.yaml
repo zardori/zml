@@ -1,0 +1,77 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B, trained on the MERGED dataset (exp131 25
+# rows + exp138 22 rows = 47), eta=2.0 held fixed at exp133's baseline value.
+#
+# exp137 closed the erase_esd_eta lever: pushing eta to 3.0 bought only +3.7 ESR-1 points while
+# making the target metric (restricted ESR-5) WORSE than eta=2.0 (10.31 vs 15.61) and costing more
+# preservation (cassette player motion -93%, edging into 5b's frozen-poster range). Its own
+# write-up named the alternative: "the next lever to try is dataset size or diversity, not this
+# one." exp138 built that data -- a second, independently-seeded 30-prompt batch on the same
+# closeup-prompt recipe exp131 already validated -- and screened at 22/30 (73%, 0 not-split, 8
+# no-concept), close enough to exp131's 25/30 (83%) to call the yield a property of the recipe, not
+# seed luck (same check exp121 ran for the 5b thread). Merged with exp131, the training set nearly
+# doubles: 47 rows (24 first / 23 second half, balanced) against exp131 alone's 25.
+#
+# Single variable changed from exp133 (the eta=2.0 2B baseline all downstream chain-saw runs
+# compare against): the training set. erase_esd_eta, lora rank/alpha, lr, steps, eval cadence,
+# timestep range, retention set are all field-for-field exp133, so any difference in the resulting
+# ESR/PSR is attributable to dataset size/diversity, not a confound with the eta sweep exp135/137
+# already investigated separately.
+#
+# extra_sources_file merges exp138's screened set with the primary metadata_file/latents_dir below,
+# in-process at job start, via the new extra_sources_file field on unlearn_frame_replace.Config
+# (zml/unlearn/unlearn_frame_replace.py) -- no ssh + merge_dataset.sh step needed beforehand.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Primary source: exp131's 25 screened rows (unchanged from exp133).
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+
+# Merged in at job start with exp138's 22 screened rows (see extra_sources.json). 47 rows total,
+# 24 first / 23 second half.
+extra_sources_file: experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/extra_sources.json
+
+# exp132's 2B preservation anchors, unchanged from exp133.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged from exp133: eta=2.0 is the established stable baseline; exp137 showed pushing it to
+# 3.0 makes ESR-5 worse, so this run isolates dataset size against that same fixed point.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Same eval prompts as exp133/exp134, for an apples-to-apples live-monitor comparison.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp133 (identical step/eval budget, single-source dataset) ran 3.7h against a 12h allotment. The
+# merged dataset only changes which of ~47 rows a given step samples from, not per-step compute, so
+# runtime should not move materially; keeping the same budget rather than assuming a speedup or
+# slowdown we haven't measured.
+slurm_time: "12:00:00"
