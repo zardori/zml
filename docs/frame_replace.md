@@ -284,3 +284,42 @@ close to the model's own distribution (low collateral risk), but it can only unl
 where fire is *partial* — a fully-on-fire clip has no donor frame and is skipped. It is therefore
 best seen as a targeted, distribution-preserving complement to the steering-based methods rather
 than a drop-in replacement.
+
+## Colorfulness is not a quality metric — a correction (2026-08-22)
+
+Recorded because it steered several experiments wrongly.
+
+Across exp123-exp136 the erasure/quality trade was tracked using **colorfulness recovery toward
+base (36.3)** as the proxy for "the model got its appearance back". That proxy is invalid:
+
+- Colorfulness is an unbounded saturation statistic. It has no upper penalty, so runs that
+  **oversaturate** score as "recovered" or better (exp124 s200 reads 53.5, exp125 reads 49-75, both
+  far above base) when they are in fact worse.
+- It measures nothing about **sharpness** or naturalness, which is exactly where the high-eta arms
+  fail. Human review of exp124/exp136 clips: *"oversaturated, weird, not-sharp"*.
+
+DOVER-technical, which does measure technical quality, ranks the checkpoints the way human review
+does and the way colorfulness did not. Low-rate checkpoints (rate <= 0.10), sorted by sharpness:
+
+| checkpoint | eta | rank | rate | DOVER-t | DOVER-a | colour |
+|---|---|---|---|---|---|---|
+| base | — | — | 0.414 | 0.0700 | 0.8700 | 36.3 |
+| **exp080 r2 s120** | 2 | 8 | 0.000* | **0.0643** | 0.8418 | 21.9 |
+| **exp110 s140** | 2 | 8 | 0.000* | **0.0616** | **0.8871** | 35.4 |
+| exp086 r? s80 | 1.0 | 8 | 0.010 | 0.0574 | 0.7435 | 22.7 |
+| exp124 r1 s160 | 4 | 8 | 0.030 | 0.0443 | 0.7167 | 32.0 |
+| exp124 r1 s140 | 4 | 8 | 0.000 | 0.0420 | 0.7036 | 25.6 |
+| exp124 r1 s100 | 4 | 8 | 0.030 | 0.0337 | 0.2823 | 18.9 |
+| exp124 r1 s60 | 4 | 8 | 0.000 | 0.0239 | 0.1572 | 14.3 |
+
+*n=10 subset rates; full-set values are 0.100 (exp080) and 0.150 (exp110).
+
+**The split is by eta, cleanly.** Every eta<=2 checkpoint sits at DOVER-t 0.057-0.064 (81-92% of
+base); every eta>=4 checkpoint sits at 0.024-0.049 (34-70%). Raising eta buys erasure depth and
+pays for it in sharpness, monotonically. That trade was invisible while colorfulness was the
+quality axis, because colorfulness *rises* along the same direction.
+
+**Rule going forward:** quality claims use DOVER-technical (sharpness) and DOVER-aesthetic
+(naturalness). Colorfulness may only be reported as |colour - base|, and only as a saturation
+diagnostic — never as evidence of recovery. Human review outranks all of them
+([[feedback-detector-metrics-not-ground-truth]]); it caught this before the metrics did.
