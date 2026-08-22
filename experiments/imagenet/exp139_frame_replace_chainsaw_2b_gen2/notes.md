@@ -17,6 +17,12 @@ takeaway: >
   repeating exp133's specific optimism failure, even if the top-5 number needs the same scrutiny
   exp137 gave eta. Final checkpoint (frame_replace_lora_step600, top-1 0.00 / top-5 0.00) is the one
   to eval, same "no reason to deviate" logic as exp071/exp134/exp137.
+
+  CORRECTED 2026-08-22 by exp140: the live top-5-hits-0.00 signal did NOT survive the full
+  200-prompt protocol. Restricted ESR-5 landed at 15.82, statistically flat against exp134's 15.61
+  (rank-8/eta-2.0/25-row baseline), and chain saw's own restricted top-5 barely moved off base
+  (0.842 vs 1.0). It joins exp069/exp133/exp135's small-sample optimism failures -- this run's
+  healthy live monitor was not evidence the dataset-size lever works.
 ---
 # exp139 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, merged (exp131+exp138) dataset
 

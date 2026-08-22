@@ -1,10 +1,25 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  THE DATASET LEVER ALSO FAILS. Restricted ESR-1 49.90 -> 52.55 (+2.65) and ESR-5 15.61 -> 15.82
+  (+0.21) against exp134's rank-8/eta-2.0/25-row baseline — both movements are inside noise, and
+  PSR-1 actually dropped (82.71 -> 81.34). Chain saw's own restricted top-5 barely moves (0.842 vs
+  base 1.0), so the residual-signal problem — the object staying in the model's top-5 guess even
+  after top-1 erasure — is untouched by nearly doubling the training set, the same way exp137 found
+  it untouched by raising erase pressure. exp139's live-monitor read (top-5 hitting 0.00 at steps
+  300 and 600, a level exp133's 25-row run never reached) is exactly the small-sample optimism
+  exp135's live monitor showed before exp137 falsified it on the full protocol — it joins that list.
+  Preserved-class motion (vs exp130's per-class base) lost a mean ~39% here (cassette player worst,
+  -92%, matching exp137's -93% on the same class almost exactly; English springer rose +53%,
+  matching the "outlier class always gains" pattern seen in exp133/exp139's live samples) — close to
+  exp137's ~36% and worse than exp134's ~32%, so the merged dataset did not buy back any of the
+  preservation exp137's higher eta cost, either. Erased-class motion guard still passes (0.262 vs
+  the 0.15 floor) but with a smaller margin than exp134's 0.390 (base 0.840: -69% loss here vs -54%
+  there). Two independent levers (eta, dataset size) now both null on the target metric — see
+  exp141 for the next one.
 ---
 # exp140 — full ESR/PSR eval of exp139's chain-saw checkpoint (2B, merged 47-row dataset)
 
@@ -58,7 +73,11 @@ exp137's under both conventions.
   signal number this whole thread (exp135 -> exp137 -> exp138 -> exp139) exists to move.
 
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions, checked against GOAL.md's target table and exp134's/
-      exp137's rows.
-- [ ] Motion guard and per-class preservation motion checked.
+- [x] Submitted. Completed on athena, 5.2h, exit 0 (job 3031483).
+- [x] Row measured: restricted ESR-1 52.55 / ESR-5 15.82 / PSR-1 81.34 / PSR-5 93.30, against
+      exp134's 49.90 / 15.61 / 82.71 / 93.19 and GOAL.md's target/guards (92.38 / 77.09 / 54.03 /
+      82.14) — both ESR-1 and ESR-5 miss badly and by essentially the same margin as exp134 did;
+      PSR-1/PSR-5 clear their floors with room to spare.
+- [x] Motion guard checked: erased-class motion 0.262 vs the 0.15 floor (passes, base 0.840 per
+      exp130). Per-class preservation motion checked against exp130's base: mean ~39% loss across
+      the nine preserved classes (cassette player worst at -92%), slightly worse than exp134's ~32%.

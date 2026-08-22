@@ -1,0 +1,79 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B, testing the one lever this thread has never
+# varied: LoRA capacity. eta (exp135/137) and dataset size (exp138/139/140) are both closed --
+# eta=3.0 made the reported metric (restricted ESR-5) WORSE than eta=2.0 (10.31 vs 15.61), and
+# nearly doubling the training set (25 -> 47 rows) moved ESR-1 by +2.65 and ESR-5 by +0.21 points,
+# both inside noise. Everything at rank 8 / eta 2.0 converges to the same ceiling: restricted
+# ESR-1 ~50-54, ESR-5 ~15-16, far short of the 92.38/77.09 target.
+#
+# The nudity thread hit an analogous plateau and is mid-way through the same lever: exp129/exp136
+# (lora_rank: 32, lr scaled 1e-4 -> 2.5e-5 to hold the effective step size, i.e. linear-in-rank)
+# found the eta=2.0 arm still descending at step 200 -- past where rank-8 bottoms out, at the same
+# suppression rate but +9 colourfulness and no rebound in sight ("capacity substitutes for push").
+# exp136 then had to extend 200 -> 400 steps because 200 undershot both arms' decision points.
+#
+# This run applies the identical recipe to chain saw: lora_rank 8 -> 32, lora_alpha 8 -> 32 (ratio
+# held at 1, same as exp139's rank-8/alpha-8), learning_rate scaled by the same 8/rank factor
+# (0.0005 * 8/32 = 0.000125), and steps doubled 600 -> 1200 up front (rather than discovering the
+# undershoot the way exp136 did) since our chain-saw runs converge faster than nudity's did on
+# rank 8 (top-1 0.00 by step ~200-300 vs nudity's slower descent) and a 4x smaller lr needs
+# proportionally more steps to reach the same place. Single variable under test is rank/capacity;
+# steps are widened only so an undertrained rank-32 run can't be mistaken for "capacity doesn't
+# help" -- the eta, dataset (exp139's merged 47-row set), retention set, timestep range and eval
+# cadence are all exp139's, field-for-field.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp141_frame_replace_chainsaw_rank32_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Same merged dataset as exp139: exp131's 25 screened rows (primary) + exp138's 22 screened rows
+# (extra_sources_file), 47 rows total, 24 first / 23 second half.
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+extra_sources_file: experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/extra_sources.json
+
+# exp132's 2B preservation anchors, unchanged from exp133/exp139.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged from exp133/exp139: eta=2.0 is the established stable baseline, closed as a lever by
+# exp137. This run isolates rank/capacity against that same fixed point.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Same eval prompts as exp133/exp134/exp139/exp140, for an apples-to-apples live-monitor comparison.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# THE VARIABLE: rank 8 -> 32, alpha held at ratio 1 (8->32), same convention as nudity's
+# exp129/exp136. lr scaled by 8/32 = 0.25 to hold the effective per-step update size, same rule
+# nudity's exp129 header states ("1e-4 * (8/32) -- holds effective step at rank-8 levels").
+lora_rank: 32
+lora_alpha: 32.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.000125
+# Doubled from exp139's 600: a 4x smaller lr needs more steps to reach the same place, and
+# nudity's exp136 had to make this exact correction after exp129 undershot at unscaled steps.
+steps: 1200
+save_interval: 200
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp139 (600 steps, rank 8, same dataset) ran 3.7h on helios. Doubling steps roughly doubles
+# compute; rank 32 adds a small fixed overhead per step (larger LoRA matmuls) that does not scale
+# with dataset size. Budgeting ~2.2x exp139's measured time plus headroom.
+slurm_time: "10:00:00"
