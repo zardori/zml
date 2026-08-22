@@ -1,0 +1,34 @@
+# Reported ESR/PSR for exp139's chain-saw checkpoint (2B, merged 47-row exp131+exp138 dataset,
+# eta=2.0 held fixed at exp133/exp134's baseline value) -- the dataset-size/diversity counterpart
+# to exp137's eta sweep.
+#
+# exp137 closed the erase_esd_eta lever: more erase pressure made the target metric (restricted
+# ESR-5) worse, not better (10.31 vs exp134's 15.61), and named dataset size/diversity as the
+# remaining lever. exp138 built a second, independently-seeded 22-row split-prompt batch on
+# exp131's already-validated recipe; exp139 trained on the merge (47 rows) holding every other
+# field -- eta, lora rank/alpha, lr, steps, timestep range, retention set -- field-for-field
+# exp133/exp134's eta=2.0 baseline. exp139's live 9-prompt monitor hit concept top-5 0.00 at steps
+# 300 and 600 (exp133's own live sample never got below 0.11-0.22), the same kind of signal
+# exp135's live monitor showed before exp137 falsified it at N=200. This run is what actually
+# decides it.
+#
+# Run: ./submit_job.py athena experiments/imagenet/exp140_eval_frame_replace_chainsaw_gen2_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp139's FINAL checkpoint. Same "no reason to deviate" logic as exp071/exp134/exp137: the live
+# monitor holds top-1 0.00 / top-5 0.00 at step 600 (one 0.01 top-1 blip at step 500 along the way),
+# so this is the last checkpoint trained, not a selection pick.
+lora_checkpoint_dir: experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/outputs_20260822_041410/frame_replace_lora_step600
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp134/exp137 (identical protocol, same model, same 200 prompts, same inference steps, only the
+# LoRA weights differ) both ran 5-6h of a 14h budget on athena. Matching that budget rather than
+# re-deriving it.
+slurm_time: "0-14:00:00"

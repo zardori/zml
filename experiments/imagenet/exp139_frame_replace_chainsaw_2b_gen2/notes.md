@@ -1,10 +1,22 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  Live monitor is healthy and clears both falsification bars, so the run earns its full-eval
+  follow-up (exp140). Concept top-1 reaches 0.00 by step 200 and holds through 600 (one 0.01 blip
+  at step 500, the same pattern exp133 showed), so the extra 22 rows did not destabilize training.
+  Top-5, the metric this run exists to move, hits 0.00 at steps 300 AND 600 -- below exp133's
+  0.11-0.22 floor for its entire run. But exp135 showed this exact signal (live top-5 hitting 0.00)
+  on the eta sweep and exp137's full 200-prompt eval then read WORSE than the eta=2.0 baseline it
+  was supposed to beat, so this is a lead, not a result -- the full eval is the only thing that can
+  confirm it. One point favors this run over exp135's: preserved-class motion here DROPS (unrelated
+  0.384 -> 0.266, -31%) rather than rising as exp133's live sample misleadingly did (+35%, which
+  exp134's full protocol then corrected to a ~32% loss) -- so this run's live sample is not
+  repeating exp133's specific optimism failure, even if the top-5 number needs the same scrutiny
+  exp137 gave eta. Final checkpoint (frame_replace_lora_step600, top-1 0.00 / top-5 0.00) is the one
+  to eval, same "no reason to deviate" logic as exp071/exp134/exp137.
 ---
 # exp139 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, merged (exp131+exp138) dataset
 
@@ -69,8 +81,11 @@ confound with the eta sweep exp135/137 already ran separately.
   needed before this run.
 
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked against exp133's trajectory (top-1 0.00 by step ~200, top-5 settling
-      0.11-0.22).
-- [ ] Full `esr_psr` eval queued as a follow-up (exp139's counterpart to exp134) if the live monitor
-      looks healthy.
+- [x] Submitted. Completed on helios, 3.7h, exit 0 (job 20945839).
+- [x] Live monitor checked against exp133's trajectory: top-1 0.00 from step 200 through 600 (one
+      0.01 blip at step 500, matching exp133), top-5 hits 0.00 at steps 300 and 600 -- below
+      exp133's 0.11-0.22 floor. Healthy by both pre-registered criteria.
+- [x] Full `esr_psr` eval queued as exp140, using the final checkpoint
+      (`frame_replace_lora_step600`). exp135/exp137 already showed a live top-5-hits-zero signal
+      can fail the full protocol, so exp140's result is what actually decides this, not this
+      write-up.
