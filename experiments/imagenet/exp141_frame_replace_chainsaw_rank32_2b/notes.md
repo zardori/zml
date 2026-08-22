@@ -1,10 +1,22 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  INCONCLUSIVE ON RANK, BY ITS OWN PRE-REGISTERED CRITERION -- the lr-scaling recipe undertrained,
+  exactly the second falsifier this notes.md wrote down in advance. Live 9-prompt concept top-1
+  never reaches 0.00 at any of the six checkpoints (0.07 / 0.31 / 0.30 / 0.11 / 0.11 / 0.20 across
+  steps 200-1200) and oscillates rather than converging, where every rank-8/eta-2.0 run so far
+  (exp133, exp135, exp139) hit 0.00 by step ~150-200 and held. Top-5 tracks the same non-convergence
+  (0.24 / 0.66 / 0.72 / 0.48 / 0.49 / 0.38) -- it gets WORSE than the untrained baseline before
+  drifting back down, never approaching 0. Per the pre-registered falsifier, this means the 8/32=
+  0.25 lr scaling (borrowed from the nudity thread's exp129 rule, "hold effective step size
+  constant") undertrained rank 32 relative to its 2x step budget -- it does NOT mean capacity
+  doesn't help, and per the same pre-registration no full esr_psr eval was queued on this
+  checkpoint. exp142 reruns rank 32 at exp139's exact lr (0.0005, unscaled) and step budget (600),
+  isolating rank as the sole variable against a recipe already known to converge cleanly at rank 8,
+  rather than guessing at a second scaling correction the way nudity's exp136 did.
 ---
 # exp141 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, LoRA rank 8 -> 32
 
@@ -85,6 +97,9 @@ already run separately.
   exp133's.
 
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked: top-1 reaches 0.00 and holds, top-5 trajectory noted.
-- [ ] If healthy, full `esr_psr` eval queued as the next experiment number.
+- [x] Submitted (helios, job 20953347, completed 21674s / ~6.0h).
+- [x] Live monitor checked: top-1 never reaches 0.00, oscillates 0.07-0.31 across all six
+      checkpoints -- unhealthy per the pre-registered second falsifier.
+- [x] Not healthy, so no full `esr_psr` eval queued on this checkpoint. See exp142, which reruns
+      rank 32 at exp139's original, known-convergent lr/steps to isolate rank from the scaling
+      recipe.
