@@ -1,0 +1,61 @@
+# Second generation of the chain-saw split-prompt dataset on CogVideoX-2B: exp117's closeup
+# prompts, fresh seeds (gen2), same trajectory-mode recipe as exp131.
+#
+# exp137 closed the erase_esd_eta avenue. It falsified exp135's own pre-registered hypothesis:
+# eta=3.0's step-300 checkpoint, which reached top-5 0.00 on the 9-prompt live monitor, lands at
+# restricted ESR-5 10.31 on the full 200-prompt protocol -- BELOW exp134's eta=2.0 baseline (15.61),
+# not above it. ESR-1 moves only marginally (53.57 vs 49.90, +3.7 points against a 92.38 target).
+# Preservation cost also went the wrong way: mean motion loss on the nine preserved classes (computed
+# against exp130's base numbers) is ~36% at eta=3.0 vs exp134's ~32% at eta=2.0, and one class
+# (cassette player, motion 0.039 vs base 0.560, -93%) is now edging into 5b's frozen-poster range
+# (0.01-0.05) even though the erased-class motion guard itself still passes comfortably (0.371 vs
+# the 0.15 floor). So pushing erase pressure further is not the lever: it buys a few ESR-1 points at
+# a growing preservation cost while making the pre-registered target metric (ESR-5) worse, not
+# better. exp135's own falsification note named the alternative directly: "the next lever to try is
+# dataset size or diversity, not this one."
+#
+# This is that lever. exp131 (2B chain saw, trajectory mode, exp117's 30 closeup prompts) screened
+# 25/30 (83%) and is the entire training set behind exp133/exp134/exp135/exp137 -- the same size
+# exp117 alone gave the 5b thread before exp121 (5b's gen2, identical recipe: same prompts, fresh
+# seeds 3231-3260) doubled it to 33 usable rows merging with exp066. This build re-runs exp121's own
+# csv (`chain_saw_closeup_gen2.csv`) at the 2B base model exp131 already validated (0 not-split
+# failures, so the trajectory-mode fix carries over cleanly), producing a second, independent batch
+# of clips to merge with exp131's screened set for a larger/more varied training run. It does not by
+# itself test whether more data closes the ESR-5 gap -- that needs a merge + train + eval, queued in
+# a later tick once this is screened -- but it is the input that test needs, and it is cheap (one
+# precompute job, precedented yield ~80%+ at this recipe on 2B).
+#
+# Single variable changed from exp131: csv_path (gen2 seeds in place of the original 30). Model,
+# split geometry, split_mode, prompts (same wording, new seeds) all held fixed, so any yield
+# difference is attributable to seed alone, the same check exp121 ran for 5b.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp138_split_chainsaw_gen2_2b/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# exp121's gen2 triples for 5b, reused verbatim: same 30 closeup prompts as exp117/exp131, fresh
+# seeds 3231-3260.
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_gen2.csv
+model_id: THUDM/CogVideoX-2b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Field-for-field exp131.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+split_mode: trajectory
+concept_guidance_scale: null
+
+concept: object
+concept_target: "chain saw"
+frame_concept_threshold: 0.05   # logging only since 543eed8; screen_split_dataset.py decides pass/fail
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false
+
+# exp131 (same recipe, same model) ran 30 rows in under its 3h budget; matching that headroom.
+slurm_time: "0-03:00:00"
