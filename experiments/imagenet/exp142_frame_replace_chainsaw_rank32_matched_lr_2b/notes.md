@@ -1,10 +1,24 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  CONVERGES CLEANLY, UNLIKE exp141 — the confound was the lr scaling, not capacity. Live concept
+  top-1 reaches 0.00 by step 200 and holds through step 600 (one transient 0.09 at step 100), same
+  pace as every rank-8/eta-2.0 run (exp133, exp135, exp139). Top-5 — the metric every prior lever
+  (eta: exp137, dataset size: exp140) failed to move — lands at 0.00 at four of six checkpoints
+  (200, 300, 500, 600) with only tiny blips at 100 (0.11) and 400 (0.03), below the 0.11-0.28 band
+  every rank-8 run's live sample has been stuck at. BUT this is the third time a live 9-prompt
+  monitor has shown "top-5 hits 0.00" (after exp135 and exp139), and both prior instances were
+  falsified on the full 200-prompt protocol (exp137, exp140) — reason for skepticism, not
+  confidence, going into the eval. More concerning and NEW: concept motion collapses within this
+  run's own live sample, 0.240 (step 100) -> 0.061 (step 600, -74%), already below GOAL.md's 0.15
+  motion-guard floor and lower than any final-checkpoint reading from exp133/exp135/exp139's
+  rank-8 runs (exp133's was 0.140 at step 600). Per this run's own pre-registered criterion (queue
+  a full eval only if top-1 is healthy — it is), exp143 spends the last untested single-lever
+  hypothesis (capacity) on the full protocol, flagged going in that it may fail the motion guard
+  even if ESR-5 improves.
 ---
 # exp142 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, LoRA rank 32 at exp139's UNSCALED lr/steps
 
@@ -50,10 +64,53 @@ Field-for-field exp139 (2B, merged 47-row exp131+exp138 dataset, eta=2.0, lr 0.0
 save_interval 100) except `lora_rank: 32`, `lora_alpha: 32.0` (was 8/8.0) — capacity, the sole
 variable under test, isolated from the lr/step confound exp141 introduced.
 
+## Results (2026-08-23) — converges cleanly; live top-5 signal strong but same shape as two already-falsified reads; new motion concern
+
+Completed on helios (job 20962189, 3.7h of a 6h budget — same runtime as exp139's rank-8 run at
+the same lr/step budget, confirming the slurm_time comment's prediction that rank alone adds no
+large per-step overhead).
+
+Live 9-prompt monitor, by checkpoint (step: top-1 / top-5 / concept motion / unrelated motion):
+
+| step | top-1 | top-5 | concept motion | unrelated motion |
+|---|---|---|---|---|
+| 100 | 0.09 | 0.11 | 0.240 | 0.426 |
+| 200 | 0.00 | 0.00 | 0.161 | 0.470 |
+| 300 | 0.00 | 0.00 | 0.170 | 0.373 |
+| 400 | 0.00 | 0.03 | 0.133 | 0.392 |
+| 500 | 0.00 | 0.00 | 0.061 | 0.314 |
+| 600 | 0.00 | 0.00 | 0.061 | 0.425 |
+
+**Convergence**: clean, matching rank 8's pace exactly (0.00 by step 200, holding). This directly
+answers exp141's open question — the earlier rank-32 run's oscillation (0.07/0.31/0.30/0.11/0.11/
+0.20) was the lr-scaling confound, not a property of higher capacity. Rank 32 trains as stably as
+rank 8 when the lr/step budget is left alone.
+
+**Top-5** — the metric every previous lever left untouched — reads better than any rank-8 run's
+live sample: 0.00 at steps 200, 300, 500, 600, against the 0.11-0.28 floor exp133/exp135/exp139
+were stuck at. Taken alone this would be the first positive top-5 signal in the thread. It is not
+taken alone: exp135's live top-5 also hit 0.00 and was falsified by exp137's full-protocol ESR-5
+(10.31, *below* the eta=2.0 baseline); exp139's live top-5 also hit 0.00 at two checkpoints and was
+falsified by exp140's full-protocol ESR-5 (15.82, statistically flat against baseline). Two out of
+two prior instances of this exact signal did not survive N=200. This is the third instance, and
+that base rate is the reason to stay skeptical rather than to read this table as a win.
+
+**Motion — new and specific to this run.** Concept-class motion does not just stay flatter than
+`unrelated`, as every prior run showed; it keeps falling to 0.061 by steps 500-600, a level neither
+exp133 (0.140 final) nor exp139's live sample approached, and already below GOAL.md's 0.15 guard
+floor *on the live sample itself*. If this holds on the full 200-prompt protocol it would fail the
+motion guard outright, independent of whatever ESR-5 does — a different, capacity-specific version
+of exp069/exp071's original freeze finding, not the eta- or dataset-scale-driven kind exp134/exp137/
+exp140 already characterized (those all cleared the 0.15 floor comfortably, 0.26-0.39 on the erased
+class at the full-protocol level).
+
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked: top-1 reaches 0.00 and holds, top-5 trajectory noted against the
-      0.11-0.28 band every rank-8 run has hit.
-- [ ] If healthy, full `esr_psr` eval queued as the next experiment number. If not, report as
-      inconclusive/abandoned and flag the rank lever as needing a different approach than either
-      exp141's or this run's recipe.
+- [x] Submitted (helios job 20962189, completed 2026-08-23T02:37).
+- [x] Live monitor checked: top-1 reaches 0.00 by step 200 and holds through 600 — healthy by the
+      pre-registered criterion. Top-5 trajectory is below the 0.11-0.28 band every rank-8 run hit,
+      but this is the same shape as two signals (exp135, exp139) already falsified on the full
+      protocol, so it is read with matching skepticism, not confidence.
+- [x] Full `esr_psr` eval queued: exp143, on this run's `frame_replace_lora_step600` checkpoint —
+      the top-1 trajectory is healthy per the pre-registered gate. Flagged going in that the
+      concept-motion collapse to 0.061 in this run's own live sample (below the 0.15 guard floor)
+      is a real risk the checkpoint fails the motion guard even if ESR-5 improves.

@@ -1,0 +1,32 @@
+# Reported ESR/PSR for exp142's rank-32 chain-saw frame_replace LoRA (2B) -- the third single-lever
+# test in this thread (eta: exp137, dataset size: exp140, now capacity). exp142's live 9-prompt
+# monitor converged cleanly (top-1 0.00 from step 200, matching every rank-8 run's pace) and its
+# top-5 trajectory hit 0.00 at 4 of 6 checkpoints, below the 0.11-0.28 band every rank-8 run's live
+# sample was stuck at. But that exact "live top-5 hits 0.00" signal already failed to survive the
+# full 200-prompt protocol twice (exp135->exp137, exp139->exp140), so this run answers whether a
+# third instance holds up, not just confirms a lead. exp142 also flagged a NEW risk: its own live
+# sample's concept-class motion fell to 0.061 by steps 500-600, already below GOAL.md's 0.15 guard
+# floor, worse than any prior rank-8 run's final live reading (exp133: 0.140) -- this run tests
+# whether that holds at N=200 too, independent of whatever ESR-5 does.
+# Run: ./submit_job.py athena experiments/imagenet/exp143_eval_frame_replace_chainsaw_rank32_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp142's FINAL checkpoint. Same "no reason to deviate" logic as exp071/exp134/exp137/exp140: the
+# live monitor is flat at concept top-1 0.00 from step 200 through step 600, so picking among the
+# six checkpoints would be selection on the eval set for no measurable gain.
+lora_checkpoint_dir: experiments/imagenet/exp142_frame_replace_chainsaw_rank32_matched_lr_2b/outputs_20260822_224618/frame_replace_lora_step600
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp134 (identical 200-video protocol, rank-8 LoRA, same model) ran 5.3h on athena of a 14h
+# budget. Rank 32 adds no measurable per-step overhead at training time (exp142 finished in the
+# same 3.7h as rank-8 exp139 at an identical lr/step budget), and eval is forward-pass only, so
+# there is no reason to expect eval to run slower than exp134's. Matching exp134's 14h allotment
+# anyway for the same headroom reason exp071/exp134 give: resumable if it runs out of wall clock.
+slurm_time: "0-14:00:00"
