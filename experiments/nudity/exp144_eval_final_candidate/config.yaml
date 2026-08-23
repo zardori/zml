@@ -21,7 +21,7 @@
 # Mirrors exp112 exactly (four concept sets + related + unrelated) so the new row drops straight
 # into docs/comparability_t2vunlearning.md next to base / NegPrompt / exp080 / exp110.
 #
-# Run: ./submit_job.py helios experiments/nudity/exp137_eval_final_candidate/config.yaml
+# Run: ./submit_job.py helios experiments/nudity/exp144_eval_final_candidate/config.yaml
 model_id: THUDM/CogVideoX-5b
 job_type: eval
 concept: nudity

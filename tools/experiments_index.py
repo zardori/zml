@@ -241,6 +241,27 @@ def find_misfiled_experiments(experiments: list[Experiment]) -> list[str]:
     return problems
 
 
+def find_duplicate_numbers(experiments: list[Experiment]) -> list[str]:
+    """One number, one experiment — across every thread, live and archived alike.
+
+    Numbering is contested three ways (two people and an autonomous agent), and threads are
+    separate folders, so two experiments can take the same number without any single `ls` showing
+    it. That happened with exp137, claimed by both the imagenet and nudity threads two days apart,
+    and nothing caught it: numbers are how notes, commits and the weekly deck refer to runs, so a
+    collision silently makes half those references ambiguous. `git fetch` before picking a number.
+    """
+    by_number: dict[str, list[Experiment]] = {}
+    for exp in experiments:
+        by_number.setdefault(exp.exp_id, []).append(exp)
+    return [
+        f"{exp_id} is claimed by {len(dupes)} experiments: "
+        + ", ".join(f"experiments/{e.rel_dir}" for e in sorted(dupes, key=lambda e: e.rel_dir))
+        + " — renumber the one claimed later (git log --diff-filter=A on each folder)"
+        for exp_id, dupes in sorted(by_number.items())
+        if len(dupes) > 1
+    ]
+
+
 def find_archive_references(experiments: list[Experiment]) -> list[str]:
     """Live configs must never point into ``experiments/archive/``.
 
@@ -349,7 +370,8 @@ def main() -> int:
     args = parser.parse_args()
 
     experiments, problems = discover()
-    problems += find_misfiled_experiments(experiments) + find_archive_references(experiments)
+    problems += (find_misfiled_experiments(experiments) + find_duplicate_numbers(experiments)
+                 + find_archive_references(experiments))
 
     if problems:
         print(f"{len(problems)} problem(s):", file=sys.stderr)

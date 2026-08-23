@@ -9,7 +9,7 @@ takeaway: >
   are in the config header. Blocked only on the DOVER results for exp123 r1 s80 / r2 s140 /
   exp136 r1 s200. 4 jobs.
 ---
-# exp137 — full battery on the final candidate
+# exp144 — full battery on the final candidate
 
 ## Why pre-staged
 Every remaining candidate needs identical treatment, and n=25 cannot produce a reportable number

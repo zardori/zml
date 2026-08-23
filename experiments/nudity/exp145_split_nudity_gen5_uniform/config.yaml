@@ -1,0 +1,68 @@
+# Fifth-generation nudity dataset — gen4's scenes with a deliberately UNIFORM wardrobe.
+#
+# THE ONE VARIABLE. gen4 (exp109) is 40 distinct garments across 8 categories; gen5 is 3 near-
+# identical navy pieces. Everything else is copied from exp109 verbatim — the same 25 scenes, the
+# same A/C prompt construction, the same split geometry, the same 200 rows, the same shard layout —
+# so any difference in the trained model is attributable to donor-wardrobe diversity and nothing
+# else. prompts/split_nudity_gen5.csv is built by tools/build_split_nudity_gen5_prompts.py, which
+# imports gen4's scene grammar rather than restating it.
+#
+# WHY. exp080's 34-clip gen1-gen3 set still produces the best checkpoint, beating every gen4-derived
+# run. docs/frame_replace.md records that the LAB edit statistics do NOT explain that gap: gen4's
+# edits are larger, and its lower coherence (0.605 vs 0.714) sits inside the bootstrap spread of
+# 34-clip subsets (p=0.21). So this is not a build implied by a measured finding — it is a
+# deliberate manipulation of the one variable with a mechanistic story behind it, run at a size
+# where the coherence difference cannot be sampling noise. A rank-r LoRA can only realise the
+# component of (donor - teacher) that recurs across examples; 40 garments means 40 different edits.
+#
+# GATE BEFORE TRAINING. Screen the build with tools/screen_split_dataset.py as usual, then measure
+# the manipulation itself with no GPU:
+#
+#   uv run python tools/analyze_edit_directions.py \
+#     --metadata experiments/nudity/exp145_split_nudity_gen5_uniform/<filtered>.json \
+#     --videos <this experiment's videos dir> --label GEN5
+#
+# Reference values on the same tool: OLD-31 coherence 0.714 (n=34), GEN4-100 0.605, CLEAN-75 0.615.
+# If gen5 does not land clearly above 0.714 at n>=75, the manipulation failed at the data level and
+# exp146 is not worth submitting — say so in notes.md rather than training anyway.
+#
+# WHAT THIS TRADES. A uniform donor set makes "render this navy shirt" easier to learn than "do not
+# render nudity". exp113 already caught the gen4 checkpoint shifting colour on prompts containing no
+# nudity (53.1 vs base 45.8), and uniformity can only strengthen that. exp146's eval MUST include
+# the unrelated/preservation sets or the collateral this buys will be invisible.
+#
+# REVIEW RULE, inherited from exp109: check the EDITED clip for residual concept, not only for
+# wardrobe realism. 4 of exp080's 34 targets still trigger the detector on the edited clip, two at
+# ~0.75 across all frames — those examples teach the model to answer a nudity prompt with nudity.
+# `edited_max_confidence` in the output metadata is the cheap first pass.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp145_split_nudity_gen5_uniform/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# Four round-robin shards of prompts/split_nudity_gen5.csv, 50 triples each -> 4 parallel jobs.
+csv_path:
+  - prompts/split_nudity_gen5_part1.csv
+  - prompts/split_nudity_gen5_part2.csv
+  - prompts/split_nudity_gen5_part3.csv
+  - prompts/split_nudity_gen5_part4.csv
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs — identical to exp109. Not re-swept: this generation changes
+# wardrobe vocabulary, not split geometry. One variable.
+split_latent_frame: 7
+concept_region: random   # mix concept-first / concept-second across the dataset
+split_jitter: 2          # boundary jitter (+/-2 latent frames), seeded per clip
+split_step_frac: 0.85    # exp074/exp076's pick, confirmed on exp078's framings
+
+frame_nudity_threshold: 0.3
+min_donor_frames: 2
+boundary_margin: 2
+concept: nudity
+save_videos: true        # required — wardrobe realism is a human-review call, not a metric
+
+# exp109 ran the same 50-triple shards on the same model. Same per-shard load, with margin.
+slurm_time: "0-9:00:00"
