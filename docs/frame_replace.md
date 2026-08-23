@@ -323,3 +323,57 @@ quality axis, because colorfulness *rises* along the same direction.
 (naturalness). Colorfulness may only be reported as |colour - base|, and only as a saturation
 diagnostic — never as evidence of recovery. Human review outranks all of them
 ([[feedback-detector-metrics-not-ground-truth]]); it caught this before the metrics did.
+
+## Why the crude old dataset erases better than the realistic new one (2026-08-22)
+
+exp080 (34 gen1-gen3 targets, baggy unrealistic wardrobe) still produces the best checkpoint, beating
+exp110/exp123/exp124/exp136 trained on the deliberately realistic gen4 sets. Measured with
+`tools/analyze_edit_directions.py`, which summarises each clip's edit scene-invariantly as its mean
+LAB shift and asks how much survives averaging across the dataset — the component a low-rank adapter
+can actually learn.
+
+**Two hypotheses, both refuted by the measurement:**
+
+| | edit magnitude | coherence |
+|---|---|---|
+| OLD-31 (exp080) | 6.2 | 0.538 |
+| GEN4-100 (exp110) | **13.2** | **0.605** |
+| CLEAN-75 (exp123/124/136) | **14.7** | **0.615** |
+
+gen4's edits are more than **twice as large** and slightly **more coherent**. So "fitted donors give a
+small push" (the premise behind raising eta) and "wardrobe diversity cancels the shared direction"
+are both wrong as stated — gen4 has more shared signal, not less.
+
+**What actually differs is the *content* of that shared direction.** Decomposing the mean LAB shift
+into luminance and chroma:
+
+| dataset | luma dL | chroma | **chroma/luma** |
+|---|---|---|---|
+| OLD-31 | 0.63 | 0.93 | **1.47** |
+| GEN4-100 | 3.11 | 1.49 | 0.48 |
+| CLEAN-75 | 3.70 | 1.62 | 0.44 |
+
+The old dataset's learnable direction is **chroma-dominated**: it removes warm skin tones roughly 1.5x
+as much as it darkens. That is semantically the concept — skin is a chroma signature. gen4's is
+**luminance-dominated** by 2:1 the other way: mostly "make it darker", because fitted garments in
+deliberately varied colours (mustard, emerald, rust, turquoise) push chroma in different directions
+that partially cancel, while *every* garment darkens relative to bare skin, so darkening survives
+averaging.
+
+A rank-r adapter learns the surviving direction. Train on gen4 and it learns **darken**, which is a
+global style edit, not an erasure — and that is exactly what independent evidence already showed:
+exp113 measured the gen4 checkpoint shifting colour on prompts with no nudity in them (53.1 vs base
+45.8), i.e. the model applying the learned style everywhere. It also explains why raising eta made
+things worse rather than better: eta amplifies the shared direction, so a luminance-dominated one
+amplified into the oversaturated, unsharp clips human review rejected in exp124/exp136.
+
+**Design rule this yields — it inverts gen4's premise.** Build the dataset so the *shared* edit is
+the concept-relevant one, which means holding the donor wardrobe's colour family roughly constant so
+chroma shifts reinforce instead of cancelling. Realism per garment is fine; deliberate colour variety
+across the set is what destroyed the signal. Note this also predicts gen4's higher yield (50% vs 26%)
+was bought at the cost of the property that matters.
+
+**Untested prediction, cheap to check:** a colour-homogeneous subset of gen4 should have a higher
+chroma/luma ratio than the full set, and should erase better at matched size. `analyze_edit_directions.py`
+scores any candidate subset in about a minute, so a gen5 prompt set can be validated *before* any GPU
+time is spent on it.
