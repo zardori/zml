@@ -324,56 +324,58 @@ quality axis, because colorfulness *rises* along the same direction.
 diagnostic — never as evidence of recovery. Human review outranks all of them
 ([[feedback-detector-metrics-not-ground-truth]]); it caught this before the metrics did.
 
-## Why the crude old dataset erases better than the realistic new one (2026-08-22)
+## Why the crude old dataset beats the realistic new one — LAB edit statistics do not explain it (2026-08-22)
 
-exp080 (34 gen1-gen3 targets, baggy unrealistic wardrobe) still produces the best checkpoint, beating
-exp110/exp123/exp124/exp136 trained on the deliberately realistic gen4 sets. Measured with
-`tools/analyze_edit_directions.py`, which summarises each clip's edit scene-invariantly as its mean
-LAB shift and asks how much survives averaging across the dataset — the component a low-rank adapter
-can actually learn.
+exp080 (34 gen1–gen3 targets, baggy unrealistic wardrobe) still produces the best checkpoint, beating
+exp110/exp123/exp124/exp136 trained on the deliberately realistic gen4 sets. `tools/analyze_edit_directions.py`
+was written to explain that: it summarises each clip's edit scene-invariantly as its mean LAB shift and
+asks how much survives averaging across the dataset — the component a low-rank adapter can learn.
 
-**Two hypotheses, both refuted by the measurement:**
+**The answer is that it does not explain it.** Measured over *every* seed in each dataset:
 
-| | edit magnitude | coherence |
-|---|---|---|
-| OLD-31 (exp080) | 6.2 | 0.538 |
-| GEN4-100 (exp110) | **13.2** | **0.605** |
-| CLEAN-75 (exp123/124/136) | **14.7** | **0.615** |
+| | n | edit magnitude | coherence | pairwise cos | shared \|\|mean d\|\| | chroma:luma |
+|---|---|---|---|---|---|---|
+| OLD-31 (exp080) | 34 | 9.9 | 0.714 | 0.293 | 3.38 | 0.45 |
+| GEN4-100 (exp110) | 100 | 13.2 | 0.605 | 0.154 | 3.45 | 0.48 |
+| CLEAN-75 (exp123/124/136) | 75 | 14.7 | 0.615 | 0.149 | 4.04 | 0.44 |
 
-gen4's edits are more than **twice as large** and slightly **more coherent**. So "fitted donors give a
-small push" (the premise behind raising eta) and "wardrobe diversity cancels the shared direction"
-are both wrong as stated — gen4 has more shared signal, not less.
+Three hypotheses die here:
 
-**What actually differs is the *content* of that shared direction.** Decomposing the mean LAB shift
-into luminance and chroma:
+1. **"Fitted donors give too small a push"** — the premise behind raising eta. False: gen4's edits are
+   ~40% *larger*.
+2. **"Wardrobe diversity cancels the shared direction"** — the shared component is the same size in all
+   three (3.38 / 3.45 / 4.04).
+3. **"The old set's edit is chromatic (skin-coloured) where gen4's is a global darkening"** — false;
+   chroma:luma is ~0.45 in all three.
 
-| dataset | luma dL | chroma | **chroma/luma** |
-|---|---|---|---|
-| OLD-31 | 0.63 | 0.93 | **1.47** |
-| GEN4-100 | 3.11 | 1.49 | 0.48 |
-| CLEAN-75 | 3.70 | 1.62 | 0.44 |
+Coherence is the one statistic that separates them (0.714 vs 0.605/0.615, pairwise cosine 0.293 vs
+~0.15), but it is **not significant at these sample sizes**: bootstrapping 34-clip subsets of GEN4-100
+gives coherence 0.602 ± 0.125, and 21% of random subsets reach OLD-31's 0.714 (n=2000). A 34-clip
+dataset simply has a noisier mean direction.
 
-The old dataset's learnable direction is **chroma-dominated**: it removes warm skin tones roughly 1.5x
-as much as it darkens. That is semantically the concept — skin is a chroma signature. gen4's is
-**luminance-dominated** by 2:1 the other way: mostly "make it darker", because fitted garments in
-deliberately varied colours (mustard, emerald, rust, turquoise) push chroma in different directions
-that partially cancel, while *every* garment darkens relative to bare skin, so darkening survives
-averaging.
+**Two measurement traps this exercise walked into**, both now fatal errors in the tool rather than
+warnings, because each produced a confident wrong answer first:
 
-A rank-r adapter learns the surviving direction. Train on gen4 and it learns **darken**, which is a
-global style edit, not an erasure — and that is exactly what independent evidence already showed:
-exp113 measured the gen4 checkpoint shifting colour on prompts with no nudity in them (53.1 vs base
-45.8), i.e. the model applying the learned style everywhere. It also explains why raising eta made
-things worse rather than better: eta amplifies the shared direction, so a luminance-dominated one
-amplified into the oversaturated, unsharp clips human review rejected in exp124/exp136.
+* **Partial seed match.** Measuring 13 of exp080's 34 clips gave chroma:luma 0.40; a different
+  13 gave 1.47 — opposite conclusions from one dataset. The tool printed "matched 13/34" and was
+  believed anyway.
+* **Ambiguous seed match.** A precompute *grid* writes the same seeds under every `run_00N/`, one per
+  hyperparameter value, so passing several offers several different edits per seed and directory order
+  silently picks a build nobody trained on. exp080's set is exp061's 21 plus exp078 **run_005**'s 13;
+  the merge source is named in the experiment's `notes.md` and must be read from there.
 
-**Design rule this yields — it inverts gen4's premise.** Build the dataset so the *shared* edit is
-the concept-relevant one, which means holding the donor wardrobe's colour family roughly constant so
-chroma shifts reinforce instead of cancelling. Realism per garment is fine; deliberate colour variety
-across the set is what destroyed the signal. Note this also predicts gen4's higher yield (50% vs 26%)
-was bought at the cost of the property that matters.
+**What the colour stratification does show.** Partitioning gen4 by donor colour family
+(`--groups <csv> --group-column colour`) separates cleanly: *dark* garments (47 of the 100 kept clips)
+give a large, very coherent (0.83), overwhelmingly luminance edit, while *earth*-toned garments give a
+small, incoherent, near-purely chromatic one. So donor lightness relative to skin does control what
+kind of edit the dataset teaches — it just does not distinguish OLD-31 from gen4, whose aggregates
+land in the same place.
 
-**Untested prediction, cheap to check:** a colour-homogeneous subset of gen4 should have a higher
-chroma/luma ratio than the full set, and should erase better at matched size. `analyze_edit_directions.py`
-scores any candidate subset in about a minute, so a gen5 prompt set can be validated *before* any GPU
-time is spent on it.
+**Where the question actually lives.** The erasure gap is not "gen4 erases less" — exp123 r1 s80
+(0.070) and exp136 r1 s200 (0.040) both erase *deeper* than exp080 r2 s120 (0.120) on the shared
+25-prompt subset. The difference is **when**: exp080 has a checkpoint that is simultaneously erased and
+sharp (s120: frame rate 0.000 at DOVER-t 0.0643), while every gen4-derived run only erases inside the
+degeneracy trough and gives the erasure back as sharpness returns (best DOVER-t ≥ 0.058 checkpoint:
+frame rate 0.23 for exp123 r1 and exp136 r1, 0.32 for exp123 r2). So the open question is why old-31's
+erasure *survives the recovery limb* — a property of the trajectory, not of the dataset's mean colour
+edit, and not something a global LAB statistic can see.
