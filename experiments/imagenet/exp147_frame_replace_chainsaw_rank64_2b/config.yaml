@@ -1,0 +1,75 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B: LoRA rank 32 -> 64, capacity lever taken one
+# step further. Field-for-field exp142 (which itself was field-for-field exp139) except
+# lora_rank/lora_alpha. Isolates rank as the sole variable a second time.
+#
+# exp143 (the full-protocol eval of exp142's rank-32 checkpoint) found capacity is a REAL lever,
+# unlike eta (exp137, closed null / traded preservation) or dataset size (exp140, closed null):
+# restricted ESR-1 49.90 -> 67.86 (+17.96), ESR-5 15.61 -> 20.92 (+5.31), and BOTH PSR cells also
+# improved (85.28 vs 82.71, 93.92 vs 93.19) -- no trade-off, the only lever in this thread with that
+# property. exp142's two pre-registered risks (a live-sample top-5 optimism that had twice been
+# falsified before; a live-sample motion collapse to 0.061, under the 0.15 guard floor) both failed
+# to generalize: full-protocol top-5 confirmed a real gain (chain saw restricted top-5 0.79, below
+# every prior run's ~0.84-0.85), and full-protocol motion read 0.223, comfortably above floor.
+#
+# Still, exp143 landed well short of GOAL.md's target (ESR-1 92.38, ESR-5 77.09 -- gap 56.17 points
+# on ESR-5, the binding constraint). This run tests whether doubling rank again continues to move
+# ESR-5 at a similar or diminishing rate, at the same lr/step budget that has now converged cleanly
+# at rank 8 (exp139), rank 32 (exp142), and (per exp142's own note) shows no large per-step slowdown
+# from rank alone. If the live 9-prompt monitor converges cleanly (top-1 0.00 by step ~100-200,
+# holding), a full esr_psr eval is the natural follow-up next tick, mirroring exp142 -> exp143.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp147_frame_replace_chainsaw_rank64_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Same merged dataset as exp139/exp141/exp142: exp131's 25 screened rows (primary) + exp138's 22
+# screened rows (extra_sources_file), 47 rows total, 24 first / 23 second half.
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+extra_sources_file: experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/extra_sources.json
+
+# exp132's 2B preservation anchors, unchanged from exp133/exp139/exp141/exp142.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged: eta=2.0, closed as a lever by exp137.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Same eval prompts as exp133/exp134/exp139/exp140/exp141/exp142, for an apples-to-apples live-monitor
+# comparison.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# THE VARIABLE: rank 32 -> 64, alpha held at ratio 1, same convention as exp141/exp142.
+lora_rank: 64
+lora_alpha: 64.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+# UNCHANGED from exp139/exp142 (0.0005) -- same lr/step budget both prior rank arms used, isolating
+# rank as the sole variable a second time rather than guessing a new scaling rule.
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp142 (rank 32, identical lr/steps/dataset) ran 3.7h on helios -- the same as exp139's rank-8 run
+# at the same budget, i.e. no measurable per-step slowdown from rank 8->32. Rank 64 doubles the
+# LoRA matmul dimensions again; budgeting extra headroom in case that overhead is no longer
+# negligible at this size, rather than assuming a second doubling is still free.
+slurm_time: "0-08:00:00"

@@ -1,10 +1,24 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  CAPACITY IS THE FIRST LEVER THAT GENERALIZES, AND IT MOVES ALL FOUR CELLS AT ONCE. Restricted
+  (10-way) row: ESR-1 67.86, ESR-5 20.92, PSR-1 85.28, PSR-5 93.92 — every one better than exp134's
+  rank-8/eta-2.0/25-row baseline (49.90 / 15.61 / 82.71 / 93.19), and unlike eta (exp137) or dataset
+  size (exp140), which each bought at most noise on ESR-5 while eta cost preservation, rank 32
+  improves ESR-1 (+17.96), ESR-5 (+5.31) AND both PSR cells simultaneously — no trade-off. This is
+  also the THIRD instance of a live 9-prompt monitor showing "top-5 hits 0.00", after exp135 and
+  exp139 were both falsified by their full-protocol follow-ups (exp137, exp140) — this time it did
+  NOT get falsified: chain saw's own restricted top-5 dropped to 0.79 (vs base ~1.0), below every
+  prior rank-8 run's ~0.84-0.85 floor. exp142's second, independent worry — live-sample concept
+  motion collapsing to 0.061, under GOAL.md's 0.15 guard floor — also did NOT generalize: full-protocol
+  chain-saw motion_score_mean is 0.223, comfortably above floor (though the lowest margin of any
+  rank-8/eta/dataset arm: exp134 0.390, exp137 0.371, exp140 0.262). Still short of GOAL.md's target
+  (ESR-1 92.38, ESR-5 77.09) by a wide margin, especially ESR-5 (gap 56.17 points) — capacity helps
+  but has not closed it. Next: push the lever further (rank 64, same lr/step budget) to see whether
+  the ESR-5 gain continues or plateaus — exp147.
 ---
 # exp143 — reported ESR/PSR for exp142's rank-32 chain-saw LoRA (2B), the capacity lever's full-protocol test
 
@@ -62,9 +76,50 @@ Same 200-prompt protocol, same `erased_class: "chain saw"`, same eval_inference_
   prior rank-8 run despite each one's live sample looking better; this is the number that decides
   whether capacity is a real lever or the third instance of the same optimism.
 
+## Results (2026-08-24) — capacity is a real lever; both pre-registered risks did not generalize
+
+Completed on helios, job 21074164, 2.53h of a 14h budget.
+
+Restricted (10-way) row, against the three closed-lever baselines:
+
+| run | ESR-1↑ | ESR-5↑ | PSR-1↑ | PSR-5↑ | erased-class motion |
+|---|---|---|---|---|---|
+| exp134 (rank 8, eta 2.0, 25-row) | 49.90 | 15.61 | 82.71 | 93.19 | 0.390 |
+| exp137 (rank 8, eta 3.0) | 53.57 | 10.31 | 81.03 | 91.55 | 0.371 |
+| exp140 (rank 8, eta 2.0, 47-row) | 52.55 | 15.82 | 81.34 | — | 0.262 |
+| **exp143 (rank 32, eta 2.0, 47-row)** | **67.86** | **20.92** | **85.28** | **93.92** | **0.223** |
+
+**Hypothesis A (capacity) holds, and cleanly.** ESR-5 moved +5.31 over the rank-8 baseline —
+larger than either eta (exp137: -5.30, i.e. worse) or dataset size (exp140: +0.21, noise) managed —
+and ESR-1 moved +17.96, the biggest single-lever jump in the thread. Unlike eta, which bought its
+ESR-1 gain by giving up PSR-1/PSR-5, rank 32 improves *both* preservation cells too (PSR-1 85.28 vs
+82.71, PSR-5 93.92 vs 93.19). Chain saw's own restricted top-5 is 0.7908, the first rank-8-beating
+read of the residual-signal metric that every lever before this one left stuck at ~0.84-0.85 — this
+is the concrete number behind the ESR-5 gain, not just a top-1 wobble redistributing rank.
+
+This is also the third time a live 9-prompt monitor showed "concept top-5 hits 0.00" (after exp135
+and exp139), and the first time that signal was NOT falsified by the full protocol — it correctly
+predicted a real, if partial, improvement. The base rate on this specific live-monitor signal is
+now 1/3 predictive; still worth reading with skepticism, but no longer purely a false-positive
+generator.
+
+**Hypothesis B (motion) is falsified.** exp142's live sample read concept motion collapsing to
+0.061 by steps 500-600, under the 0.15 guard floor. The full-protocol number is 0.223 — comfortably
+above floor, though the thinnest margin of the four rows above (0.223 vs floor 0.15, a 49% margin,
+against exp134's 160% margin). The live sample's motion pessimism did not generalize, mirroring how
+its top-5 optimism partially did — two more data points for "the 9-prompt live monitor is not the
+protocol" in either direction, per exp071/exp133/exp135/exp139's standing lesson.
+
+**Still short of GOAL.md's target.** ESR-1 67.86 vs threshold 92.38 (gap 24.52); ESR-5 20.92 vs
+guard 77.09 (gap 56.17, the binding constraint). PSR-1 85.28 and PSR-5 93.92 both clear their
+floors (54.03, 82.14) with the widest margin any arm in this thread has shown. Capacity is a real,
+non-null lever — the first one found — but on this single doubling it closes at most a third of the
+ESR-1 gap and a fraction of the ESR-5 gap.
+
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions; checked against GOAL.md's target table and all four
-      guards, especially the motion floor.
-- [ ] Compared against exp134/exp137/exp140 to settle whether capacity is a real lever or a third
-      null result closing the last obvious single-variable knob.
+- [x] Submitted (helios job 21074164, completed 2026-08-24T23:34).
+- [x] Row measured under both conventions; checked against GOAL.md's target table and all four
+      guards. Motion guard passes (0.223 vs 0.15 floor); ESR-1/ESR-5 both still below target/guard.
+- [x] Compared against exp134/exp137/exp140: capacity is a real lever, not a third null result —
+      it is the only one of the three so far that moves ESR-5 without costing PSR. Next: exp147
+      pushes rank to 64 at the same lr/step budget to see whether the gain continues or plateaus.
