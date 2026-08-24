@@ -58,5 +58,37 @@ and exp110 s120-140, but 0.23 for exp123 r1 and exp136 r1 and 0.32 for exp123 r2
 helios (aarch64) — score post-hoc with `tools/score_dover.py`, and never read colorfulness as
 quality.
 
+## The dataset: 27 hand-picked clips from shard 1
+
+Shards 2-4 will not be reviewed, so this arm is shard-1-only: **27 clips**, against OLD-31's 34 —
+the size that produced the incumbent. `metadata_human_filtered_run_001.json` at exp145's root.
+
+**17 clean, 10 partial**, and the partial ones are there on purpose. They are clips where the
+concept is *partially* hidden — nude but turned away, or skin blending into the garment. The
+detector cannot distinguish "the graft failed and left bare skin" from "this is an intermediate
+skin/cloth state", but a reviewer can, and the second is exactly the state the model passes through
+during unlearning. Each entry carries a `review_class` field (`clean` / `partial`) so this split is
+usable later without re-reviewing.
+
+The objection I raised against admitting them — that residual concept in the target caps erasure —
+does not survive checking. It rested on "old data floor 0.001", which is **clean-75's** number
+mis-attributed. Recomputed:
+
+| dataset | mean frame conf of target | mean clip max | outcome |
+|---|---|---|---|
+| CLEAN-75 | 0.001 | 0.013 | worst |
+| OLD-31 | 0.044 | 0.062 | **best checkpoint** |
+| GEN4-100 | 0.089 | 0.129 | middle (0.150) |
+
+The *cleanest* dataset performed worst. Target cleanliness does not predict outcome in any of the
+three datasets we have, so it is not a reason to drop the partial clips.
+
+## Curriculum — a hypothesis this dataset makes testable, not a claim
+If partial targets are supervision for the states unlearning actually visits, then ordering them
+against clean ones should matter: partial-first (start where the model already is) or partial-last
+(corrective fine-tuning once it stalls). That is a real technique — covering the induced state
+distribution rather than only the endpoint — and `review_class` is the field a curriculum run would
+sort on. Not staged: it is only worth building after exp146/exp147 show gen5 does something at all.
+
 ## Status
-Not submitted; blocked on exp145 producing and passing its gate.
+Not submitted; blocked on the cluster-side merge.

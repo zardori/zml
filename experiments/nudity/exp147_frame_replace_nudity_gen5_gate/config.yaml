@@ -1,4 +1,25 @@
-# frame_replace on the gen5 UNIFORM-wardrobe dataset — the training arm of exp145.
+# frame_replace on gen5 with the AUTOMATED gate instead of hand review — the ablation arm.
+#
+# IDENTICAL to exp146 in every field except which gen5 subset it trains on. exp146 trains the 27
+# clips a person hand-picked from shard 1; this trains the 155 that pass an automated A-side gate
+# over all four shards, with nobody looking at a video. The pair answers a question that recurs for
+# every dataset in this project, across three concepts: **is hand-reviewing a build worth the
+# hours?** If this arm ties or wins, we stop reviewing.
+#
+# WHY THE GATE IS `original_max_confidence >= 0.3` AND NOTHING ELSE.
+#   * It is the only criterion with measurable human agreement. Against the 50 labelled clips of
+#     shard 1 it recovers 85% of the hand-picked set (precision 64%); the best single-threshold rule
+#     over every other metadata field reaches 68% accuracy against a 54% keep-everything baseline,
+#     i.e. hand review is essentially NOT reproducible from the metadata. The gate does not try.
+#   * It is objective and it is about information content, not taste: it asks whether the base model
+#     rendered the concept under prompt A at all. A clip where it did not has nothing to erase, so
+#     it teaches a pure wardrobe/style edit — the exact failure mode a uniform-navy donor set is
+#     most at risk of.
+#   * NOTHING filters the edited side. Target "cleanliness" anti-correlates with results in our own
+#     three datasets: CLEAN-75 has the lowest residual (mean frame conf 0.001) and performed worst,
+#     OLD-31 has 0.044 and produced the best checkpoint, GEN4-100 has 0.089. The earlier claim that
+#     old data had a 0.001 floor was that number mis-attributed. Clips where the concept survives
+#     partially are also deliberately wanted — see exp146's notes on the curriculum idea.
 #
 # SINGLE VARIABLE vs exp110. Every training field below is copied from exp110 verbatim (eta 2.0,
 # rank 8, lr 1e-4, 200 steps, fire retention at weight 1.0, velocity loss on original latents,
@@ -12,20 +33,8 @@
 # a misleading 0.729 here. See exp145's notes.) Yield 57/200, against gen4's 63/200 under the same
 # rule, so uniformity cost nothing.
 #
-# TRAINS THE HAND-PICKED 27 (shard 1 only). Review of shards 2-4 is not happening, so this arm is
-# deliberately shard-1-only and small — 27 clips, against OLD-31's 34, which is the size that
-# produced the incumbent. exp147 is the paired arm that trains 155 clips passing an automated gate
-# with nobody watching a video; together they answer whether hand review is worth the hours.
-#
-# THE FILTER IS NOT DETECTOR-CLEAN AND THAT IS DELIBERATE. 10 of the 27 still read nudity in the
-# edited target (mean 0.167). Those were picked on purpose: clips where the concept is partially
-# hidden — nude but turned, or blending into the garment — are the states the model actually passes
-# through while unlearning, and supervision for them may be worth more than clean targets. Our own
-# data supports admitting them: CLEAN-75 has the lowest residual (0.001) and performed worst,
-# OLD-31 has 0.044 and produced the best checkpoint. `review_class` in the metadata tags each clip
-# clean/partial so a curriculum run can order or weight on it without re-reviewing.
-#
-# STILL BLOCKED ON: the merge that builds combined_dataset/ on the cluster (command in exp145's notes).
+# STILL BLOCKED ON: human review of those 57 edited clips, and the merge that builds
+# combined_dataset/ from them on the cluster (see exp145's notes for both).
 #
 # ETA IS SWEPT, AND THAT IS THE ONE DEPARTURE FROM SINGLE-VARIABLE. gen5's edits are 2-3x larger
 # than anything trained on before (LAB magnitude 28.3 vs OLD-31's 9.9, GEN4-100's 13.2). The erase
@@ -58,8 +67,8 @@ model_id: THUDM/CogVideoX-5b
 concept: nudity
 
 # Built on the cluster from exp145's screened shards — merge_dataset.sh command in exp145's notes.
-metadata_file: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset/metadata.json
-latents_dir: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset/latents
+metadata_file: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset_gate/metadata.json
+latents_dir: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset_gate/latents
 
 # Fire retention, unchanged from exp080/exp110. exp085 settled that a nudity-adjacent retention set
 # cancels the erase term (11/20 of its anchors were exposed skin); exp041's fire anchors share
