@@ -6,10 +6,22 @@
 # point at: exp109's gen4 (40 garments) there, exp145's gen5 (3 near-identical navy pieces) here.
 # So a difference in outcome is attributable to donor-wardrobe diversity and nothing else.
 #
-# BLOCKED ON exp145, TWICE. The dataset does not exist yet, and exp145's notes carry a hard gate:
-# measure coherence with tools/analyze_edit_directions.py first (reference: OLD-31 0.714 at n=34,
-# GEN4-100 0.605, CLEAN-75 0.615). If gen5 does not land clearly above 0.714 at n>=75 the
-# manipulation failed at the data level and this run answers nothing — do not submit it to find out.
+# exp145'S GATE PASSED (2026-08-23). On the screened 57, mean pairwise cosine between clip edit
+# directions is 0.609, against 0.293 for OLD-31 and 0.154 for GEN4-100 — 2x the best previous
+# dataset, 4x gen4. (Read pairwise cosine, not coherence: coherence is magnitude-weighted and reads
+# a misleading 0.729 here. See exp145's notes.) Yield 57/200, against gen4's 63/200 under the same
+# rule, so uniformity cost nothing.
+#
+# STILL BLOCKED ON: human review of those 57 edited clips, and the merge that builds
+# combined_dataset/ from them on the cluster (see exp145's notes for both).
+#
+# ETA IS SWEPT, AND THAT IS THE ONE DEPARTURE FROM SINGLE-VARIABLE. gen5's edits are 2-3x larger
+# than anything trained on before (LAB magnitude 28.3 vs OLD-31's 9.9, GEN4-100's 13.2). The erase
+# push is eta * (donor - teacher), so at exp110's fixed eta 2.0 the model moves much faster per step
+# and may pass its useful window long before step 120 — exp125 burned a run exactly this way when
+# effective step size scaled unnoticed. eta 2.0 keeps the exact comparison against exp110; eta 1.0
+# is the arm matched to the larger displacement. Caveat: magnitude is measured in decoded LAB
+# pixels while training happens in latent/velocity space, so this is a proxy, not a guarantee.
 #
 # eval_num_prompts IS 25, NOT 10. exp110's 10 produced two false "0.0000" checkpoints that were
 # reported as a new best before the full sets contradicted them; 10 videos cannot resolve a
@@ -33,7 +45,7 @@ method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity
 
-# FILL AFTER exp145 REVIEW — the merged, human-filtered gen5 dataset.
+# Built on the cluster from exp145's screened shards — merge_dataset.sh command in exp145's notes.
 metadata_file: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset/metadata.json
 latents_dir: experiments/nudity/exp145_split_nudity_gen5_uniform/combined_dataset/latents
 
@@ -47,7 +59,7 @@ retention_weight: 1.0
 nonfire_frame_weight: 0.0
 erase_input_latent: original
 erase_loss_space: velocity
-erase_esd_eta: 2.0
+erase_esd_eta: [1.0, 2.0]   # see the eta note in the header
 
 control_concept_prompts: prompts/cogvideox_nudity.csv
 control_related_prompts: prompts/ring_a_bell_nudity_safe.csv
@@ -69,4 +81,5 @@ eval_inference_steps: 50
 global_seed: 42
 
 # exp110's own wall clock, plus margin for the larger eval (25 prompts x 3 sets vs 10 x 1).
+# Two eta values -> two jobs.
 slurm_time: "0-20:00:00"
