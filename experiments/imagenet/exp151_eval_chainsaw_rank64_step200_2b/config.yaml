@@ -1,0 +1,25 @@
+# Is exp149's step-300 checkpoint rank 64's actual peak, or would stopping even earlier -- step
+# 200, where exp147's live monitor already showed concept top-1 at 0.00 -- do as well or better?
+# exp149 showed the 300 steps between step-300 and step-600 were pure downside (ESR, PSR and both
+# motion metrics all regressed by step 600). This checks whether the same is true of the 100 steps
+# between step-200 and step-300, mapping the curve one point earlier. Eval-only against exp147's
+# already-saved step-200 checkpoint, no new training required.
+# Run: ./submit_job.py athena experiments/imagenet/exp151_eval_chainsaw_rank64_step200_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp147's step-200 checkpoint -- one save interval earlier than exp149's step-300, same LoRA
+# (rank 64), same training run.
+lora_checkpoint_dir: experiments/imagenet/exp147_frame_replace_chainsaw_rank64_2b/outputs_20260824_234931/frame_replace_lora_step200
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp149 (identical 200-video protocol, exp147's step-300 checkpoint) ran 9440s (2.6h) of a 14h
+# budget on helios. Same model, same eval-only forward pass, no reason to expect a different
+# runtime for one save-interval earlier.
+slurm_time: "0-14:00:00"

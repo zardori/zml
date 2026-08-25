@@ -1,0 +1,26 @@
+# Does exp149's overtraining finding generalize from rank 64 to rank 32, or is it specific to
+# rank 64's faster convergence? exp149 found rank 64's step-300 checkpoint (half the 600-step
+# budget) beats its own step-600 read (exp148) on ESR-1, ESR-5, chain-saw top-5 AND both motion
+# metrics, and partially recovers PSR-1 -- the extra 300 steps were pure downside. exp142 (rank 32)
+# saved the same per-100-step checkpoints; this is an eval-only run against its step-300 checkpoint,
+# no new training required.
+# Run: ./submit_job.py athena experiments/imagenet/exp150_eval_chainsaw_rank32_step300_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp142's step-300 checkpoint (half its 600-step budget) instead of the final step-600 checkpoint
+# exp143 evaluated. Same LoRA (rank 32), same training run, only the stopping point differs --
+# mirrors exp149's diagnostic on exp147/exp148 exactly, one rank down.
+lora_checkpoint_dir: experiments/imagenet/exp142_frame_replace_chainsaw_rank32_matched_lr_2b/outputs_20260822_224618/frame_replace_lora_step300
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp143 (identical 200-video protocol, exp142's step-600 checkpoint) ran 2.53h of a 14h budget on
+# athena; exp149 (identical protocol, exp147's step-300 checkpoint) ran 9440s (2.6h) on helios.
+# Same model, same eval-only forward pass, no reason to expect a different runtime here.
+slurm_time: "0-14:00:00"
