@@ -1,10 +1,29 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  SECOND FALSIFIER FIRED: step 200 beats step 300 on ESR with no PSR cost. Restricted (10-way)
+  row: ESR-1 74.90, ESR-5 32.35, PSR-1 80.15, PSR-5 96.41. Against exp149's step-300 read of the
+  SAME rank-64 LoRA (74.49 / 21.63 / 79.97 / 91.87): ESR-1 flat (+0.41), ESR-5 up sharply (+10.72),
+  PSR-1 flat (+0.18), PSR-5 up (+4.54) — every cell moved the same direction or better, none worse,
+  so per the pre-registration the regression exp148/exp149 mapped does NOT start at step 300; the
+  curve was still rising at step 200. BUT the motion picture reverses the story exp149 told: chain
+  saw's own motion is 0.176, barely clearing the 0.15 guard floor (margin 0.026, the thinnest of
+  any checkpoint tested in this thread — exp149's step 300 had 0.378, exp148's step 600 had 0.181)
+  and mean preserved-class motion loss vs exp130's base is 49.8%, WORSE than step 600's ~48% and
+  far worse than step 300's ~17%. So exp149's motion story ("earlier stop = more motion margin
+  everywhere") does not hold monotonically — step 300 is a genuine local optimum for rank 64's
+  motion metrics, not a point on a straight line, even though classification-based ESR/PSR kept
+  improving past it. Net: step 200 is this thread's best full-protocol row on ESR-1 (74.90, edges
+  exp149) and ties exp150 (rank 32/step 300) for best PSR-5, but its motion margin is uncomfortably
+  close to the guard floor — a checkpoint choice, not an unambiguous win. exp150's independent read
+  (rank 32/step 300) shows the same PSR-up/motion-collateral-up dissociation from a different
+  starting point, so this looks like a real pattern (classification preservation and motion
+  preservation diverging as training shortens) rather than noise in one run. Whether step 100 —
+  where exp147's live monitor showed top-1 already at 0.00 — continues the ESR gain or the motion
+  margin finally breaks the guard is the open question these two results raise together.
 ---
 # exp151 — is step 300 rank 64's peak, or does an even earlier stop (step 200) do as well or better?
 

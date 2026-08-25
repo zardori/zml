@@ -1,10 +1,28 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  GENERALIZES, AND BEATS THE HYPOTHESIS'S OWN PREDICTION. Restricted (10-way) row: ESR-1 72.76,
+  ESR-5 38.67, PSR-1 84.46, PSR-5 96.49. Against exp143's step-600 read of the SAME rank-32 LoRA
+  (67.86 / 20.92 / 85.28 / 93.92): ESR-1 up (+4.90), ESR-5 up (+17.75 — nearly double, and now the
+  best ESR-5 in the whole thread, ahead of exp149's rank-64/step-300 21.63), PSR-5 up (+2.57), and
+  PSR-1 down only 0.82. So "stop at step 300" helps rank 32 the same direction exp149 found for
+  rank 64 — not a rank-64-specific accident of faster convergence, the hypothesis's headline claim
+  holds. But the SECOND finding (mean preserved-class motion loss vs exp130 base) does NOT
+  generalize: exp149 found rank 64's step-300 checkpoint roughly THIRD the preserved-motion damage
+  of its own step-600 read (~17% vs ~48%); here it is the other way — computed exactly from the
+  quality block, step 300 costs slightly MORE preserved motion than step 600 (39.1% vs 35.9%),
+  not less. Chain saw's own motion is healthier at step 300 (0.296 vs step 600's 0.223, both well
+  clear of the 0.15 floor). exp150 is now this thread's best full-protocol row on ESR-5 and PSR-5
+  simultaneously — the "stop earlier" fix generalizes on the metric that matters most (ESR-5), but
+  its free lunch on preserved-class motion (exp149's other headline) is specific to rank 64, not a
+  property of stopping early per se. See exp151 for the matching one-rank-64-step-earlier probe,
+  which independently found the same dissociation (PSR up, preserved motion collateral up too) —
+  together they say classification-based preservation (PSR) and motion-based preservation are now
+  moving in different directions as training gets shorter, which the eval protocol should watch
+  as a pair, not read PSR alone as "preservation is fine."
 ---
 # exp150 — does rank 32 also overtrain by step 600, the way exp149 showed rank 64 does?
 

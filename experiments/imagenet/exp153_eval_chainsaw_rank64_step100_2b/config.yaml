@@ -1,0 +1,27 @@
+# exp151 found rank 64's step-200 checkpoint beats step-300 (exp149) on every ESR/PSR cell --
+# the ESR/PSR curve was still rising -- but its motion margin got WORSE, not better: chain saw's
+# own motion is 0.176 (margin 0.026 over the 0.15 guard floor, thinnest in the thread) and mean
+# preserved-class motion loss is 49.8%, above even step 600's ~48% and far above step 300's ~17%.
+# exp147's live 9-prompt monitor showed concept top-1 already at 0.00 by step 100, one interval
+# earlier still. This checks whether step 100 continues the ESR/PSR gain, or whether the motion
+# margin -- already thin at step 200 -- finally breaks the 0.15 floor. Either answer settles
+# whether "stop even earlier" keeps paying off for rank 64 or has already run out of room.
+# Eval-only against exp147's already-saved step-100 checkpoint, no new training required.
+# Run: ./submit_job.py athena experiments/imagenet/exp153_eval_chainsaw_rank64_step100_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp147's step-100 checkpoint -- one save interval before exp151's step-200 -- same LoRA
+# (rank 64), same training run, only the stopping point differs.
+lora_checkpoint_dir: experiments/imagenet/exp147_frame_replace_chainsaw_rank64_2b/outputs_20260824_234931/frame_replace_lora_step100
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp151 (identical 200-video protocol, exp147's step-200 checkpoint) ran 9554s (2.65h) on helios.
+# Same model, same eval-only forward pass, no reason to expect a different runtime here.
+slurm_time: "0-14:00:00"
