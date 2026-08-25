@@ -1,0 +1,31 @@
+# Reported ESR/PSR for exp147's rank-64 chain-saw frame_replace LoRA (2B) -- the fourth point in
+# this thread's capacity sweep (rank 8: exp134, rank 32: exp143, now rank 64), testing whether the
+# ESR-5 gain rank 32 bought (+5.31 over rank 8, the first non-null single-lever result after eta
+# and dataset size both closed null) continues at a similar rate, plateaus, or reverses on a second
+# doubling. exp147's live 9-prompt monitor converged even faster than every prior rank (top-1 0.00
+# from step 100) but its live top-5 only matched -- not beat -- exp142's (rank 32) already-near-zero
+# band, and exp139 (rank 8) -> exp142 already showed a floored 9-prompt top-5 can still hide a real
+# full-protocol ESR-5 difference between ranks. So the live signal here is inconclusive by
+# construction, not evidence either way; only the full protocol can settle it.
+# Run: ./submit_job.py athena experiments/imagenet/exp148_eval_frame_replace_chainsaw_rank64_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp147's FINAL checkpoint. Same "no reason to deviate" logic as exp071/exp134/exp137/exp140/exp143:
+# the live monitor is flat at concept top-1 0.00 from step 100 through step 600 (one transient blip
+# at step 400 that resolves by 500), so picking among the six checkpoints would be selection on the
+# eval set for no measurable gain.
+lora_checkpoint_dir: experiments/imagenet/exp147_frame_replace_chainsaw_rank64_2b/outputs_20260824_234931/frame_replace_lora_step600
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp143 (identical 200-video protocol, rank-32 LoRA, same model) ran 2.53h on athena of a 14h
+# budget. exp147's training run showed rank 64 adds no measurable per-step overhead over rank 32
+# either (3.86h vs exp142's 3.7h), and eval is forward-pass only, so there is no reason to expect
+# eval to run slower than exp143's. Matching the same 14h allotment for the same headroom reason.
+slurm_time: "0-14:00:00"

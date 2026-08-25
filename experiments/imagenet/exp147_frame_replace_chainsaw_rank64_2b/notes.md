@@ -1,10 +1,25 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  CONVERGES, BUT THE LIVE MONITOR CAN'T TELL US MORE THAN EXP142 ALREADY DID. Live concept top-1
+  is 0.00 from step 100 (even faster than rank 8/32's step ~100-200) and holds through step 600,
+  with one transient blip at step 400 (top-1 0.11, top-5 0.33) that resolves by step 500. Final
+  top-5 is 0.00, matching exp142's already-near-zero band (0.00 at 4 of 6 checkpoints) rather than
+  dropping further — by the notes' own pre-registered falsifier this reads as "no further
+  live-sample gain over exp142," except exp139 (rank 8) also bottomed its live top-5 at 0.00 at
+  two checkpoints and exp142 (rank 32) still won +5.31 ESR-5 on the full protocol over it. So a
+  9-prompt sample floors at 0 well before the real ESR-5 differences between ranks stop moving —
+  the live monitor cannot discriminate rank 32 from rank 64 either way, only rule out
+  non-convergence. Live concept motion oscillates hard (0.127 / 0.017 / 0.237 / 0.098 / 0.243 /
+  0.089) and ends at 0.089, under GOAL.md's 0.15 guard floor — same pattern as exp142's live read
+  (0.061 final) that exp143's full eval then cleared at 0.223, so per that precedent this is not
+  read as disqualifying without the full-protocol number. Runtime 3.86h (13901s) on helios, same
+  ballpark as exp142's 3.7h — confirms rank 64 adds no measurable per-step overhead either, same as
+  the rank 8->32 step. Convergence is healthy, so exp148 spends the full esr_psr eval per this
+  thread's standing "queue a full eval only if the live monitor is healthy" gate (exp142->exp143).
 ---
 # exp147 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, LoRA rank 64 at exp139/exp142's UNSCALED lr/steps
 
@@ -60,8 +75,12 @@ variable under test, isolated exactly as exp142 isolated it from exp141's lr-sca
   is where per-step overhead stops being negligible; worth confirming either way.
 
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked: does top-1 converge as fast as rank 8/32, and does top-5 drop below
-      exp142's already-near-zero live read?
-- [ ] Decision on a full `esr_psr` eval follow-up, contingent on the live monitor being healthy —
-      same gate exp142 used for exp143.
+- [x] Submitted. Completed on helios, job 21082439, 13901s (3.86h), exit 0.
+- [x] Live monitor checked: top-1 converges even faster than rank 8/32 (0.00 from step 100, one
+      blip at step 400 that resolves by 500) and top-5 ends at 0.00, matching — not beating —
+      exp142's already-near-zero band. The falsifier's second clause technically fires ("no further
+      live-sample gain over exp142"), but exp139->exp142 already showed a floored live top-5 can
+      still hide a real full-protocol ESR-5 gain, so this is read as inconclusive-at-this-resolution,
+      not as evidence the lever has saturated.
+- [x] Decision: convergence is healthy, so per the exp142->exp143 gate a full `esr_psr` eval is
+      queued as exp148.
