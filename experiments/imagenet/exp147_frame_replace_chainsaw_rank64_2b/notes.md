@@ -20,6 +20,11 @@ takeaway: >
   ballpark as exp142's 3.7h — confirms rank 64 adds no measurable per-step overhead either, same as
   the rank 8->32 step. Convergence is healthy, so exp148 spends the full esr_psr eval per this
   thread's standing "queue a full eval only if the live monitor is healthy" gate (exp142->exp143).
+  CORRECTED 2026-08-25 by exp148: the healthy live monitor did not predict a further ESR-5 gain.
+  Restricted ESR-5 reversed to 16.43 (below exp143's rank-32 read of 20.92, barely above exp134's
+  rank-8 baseline of 15.61) and PSR-1 dropped 9.08 points (85.28 -> 76.20) — this checkpoint
+  overfits relative to rank 32, the capacity lever's peak so far. The motion guard still passed
+  (0.181) but with the thread's thinnest margin yet.
 ---
 # exp147 — frame_replace erasure of CHAIN SAW on CogVideoX-2B, LoRA rank 64 at exp139/exp142's UNSCALED lr/steps
 

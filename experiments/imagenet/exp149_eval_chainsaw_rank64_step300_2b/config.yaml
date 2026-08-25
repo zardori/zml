@@ -1,0 +1,40 @@
+# Diagnostic for exp148's reversal: does rank 64 regress ESR-5/PSR-1 because of capacity itself,
+# or because this thread's fixed 600-step budget over-trains a LoRA that (per exp147's live
+# monitor) converges faster than every prior rank (top-1 0.00 from step 100, vs rank 8/32's
+# step ~150-200)? exp147 already saved checkpoints every 100 steps; this is an eval-only run
+# against the step-300 checkpoint (half the training budget), no new training required.
+#
+# exp147's own live per-step quality read (outputs_20260824_234931/summary.json) shows step 300
+# already has concept_detection_rate 0.0 and the best concept-motion of any early checkpoint
+# (0.237, close to step 500's 0.243, both well clear of the 0.15 floor) with unrelated motion 0.33
+# not yet as depressed as step 600's 0.47-vs-base ratio implies -- i.e. erasure was live and
+# healthy by the midpoint, before the extra 300 steps that exp148 shows leave chain saw's own
+# top-5 worse (0.836) and PSR-1 9 points lower than rank 32.
+#
+# Two readings decide the next lever:
+# - If step 300 gives ESR-5/top-5 close to exp147/exp148's step-600 read but PSR-1 recovers toward
+#   exp143's rank-32 level, the regression is an over-training artifact -- rank 64 wants a shorter
+#   step budget than rank 8/32, not a rejection of capacity as a lever.
+# - If step 300 gives markedly worse ESR-5 (undertrained relative to step 600) with PSR-1 no
+#   better, the reversal is intrinsic to rank 64 on this 47-row dataset regardless of when you
+#   stop, and exp143's rank 32 stands as this thread's capacity ceiling.
+#
+# Run: ./submit_job.py athena experiments/imagenet/exp149_eval_chainsaw_rank64_step300_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp147's step-300 checkpoint (half its 600-step budget) instead of the final step-600 checkpoint
+# exp148 evaluated. Same LoRA (rank 64), same training run, only the stopping point differs.
+lora_checkpoint_dir: experiments/imagenet/exp147_frame_replace_chainsaw_rank64_2b/outputs_20260824_234931/frame_replace_lora_step300
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp148 (identical 200-video protocol, exp147's step-600 checkpoint) ran 9426s (2.6h) of a 14h
+# budget on helios. Same model, same eval-only forward pass, no reason to expect a different
+# runtime for a different checkpoint of the same LoRA rank.
+slurm_time: "0-14:00:00"

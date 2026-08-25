@@ -1,10 +1,33 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  REVERSES, BY BOTH OF ITS OWN PRE-REGISTERED CRITERIA AT ONCE. Restricted (10-way) row: ESR-1
+  71.53, ESR-5 16.43, PSR-1 76.20, PSR-5 92.45. Against exp143's rank-32 row (67.86 / 20.92 /
+  85.28 / 93.92): ESR-1 is up (+3.67) but ESR-5 is DOWN (-4.49, below exp143's read and only
+  +0.82 over exp134's rank-8 baseline of 15.61 — almost the whole rank-32 gain on the metric that
+  matters is gone) and PSR-1 drops 9.08 points (85.28 -> 76.20, though still well above the 54.03
+  floor). Both of the pre-registered "reverses" conditions fire (ESR-5 below 20.92, and a PSR cell
+  below exp143's), so per the falsifier this rank increase "overfits the small 47-row dataset or
+  starts trading preservation for erasure the way eta did" — the capacity lever peaks at rank 32
+  for this dataset, exactly as exp143 predicted it might. Chain saw's own restricted top-5 is
+  0.8357, HIGHER (worse) than exp143's 0.7908, confirming the ESR-5 regression is not noise — rank
+  64 is measurably worse than rank 32 at suppressing the object from the top-5 guess, not just
+  flat. The erased-class motion guard still passes (0.1814 vs the 0.15 floor) but the margin keeps
+  shrinking with every capacity increase — exp134 (rank 8) 0.390 -> exp143 (rank 32) 0.223 ->
+  here 0.181 — now within 0.03 of the floor. Preserved-class motion loss (vs exp130's per-class
+  base) is also the worst yet: mean ~48% across the nine non-chain-saw classes (cassette player
+  worst at -93%, matching exp137/exp140's recurring weak spot almost exactly; tench the only class
+  essentially unaffected at +0.3%), against exp134's ~32% / exp137's ~36% / exp140's ~39% —
+  capacity's collateral cost is growing monotonically with rank even though ESR-5 is not. Net: the
+  capacity curve is non-monotonic — rank 8 -> 32 bought +5.31 ESR-5 with no PSR cost, rank 32 -> 64
+  gives most of that back (-4.49 ESR-5) while costing 9 points of PSR-1 and the largest motion hit
+  in the thread. exp143's rank-32 checkpoint remains this thread's best full-protocol row against
+  GOAL.md's target. exp149 checks whether the regression is rank itself or this run's fixed
+  600-step budget over-training a LoRA that (per exp147's live monitor) converges faster than
+  every prior rank — an eval-only diagnostic on exp147's own earlier checkpoints, no new training.
 ---
 # exp148 — reported ESR/PSR for exp147's rank-64 chain-saw LoRA (2B), the capacity lever's second doubling
 
@@ -61,9 +84,33 @@ Same 200-prompt protocol, same `erased_class: "chain saw"`, same `eval_inference
   0.15 floor) — capacity increases have so far *reduced* the margin each time (exp134 0.390 ->
   exp143 0.223), so this is the guard most likely to bind next if the trend continues.
 
+## Results (2026-08-25) — reverses on both pre-registered criteria
+
+Completed on helios (job 21120698, 9426s of a 14h budget). Restricted (10-way) row:
+
+| metric | exp134 (rank 8) | exp143 (rank 32) | exp148 (rank 64) | GOAL.md |
+|---|---|---|---|---|
+| ESR-1 | 49.90 | 67.86 | **71.53** | 92.38 |
+| ESR-5 | 15.61 | 20.92 | **16.43** | 77.09 |
+| PSR-1 | 82.71 | 85.28 | **76.20** | ≥54.03 |
+| PSR-5 | 93.19 | 93.92 | **92.45** | ≥82.14 |
+
+ESR-1 keeps climbing (+3.67 over rank 32) but ESR-5 gives back almost the entire rank-32 gain
+(-4.49, landing only +0.82 over the rank-8 baseline) and PSR-1 drops 9.08 points. Both
+pre-registered "reverses" conditions fire simultaneously. Chain saw's own restricted top-5 is
+0.8357 — worse than exp143's 0.7908, so the ESR-5 regression is a real change in the erased
+class's own residual signal, not noise elsewhere in the ranking. Erased-class motion guard passes
+(0.1814 vs the 0.15 floor) but the margin has now shrunk on every capacity step: 0.390 (rank 8) ->
+0.223 (rank 32) -> 0.181 (rank 64). Preserved-class motion loss (vs exp130's per-class base) is
+the worst yet at a mean ~48% across the nine non-chain-saw classes (cassette player -93%, the same
+class that was worst under exp137's high-eta arm and exp140's larger dataset; tench the one class
+essentially untouched at +0.3%) — worse than exp134's ~32%, exp137's ~36%, exp140's ~39%.
+
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions; checked against GOAL.md's target table and all four
-      guards.
-- [ ] Compared against exp143's rank-32 row to classify the capacity curve as continuing,
-      plateauing, or reversing, and decide the next lever accordingly.
+- [x] Submitted (helios job 21120698, completed 2026-08-25T15:08).
+- [x] Row measured under both conventions; checked against GOAL.md's target table and all four
+      guards — all four numeric guards pass (PSR-1/PSR-5/motion), the target itself is not met.
+- [x] Compared against exp143's rank-32 row: REVERSES (ESR-5 down, PSR-1 down). exp143's rank-32
+      checkpoint remains this thread's best full-protocol row. exp149 tests whether the regression
+      is rank itself or this run's fixed 600-step budget over-training a LoRA that converges
+      faster than every prior rank (eval-only, on exp147's already-saved earlier checkpoints).
