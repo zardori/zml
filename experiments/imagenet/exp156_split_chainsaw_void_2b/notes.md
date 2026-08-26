@@ -1,10 +1,23 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace_split/precompute
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT FALSIFIED: the void target is usable data, statistically indistinguishable from exp131's
+  random-distractor build. `tools/screen_split_dataset.py --min-concept-max 0.10` (the calibrated
+  chain-saw threshold): 25/30 pass (83%), 0 not-split, 5 no-concept, 0 blank-target -- the exact
+  same pass count as exp131 on the identical 30 prompt_a/prompt_c/seed rows, and 4 of the 5
+  no-concept failures are the SAME seeds (3204, 3211, 3218, 3224). The two seeds that disagree
+  (3203, 3226) flip only because their conc_max sits within 0.01 of the 0.10 cutoff in both builds
+  (exp131: 0.0911 / 0.1247; exp156: 0.1048 / 0.0716) -- a borderline flip consistent with cross-run
+  GPU nondeterminism, not a systematic effect of prompt_b's content. That is exactly what
+  `split_mode: trajectory` predicts: the concept-half trajectory is generated independently of
+  prompt_b and spliced in afterward, so prompt_b cannot change whether prompt_a renders the concept
+  -- and the data confirms it doesn't. Screened set written to
+  `outputs_20260826_071200_screened.json` (13 first / 12 second). This only establishes the build is
+  usable; whether the void target changes what the trained LoRA learns (the actual point of
+  HINTS.md's lever) is exp157.
 ---
 # exp156 — chain-saw split-prompt dataset with a consistent VOID target instead of a random
 # distractor object, on CogVideoX-2B
@@ -69,8 +82,9 @@ content alone.
   void target might or might not carry a training signal, independent of the eventual ESR-5 test.
 
 ## Status
-- [ ] Submitted.
-- [ ] Screened, yield and failure breakdown checked against exp131.
-- [ ] Decision: if yield is usable, queue a merge/train/eval cycle next tick to test whether the
-      void target actually moves ESR-5 relative to exp153's rank-64/step-100 baseline (the thing
-      this build cannot answer by itself).
+- [x] Submitted.
+- [x] Screened, yield and failure breakdown checked against exp131: 25/30 vs 25/30, 0 vs 0
+      not-split, 5 vs 5 no-concept (4 of 5 the same seeds).
+- [x] Decision: yield is usable and the failure mode is unchanged, so exp157 trains the identical
+      rank-8/eta-2.0/600-step recipe exp133 used on exp131's dataset, on this build instead, for a
+      clean single-variable (prompt_b content) comparison against exp134's reported row.

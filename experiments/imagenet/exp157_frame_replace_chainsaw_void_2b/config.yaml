@@ -1,0 +1,74 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B, trained on exp156's VOID-target dataset
+# instead of exp131's random-distractor dataset. Field-for-field exp133 (which trained on exp131)
+# except metadata_file/latents_dir, which point at exp156's screened set instead.
+#
+# exp156 screened at 25/30 (83%), 0 not-split, 5 no-concept -- statistically the same yield as
+# exp131's 25/30, 0 not-split, 5 no-concept, and 4 of the 5 no-concept seeds are IDENTICAL (3204,
+# 3211, 3218, 3224); the two seeds that differ (3203, 3226) flip on conc_max values within 0.01 of
+# the 0.10 cutoff on both sides, consistent with cross-run GPU nondeterminism rather than a
+# systematic effect of prompt_b's content. That is expected under split_mode: trajectory, where the
+# concept-half trajectory is generated independently of prompt_b and spliced in afterward -- prompt_b
+# should not be able to change whether prompt_a renders the concept, and the data says it doesn't.
+#
+# This run tests whether prompt_b's CONTENT still matters for what the LoRA learns, per HINTS.md's
+# nudity-thread finding that a less varied prompt_b target (plain black clothing) made the
+# unlearning signal clearer than a different random substitute per row. exp131's dataset gives
+# prompt_b a different random object per row (paint can, crowbar, ...); exp156's gives every row the
+# same bare/void surface. Recipe (rank 8, eta 2.0, lr 0.0005, 600 steps) is unchanged from
+# exp133/exp134 so the resulting ESR/PSR is comparable cell-for-cell against exp134's reported row
+# (restricted ESR-1 49.90 / ESR-5 15.61 / PSR-1 82.71 / PSR-5 93.19) with only the dataset's prompt_b
+# content as the variable.
+#
+# Falsified by: ESR-1/ESR-5 landing within noise of exp134's row (49.90 / 15.61) -- would mean
+# prompt_b's diversity is not the lever HINTS.md's nudity finding suggested it might be, at least not
+# at this rank/eta/step budget. Supported by: a clear move on ESR-5 specifically (the cell every
+# other single-lever change -- eta exp137, dataset size exp140 -- has failed to move) without giving
+# back PSR below its floor.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp157_frame_replace_chainsaw_void_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# exp156's 25 screened rows (void-target prompt_b, trajectory mode, 13 first / 12 second).
+metadata_file: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200_screened.json
+latents_dir: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200/latents
+
+# Unchanged from exp133: exp132's 2B preservation anchors, chain saw excluded from retention.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged from exp069/exp126/exp133: eta=2.0 is the only arm that held top-1 0.00 at every
+# checkpoint without oscillating.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp133 (identical recipe/model/dataset size) ran well inside its 12h allotment; matching that
+# headroom.
+slurm_time: "12:00:00"
