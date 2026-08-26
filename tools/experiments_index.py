@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -262,6 +263,49 @@ def find_duplicate_numbers(experiments: list[Experiment]) -> list[str]:
     ]
 
 
+def discover_remote_experiment_dirs(ref: str) -> dict[str, str]:
+    """Map exp_id -> "<thread-path>/expNNN_name" for every experiment that exists at a git ref.
+
+    `discover()` only sees the local working tree, so it cannot catch a number a teammate has
+    already pushed but this branch has not pulled yet -- exactly how exp137 and exp147 collided.
+    Returns {} (rather than raising) if the ref cannot be resolved, e.g. no network or a stale
+    fetch: the caller treats that as "nothing to cross-check", not as a validation failure.
+    """
+    try:
+        listing = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", ref, "--", "experiments"],
+            cwd=REPO_ROOT, check=True, capture_output=True, text=True,
+        ).stdout
+    except (subprocess.CalledProcessError, OSError):
+        return {}
+
+    remote: dict[str, str] = {}
+    for line in listing.splitlines():
+        if not line.endswith("/notes.md"):
+            continue
+        rel_dir = Path(line).parent.relative_to("experiments")
+        if not EXP_DIR_RE.match(rel_dir.name):
+            continue
+        remote[rel_dir.name.split("_")[0]] = str(rel_dir)
+    return remote
+
+
+def find_remote_conflicts(experiments: list[Experiment], ref: str) -> list[str]:
+    """Flag a number that resolves to a *different* folder locally than at `ref`.
+
+    Complements `find_duplicate_numbers`, which only sees what one working tree has checked out.
+    """
+    remote = discover_remote_experiment_dirs(ref)
+    if not remote:
+        return []
+    return [
+        f"{exp.exp_id} conflicts with {ref}: local experiments/{exp.rel_dir} vs "
+        f"{ref}:experiments/{remote[exp.exp_id]} — git fetch and renumber before committing"
+        for exp in experiments
+        if exp.exp_id in remote and remote[exp.exp_id] != str(exp.rel_dir)
+    ]
+
+
 def find_archive_references(experiments: list[Experiment]) -> list[str]:
     """Live configs must never point into ``experiments/archive/``.
 
@@ -367,11 +411,19 @@ def main() -> int:
         action="store_true",
         help="Validate frontmatter and the archive invariant without writing; non-zero exit on failure.",
     )
+    parser.add_argument(
+        "--remote-ref",
+        default=None,
+        help="Also cross-check experiment numbers against this git ref (e.g. origin/master) to "
+             "catch a collision with work not yet pulled. Fetch it yourself first; this only reads.",
+    )
     args = parser.parse_args()
 
     experiments, problems = discover()
     problems += (find_misfiled_experiments(experiments) + find_duplicate_numbers(experiments)
                  + find_archive_references(experiments))
+    if args.remote_ref:
+        problems += find_remote_conflicts(experiments, args.remote_ref)
 
     if problems:
         print(f"{len(problems)} problem(s):", file=sys.stderr)

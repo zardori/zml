@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Blocks a commit that claims an experiment number already taken on origin/master.
+#
+# `experiments_index.py --check` (no args) only sees the local working tree, so it cannot catch
+# a number a teammate has already pushed but this branch hasn't pulled yet -- exactly how exp137
+# and exp147 collided. This fetches origin/master fresh and cross-checks against it.
+#
+# Install once per clone (not tracked automatically -- .git/hooks/ isn't part of the repo):
+#   git config core.hooksPath tools/hooks
+set -euo pipefail
+
+if ! git diff --cached --name-only | grep -q '^experiments/'; then
+    exit 0
+fi
+
+if ! git fetch origin master --quiet; then
+    echo "pre-commit: couldn't fetch origin/master, skipping the experiment-numbering check (offline?)" >&2
+    exit 0
+fi
+
+uv run tools/experiments_index.py --check --remote-ref origin/master
