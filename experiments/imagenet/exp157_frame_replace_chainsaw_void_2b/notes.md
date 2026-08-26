@@ -1,10 +1,29 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  TRAINING CONVERGES, AND THE LIVE MONITOR'S SHAPE IS QUALITATIVELY DIFFERENT FROM EVERY PRIOR
+  RANK-8 RUN. Concept top-1 is 0.00 at every single checkpoint including step 100 (exp133's
+  identical-recipe/random-distractor run took until step 200) and top-5 stays low and noisy
+  (0.00/0.02/0.10/0.00/0.00/0.02 across steps 100-600), well under exp133's reported 0.11-0.22
+  band. Unlike every prior "top-5 hits ~0" live read in this thread (exp135, exp139, exp142,
+  exp147), concept motion does NOT collapse alongside it: it oscillates 0.69/0.32/0.64/0.61/
+  0.27/0.56 with no monotonic decline and ends at 0.562 (step 600) -- far above exp133's own
+  final read of 0.140 and nowhere near the 0.15 guard floor. Preserved-class ("unrelated")
+  motion in the live sample drops 0.573 -> 0.322 (-44%) from step 100 to step 600, the opposite
+  direction of exp133's live read (which rose, then was corrected downward by the full protocol)
+  -- so this run's live sample is not repeating that specific optimism failure either. Net: this
+  is the healthiest-looking live monitor yet for a rank-8 run, on a genuinely different axis
+  (fast suppression without the motion collapse that co-occurred with strong suppression in
+  every prior instance) -- but the thread's standing lesson is that a 9-prompt read like this
+  has gone both ways on the full 200-prompt protocol (confirmed for exp142/rank-32, nulled for
+  exp135's eta and exp139's dataset-size levers), so per exp157's own pre-registered falsifier
+  this is a lead, not a result. Final checkpoint (frame_replace_lora_step600) sent to exp158 for
+  the full esr_psr comparison against exp134's row (restricted ESR-1 49.90 / ESR-5 15.61 /
+  PSR-1 82.71 / PSR-5 93.19), same "no reason to deviate from the final checkpoint" logic used
+  throughout this thread since top-1 never wavers.
 ---
 # exp157 — frame_replace chain-saw erasure trained on exp156's void-target dataset, CogVideoX-2B
 

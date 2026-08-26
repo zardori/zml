@@ -1,0 +1,35 @@
+# Reported ESR/PSR for exp157's chain-saw frame_replace LoRA -- rank 8 / eta 2.0 / 600 steps,
+# identical recipe to exp133/exp134, trained on exp156's VOID-target dataset instead of exp131's
+# random-distractor dataset. exp157's live monitor showed top-1 0.00 at every checkpoint including
+# step 100 (exp133 took until step 200) and top-5 noisy but low (0.00-0.10, under exp133's
+# 0.11-0.22 band) WITHOUT the concept-motion collapse that came with strong top-5 suppression on
+# every prior "healthy-looking" rank/step candidate in this thread (exp142, exp147) -- concept
+# motion ends at 0.562, far above the 0.15 guard floor and above exp133's own final read of 0.140.
+# This eval settles whether that live signature is real (per this thread's own repeated lesson --
+# exp135, exp139, exp142 all showed a similarly clean live top-5 read, and the full protocol
+# confirmed it once (exp142->exp143) and nulled it twice (exp135->exp137, exp139->exp140)).
+#
+# Compare cell-for-cell against exp134's reported row for the identical recipe on exp131's
+# random-distractor dataset: restricted ESR-1 49.90, ESR-5 15.61, PSR-1 82.71, PSR-5 93.19. Only
+# the training data's prompt_b content (random distractor vs consistent void) differs between the
+# two checkpoints being compared.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp158_eval_frame_replace_chainsaw_void_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp157's FINAL checkpoint. Same "no reason to deviate" logic as exp071/exp134: top-1 is flat at
+# 0.00 from step 100 through step 600 with no divergence, so picking among the six checkpoints
+# would be selection on the eval set for no measurable gain.
+lora_checkpoint_dir: experiments/imagenet/exp157_frame_replace_chainsaw_void_2b/outputs_20260826_081121/frame_replace_lora_step600
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp134's own allotment for the identical eval workload (same model, same 200-prompt
+# protocol, same checkpoint architecture -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"
