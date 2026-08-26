@@ -10,7 +10,7 @@ takeaway: >
   (best rule 68% vs a 54% keep-everything baseline), so this is not an attempt to imitate review —
   it is a test of whether review buys anything. If this ties or wins, we stop reviewing builds.
 ---
-# exp147 — gen5 with the automated gate (the "is review worth it" arm)
+# exp159 — gen5 with the automated gate (the "is review worth it" arm)
 
 ## Why this exists
 Hand review does not scale. Three concepts are being unlearned in parallel, every one needs

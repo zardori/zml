@@ -61,7 +61,7 @@
 # returns. So the checkpoint to look for is one with a low nudity_frame_rate at DOVER-t >= 0.058 —
 # and DOVER reads 0.0 on helios (aarch64), so score it post-hoc with tools/score_dover.py.
 #
-# Run: ./submit_job.py helios experiments/nudity/exp146_frame_replace_nudity_gen5/config.yaml
+# Run: ./submit_job.py helios experiments/nudity/exp159_frame_replace_nudity_gen5_gate/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: nudity
