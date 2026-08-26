@@ -24,6 +24,14 @@ takeaway: >
   the full esr_psr comparison against exp134's row (restricted ESR-1 49.90 / ESR-5 15.61 /
   PSR-1 82.71 / PSR-5 93.19), same "no reason to deviate from the final checkpoint" logic used
   throughout this thread since top-1 never wavers.
+
+  CORRECTED 2026-08-26 by exp158: the live monitor's TOP-5 optimism did not survive the full
+  protocol (restricted ESR-5 15.41 vs exp134's 15.61 -- flat, joining exp135/exp139's null
+  instances, not exp142's confirming one), but its MOTION optimism did -- erased-class motion
+  landed at 0.690 (base 0.840, -18%), the healthiest margin of any rank-8 checkpoint measured
+  (exp134 0.390, exp137 0.371, exp140 0.262). Separately, ESR-1 moved a lot (49.90 -> 70.92,
+  +21.02) and both PSR cells improved (PSR-1 +3.24, PSR-5 +2.25) -- the void target is a real,
+  useful lever, just not on the axis (ESR-5) this run's live read predicted.
 ---
 # exp157 — frame_replace chain-saw erasure trained on exp156's void-target dataset, CogVideoX-2B
 

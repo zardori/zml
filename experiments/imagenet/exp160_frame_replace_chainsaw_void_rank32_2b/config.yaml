@@ -1,0 +1,78 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B: STACKS exp157/exp158's void-target dataset
+# with exp142/exp143's rank-32 capacity lever. Both were established independently as real, on
+# different axes: exp158 showed the void-target dataset (rank 8, exp134's recipe otherwise) moves
+# restricted ESR-1 (49.90 -> 70.92) and both PSR cells, but leaves ESR-5 flat (15.61 -> 15.41) and
+# the erased class's own top-5 rank unchanged (0.844 -> 0.846). exp143 showed rank 32 (same
+# recipe, exp131's random-distractor dataset) moves ESR-5 specifically (15.61 -> 20.92) and exp150
+# (rank 32, step 300 early stop) pushed it further to 38.67, this thread's best ESR-5 so far. This
+# run trains exp156's void-target dataset at rank 32 -- same recipe as exp142 (rank 32, lr 0.0005
+# unscaled, 600 steps) but with exp156/exp157's dataset (single source, no exp139 extra_sources
+# merge) instead of exp131's -- to see whether the two effects add: void-target's ESR-1/PSR gain
+# plus rank 32's ESR-5 gain, without reintroducing exp141's undertraining failure (avoided the same
+# way exp142 avoided it: lr and steps unchanged from a recipe already known to converge, so rank is
+# the only variable versus exp157, and dataset is the only variable versus exp142).
+#
+# save_interval: 100 (matching exp142) so the full checkpoint sweep is available for a follow-up
+# early-stopping eval the way exp149-155 used exp142/exp147/exp148's saved checkpoints, without a
+# second training run.
+#
+# Falsified by: live top-1 failing to reach 0.00 by step ~100-200 (the undertraining failure mode
+# exp141 hit at rank 32 with a scaled-down lr -- this run keeps lr/steps matched to exp142's
+# already-converging recipe, so a failure to converge here would be a genuine rank x void-target
+# interaction, not a repeat of exp141's confound). Supported by: convergence at least as clean as
+# exp157 (rank 8, same dataset) or exp142 (rank 32, exp131's dataset), setting up a full esr_psr
+# eval next tick whose target is beating BOTH exp158's ESR-1/PSR (70.92/85.95/95.44) and exp150's
+# ESR-5 (38.67) at once.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp160_frame_replace_chainsaw_void_rank32_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# exp156's 25 screened rows (void-target prompt_b, trajectory mode, 13 first / 12 second) --
+# identical dataset to exp157, single source, no extra_sources merge.
+metadata_file: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200_screened.json
+latents_dir: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200/latents
+
+# Unchanged from exp133/exp142/exp157: exp132's 2B preservation anchors, chain saw excluded from
+# retention.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged: eta=2.0 is the established stable baseline, closed as a lever by exp137.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# THE VARIABLE vs exp157: rank 8 -> 32, alpha held at ratio 1, same convention as exp142/exp143.
+lora_rank: 32
+lora_alpha: 32.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+# UNCHANGED from exp142/exp157 (0.0005) -- exp141's scaled-down lr (0.000125) is the known
+# undertraining failure this run avoids by not repeating that change.
+learning_rate: 0.0005
+steps: 600
+save_interval: 100
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp142 (identical lr/steps/rank, exp131's dataset of the same size class) ran inside 6h on
+# helios; exp157 (identical dataset, rank 8) ran inside 12h. Matching exp142's allotment with
+# headroom since the dataset size (25 rows) is the same as exp142's primary source alone.
+slurm_time: "08:00:00"
