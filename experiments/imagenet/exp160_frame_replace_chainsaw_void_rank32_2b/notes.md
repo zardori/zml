@@ -1,10 +1,25 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  CONVERGES CLEANLY, LIVE MONITOR SUPPORTS BOTH FOLLOW-UP EVALS. Concept top-1 is 0.00 at every
+  checkpoint from step 100 through 600 (one blip of 0.01 at step 500) — as fast as exp142
+  (rank 32, random-distractor) and exp157 (rank 8, void). Top-5 is noisy and does NOT settle
+  monotonically: 0.02 (step 100) -> 0.00 (200) -> 0.00 (300) -> 0.13 (400) -> 0.10 (500) -> 0.12
+  (600) — per this thread's standing lesson (exp135, exp139, exp142) a clean live top-5 read is
+  not a reliable predictor either way, so this is a lead, not a result. Concept motion does NOT
+  collapse the way it did for rank 32 on the random-distractor dataset (exp142's live read:
+  0.240 -> 0.061, later confirmed by exp143's full protocol at 0.223): here it oscillates
+  0.712/0.085/0.202/0.285/0.076/0.396 and the FINAL checkpoint (0.396) is well clear of the 0.15
+  guard floor, closer to exp157/exp158's healthy void-dataset motion story (rank 8: 0.690) than to
+  exp142/exp143's rank-32/random-distractor pattern — though step 200 and step 500 dip to
+  0.085/0.076, both already below the 0.15 floor in this live sample, a reminder that the full
+  200-prompt protocol is the only number that settles it. Two full esr_psr evals queued:
+  exp161 (step 600, the "no deviation" default, testing whether void+rank32 beat exp143's ESR-5
+  20.92 AND exp158's ESR-1/PSR 70.92/85.95/95.44 at once) and exp162 (step 300, testing whether
+  exp150's rank-32 early-stop optimum, 38.67 ESR-5, reproduces on the void dataset).
 ---
 # exp160 — frame_replace chain-saw erasure: void-target dataset x rank 32, CogVideoX-2B
 
@@ -54,6 +69,6 @@ exp142's merged 47-row set) instead of exp131's random-distractor dataset.
   exp150 (random-distractor/rank32/step300) cell for cell.
 
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked for healthy convergence.
-- [ ] Full esr_psr eval queued if the live monitor clears the bar above.
+- [x] Submitted.
+- [x] Live monitor checked for healthy convergence — clean, see takeaway.
+- [x] Full esr_psr eval queued: exp161 (step 600) and exp162 (step 300, per exp149-155 precedent).

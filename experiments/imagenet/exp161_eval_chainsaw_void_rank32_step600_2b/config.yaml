@@ -1,0 +1,33 @@
+# Reported ESR/PSR for exp160's chain-saw frame_replace LoRA -- rank 32 / eta 2.0 / 600 steps,
+# trained on exp156's VOID-target dataset (same dataset as exp157/exp158) instead of exp131's
+# random-distractor dataset used by exp142/exp143. This is the direct rank-32 analogue of exp158
+# (void dataset, rank 8) and the direct void-dataset analogue of exp143 (rank 32, random-distractor
+# dataset): only one axis differs from each.
+#
+# Compare cell-for-cell:
+#   exp143 (rank 32, random-distractor, step 600): ESR-1 67.86, ESR-5 20.92, PSR-1 85.28, PSR-5 93.92
+#   exp158 (rank 8,  void,             step 600): ESR-1 70.92, ESR-5 15.41, PSR-1 85.95, PSR-5 95.44
+# Hypothesis (exp160's notes.md): the two levers add -- ESR-1/PSR at or above exp158's row, ESR-5
+# at or above exp143's row. Live monitor read: top-1 0.00 at every checkpoint from step 100, top-5
+# noisy (0.02/0.00/0.00/0.13/0.10/0.12), concept motion 0.396 at step 600 -- healthy margin above
+# the 0.15 guard floor, not the collapse seen with rank-32/random-distractor's live read (exp142:
+# 0.240 -> 0.061).
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp161_eval_chainsaw_void_rank32_step600_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp160's FINAL checkpoint -- the "no reason to deviate" default used for exp134/exp143/exp158,
+# paired with exp162's step-300 checkpoint (mirroring exp150's early-stop probe on the same axis).
+lora_checkpoint_dir: experiments/imagenet/exp160_frame_replace_chainsaw_void_rank32_2b/outputs_20260826_205816/frame_replace_lora_step600
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp143/exp158's allotment for the identical eval workload (same model, same 200-prompt
+# protocol -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"

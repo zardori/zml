@@ -1,0 +1,35 @@
+# Does exp150's early-stop finding (rank 32, step 300 beats step 600 on ESR-1/ESR-5/PSR-5) hold
+# when the training data is exp156's void-target dataset instead of exp131's random-distractor
+# set? exp150 (rank 32, random-distractor, step 300) is this thread's best full-protocol ESR-5
+# (38.67) and beats its own step-600 read (exp143: 20.92) on every cell but PSR-1 (-0.82). This is
+# an eval-only run against exp160's step-300 checkpoint -- no new training required, same
+# diagnostic exp149/exp150 ran against exp147/exp142's saved checkpoints.
+#
+# Live monitor at step 300 (exp160): concept top-1 0.00, top-5 0.00 (matches exp150's own live
+# read of "top-5 near zero" before its full eval confirmed the ESR-5 jump), motion 0.2017 --
+# comfortably above the 0.15 guard floor, healthier than exp142's step-300 live read (which
+# preceded exp150's still-passing 0.296 full-protocol reading).
+#
+# Compare cell-for-cell against exp150 (rank 32, random-distractor, step 300): ESR-1 72.76,
+# ESR-5 38.67, PSR-1 84.46, PSR-5 96.49 -- this thread's current best ESR-5. Also against exp161
+# (same LoRA, step 600) to see whether void-target reproduces the early-stop effect at all.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp162_eval_chainsaw_void_rank32_step300_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp160's step-300 checkpoint (half its 600-step budget) instead of the final step-600 checkpoint
+# exp161 evaluates. Same LoRA (rank 32, void dataset), same training run, only the stopping point
+# differs -- mirrors exp149's diagnostic on exp147/exp148 and exp150's on exp142/exp143.
+lora_checkpoint_dir: experiments/imagenet/exp160_frame_replace_chainsaw_void_rank32_2b/outputs_20260826_205816/frame_replace_lora_step300
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp150's allotment for the identical eval workload (same model, same 200-prompt
+# protocol -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"
