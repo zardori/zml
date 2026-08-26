@@ -1,0 +1,55 @@
+# HINTS.md's "less varied targets" lever, applied to the object thread for the first time: does
+# replacing chain saw with a CONSISTENT void (the same empty surface, described the same way every
+# row) instead of a different random distractor object in each triple change split-prompt yield or
+# (in a later tick, once trained) the erasure signal frame_replace learns?
+#
+# In the nudity thread, making prompt_b's target less varied (all subjects in plain black clothing,
+# rather than a different outfit per row) was reported to make the unlearning signal clearer.
+# Every object-thread split build so far (exp066/exp117/exp121/exp131/exp138) has done the opposite:
+# prompt_b substitutes a different, unrelated tool/object per row (paint can, crowbar, watering can,
+# ...). This build tests the object-thread analogue: prompt_b becomes the same bare/empty surface as
+# prompt_c, worded identically across all 30 rows ("empty and bare"), with prompt_a's close-view/
+# fills-the-frame framing added so the two branches stay compositionally close (a bare requirement
+# for the splice, per exp099/exp119's finding that content is committed early and per-branch framing
+# mismatches are what exp120/exp127 traced the suppression pathology to).
+#
+# Single variable changed from exp131 (this thread's first 2B build, csv_path chain_saw_closeup.csv,
+# 83% yield, 0 not-split failures): prompt_b's content only. Same 30 prompt_a/prompt_c pairs, same
+# seeds (3201-3230), same model, same split geometry, same split_mode: trajectory. A yield or
+# failure-mode change is attributable to prompt_b's diversity, nothing else.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp156_split_chainsaw_void_2b/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# Generated from chain_saw_closeup.csv (exp131's csv) by replacing each row's prompt_b with its
+# prompt_c plus ", empty and bare, in close view, filling much of the frame" -- same location/seed
+# per row, only the substitute-object clause removed. See prompts/imagenet_objects/split/
+# chain_saw_closeup_void.csv.
+csv_path: prompts/imagenet_objects/split/chain_saw_closeup_void.csv
+model_id: THUDM/CogVideoX-2b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Field-for-field exp131.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 1
+split_step_frac: 0.85
+boundary_margin: 2
+tail_prompt_mode: c
+split_mode: trajectory
+concept_guidance_scale: null
+
+concept: object
+concept_target: "chain saw"
+# Logging only (frame_concept_threshold no longer gates keep/skip, since 543eed8); reused from
+# exp131 unchanged since concept_target/detector are the same.
+frame_concept_threshold: 0.05
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: false
+
+# exp131 (identical recipe, same model, same row count) ran in well under its 3h budget; matching
+# that headroom.
+slurm_time: "0-03:00:00"

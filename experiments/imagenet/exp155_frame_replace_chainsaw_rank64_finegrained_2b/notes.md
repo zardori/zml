@@ -1,10 +1,27 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NON-CONVERGENCE FALSIFIER MISSED, BUT SO DID THE HOPED-FOR TREND: the curve does not keep
+  improving below step 100, it goes flat and noisy. `concept_detection_rate` (9-prompt live sample,
+  1/9 granularity) is already at or near floor from step 20 onward and flips 0.11/0.0/0.11/0.0/0.0/
+  0.11/0.0 across steps 20-140 with no monotonic trend — that flip is single-video noise at this
+  sample size, not a signal. `concept_area_score_mean` (the continuous residual measure) drops
+  sharply from step 20 to step 40 (0.0396 → 0.0074, -81%) then stays in a low, noisy band
+  (0.0006-0.016) through step 140 with no further systematic decrease — so nearly all of this run's
+  visible suppression happens by step 40, not step 100, but nothing below 100 reads as clearly
+  better than 100 itself. Motion never approaches the 0.15 guard floor at any checkpoint (range
+  0.205-0.401). Step 100 here reproduces exp147's own step-100 checkpoint's live read (detection
+  rate 0.0, consistent with exp147's report of top-1 0.00 from step 100) as intended — confirms the
+  training trajectory is deterministic and comparable, not a different run. Per the thread's
+  standing "queue a full eval only if the live monitor names a clear candidate" practice, none of
+  steps 20-80 clearly beats the already-fully-evaluated step 100 (exp153: restricted ESR-1 77.86 /
+  ESR-5 44.49, this thread's best full-protocol row) on this noisy a live signal, so no new full
+  `esr_psr` eval is queued from this run. This closes rank 64's checkpoint-early-stopping search:
+  exp153's step-100 checkpoint remains the operating point, and the ESR/PSR-vs-step curve mapped by
+  exp148→exp149→exp151→exp153→this run has no evidence of a further peak below it.
 ---
 # exp155 — rank 64, chain saw, fine-grained checkpoints (every 20 steps, up to 140) to find where
 # the still-rising ESR/PSR-vs-step curve actually peaks
@@ -71,9 +88,27 @@ check that this is the same training trajectory, not a different run.
   live-monitor read; a mismatch would mean something in the data pipeline or seeding is not as
   deterministic as assumed and would need investigating before trusting any of steps 20-80.
 
+## Result
+Per-checkpoint live monitor (`concept_detection_rate` / `concept_area_score_mean` /
+`motion_score_mean`, 9 prompts):
+
+| step | detection_rate | area_score | motion |
+|---|---|---|---|
+| 20 | 0.111 | 0.0396 | 0.236 |
+| 40 | 0.0 | 0.0074 | 0.363 |
+| 60 | 0.111 | 0.0163 | 0.332 |
+| 80 | 0.0 | 0.0010 | 0.216 |
+| 100 | 0.0 | 0.0021 | 0.332 |
+| 120 | 0.111 | 0.0092 | 0.205 |
+| 140 | 0.0 | 0.0059 | 0.372 |
+
+No checkpoint below 100 reads as a clear, non-noisy improvement over step 100 itself — the biggest
+drop in `concept_area_score_mean` is already behind us by step 40, and `detection_rate`'s 0/0.111
+flips are 1-video noise at this sample size. Motion never nears the 0.15 floor.
+
 ## Status
-- [ ] Submitted.
-- [ ] Live monitor checked across all 7 checkpoints (20-140).
-- [ ] Decision: full `esr_psr` eval queued on whichever checkpoint the live trajectory says is
-      worth it, following the thread's standing "queue a full eval only if the live monitor is
-      healthy" gate.
+- [x] Submitted (helios job 21173643, 2026-08-26, elapsed 2h14m of a 4h budget).
+- [x] Live monitor checked across all 7 checkpoints (20-140).
+- [x] Decision: no full `esr_psr` eval queued — no checkpoint below step 100 shows a clear live-
+      monitor win over exp153's already-evaluated step 100, unlike exp149/exp151/exp153's earlier
+      finds, which each named a specific better-looking checkpoint before their full eval ran.

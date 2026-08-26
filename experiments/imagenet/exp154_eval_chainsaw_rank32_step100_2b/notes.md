@@ -1,10 +1,26 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  HYPOTHESIS FALSIFIED: step 100 does NOT continue step 200's decline. Restricted (10-way) row:
+  ESR-1 69.69, ESR-5 28.06, PSR-1 80.41, PSR-5 93.99 — every cell above exp152's step-200 read of
+  the same rank-32 LoRA (59.90 / 19.18 / 77.56 / 93.41), so the decline reverses. But it is a
+  partial recovery, not a full reversal: every cell still falls short of exp150's step-300 peak
+  (72.76 / 38.67 / 84.46 / 96.49), especially ESR-5 (28.06 vs 38.67, 73% of the way back). So rank
+  32's classification-axis curve across all four checkpoints now measured (600→300→200→100) is
+  67.86/20.92 → 72.76/38.67 (peak) → 59.90/19.18 (trough) → 69.69/28.06 (partial recovery) — step
+  300 stands as rank 32's genuine local optimum for ESR/PSR, not one end of a monotonic trend, and
+  the curve is noisier than rank 64's (which climbed monotonically all the way to step 100,
+  exp153). Chain-saw motion is 0.3645, comfortably clear of the 0.15 guard floor. Mean
+  preserved-class motion loss (recomputed exactly against exp130's per-class base) is ~32%, the
+  BEST (lowest) of any rank-32 checkpoint sampled so far (600: 44.0%, 300: 39.1%, 200: 46.6%,
+  100: ~32%) — so unlike rank 64, where the motion axis cleanly co-locates its optimum with step
+  300, rank 32's two axes (classification, motion) do not share a single best step: step 300 wins
+  on ESR/PSR, step 100 wins on preserved motion. Rank 32's checkpoint sweep is now complete
+  (600/300/200/100 all measured); step 300 (exp150) remains this rank's best full-protocol row and
+  there is no further-earlier checkpoint left to test for it.
 ---
 # exp154 — does rank 32's step-200 decline continue at step 100, confirming step 300 as the peak?
 
@@ -48,7 +64,15 @@ exist in the repo.
 - **Erased-class (chain saw) motion and mean preserved-class motion loss** against exp152's
   0.380 / 46.6% and exp150's 0.296 / 39.1% — does the decline continue on both axes, or diverge.
 
+## Result
+Restricted (10-way): ESR-1 69.69, ESR-5 28.06, PSR-1 80.41, PSR-5 93.99. Above exp152's step-200
+row on every cell (falsifies "decline continues"), below exp150's step-300 peak on every cell
+(step 300 is not itself surpassed) — a partial recovery, landing between the trough and the peak.
+Chain-saw motion 0.3645 (floor 0.15). Preserved-class motion loss ~32% (best of the four rank-32
+checkpoints measured), computed against exp130's per-class `motion_score_mean` base values.
+
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions; compared against exp152 (step 200) and exp150 (step 300)
-      to close out rank 32's checkpoint curve.
+- [x] Submitted.
+- [x] Row measured under both conventions; compared against exp152 (step 200) and exp150 (step 300)
+      to close out rank 32's checkpoint curve. exp150 (step 300) remains rank 32's best row; no
+      further checkpoint left to test.
