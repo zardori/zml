@@ -1,10 +1,28 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  BOTH FALSIFIERS MISS — THE ESR/PSR CURVE KEEPS RISING AND THIS IS NOW THE THREAD'S BEST ROW.
+  Restricted (10-way): ESR-1 77.86, ESR-5 44.49, PSR-1 80.53, PSR-5 92.73. Against exp151's
+  step-200 read of the SAME rank-64 LoRA (74.90 / 32.35 / 80.15 / 96.41): ESR-1 up 2.96, ESR-5 up
+  12.14 (now the best ESR-5 in the WHOLE imagenet thread, ahead of exp150's rank-32/step-300 read
+  of 38.67), PSR-1 up 0.38, PSR-5 down 3.68 (but still 10.6 points clear of the 82.14 floor). Four
+  consecutive checkpoints (step 600 exp148, 300 exp149, 200 exp151, 100 here) now show ESR-1/ESR-5
+  improving monotonically as training gets shorter — the trend exp151 found is still not exhausted
+  even at the earliest checkpoint this run ever saved. The motion story does NOT continue
+  monotonically, though: chain saw's own motion is 0.459, the healthiest guard margin of any
+  checkpoint in the thread (base 0.840, floor 0.15) — exp151's fear that the margin (0.026 at step
+  200) was eroding toward the floor does not hold at step 100. But mean preserved-class motion loss
+  (recomputed exactly from the quality block) is 39.4%, worse than step 300's 17.4% and better than
+  step 200's 49.8% or step 600's 48.5% — so step 300 remains the clear local optimum for motion
+  preservation specifically, a separate axis from the classification curve that keeps climbing past
+  it. Net: this is the best full-protocol row in the thread on ESR-1 AND ESR-5 simultaneously, both
+  PSR cells and the motion guard clear their floors comfortably, but ESR-1 (77.86) and especially
+  ESR-5 (44.49) are still well short of GOAL.md's target (92.38 / 77.09, a 32.6-point gap on ESR-5).
+  Nothing below step 100 has ever been trained for this rank — exp155 tests whether the curve keeps
+  rising there or the classification axis also has a local peak the way the motion axis does.
 ---
 # exp153 — does rank 64's motion margin finally break the 0.15 floor at step 100, and does ESR/PSR
 # keep improving there?
@@ -56,7 +74,8 @@ exist in the repo.
   collateral keep growing or has it peaked.
 
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions; motion guard checked explicitly against the 0.15 floor;
-      compared against exp151 (step 200) and exp149 (step 300) to find where the "stop earlier"
-      prescription runs out for rank 64.
+- [x] Submitted. Completed on helios, job 21162154.
+- [x] Row measured under both conventions; motion guard checked (0.459, comfortably clear — neither
+      falsifier fired). Compared against exp151 (step 200) and exp149 (step 300): ESR/PSR still
+      rising, motion loss still worst at step 300 not step 100. Follow-up: exp155 (fine-grained
+      checkpoints below step 100).

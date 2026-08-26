@@ -1,0 +1,26 @@
+# Completes rank 32's per-checkpoint curve. exp150 (step 300) beat exp143 (step 600) on ESR-1/
+# ESR-5/PSR-5; exp152 (step 200) then REVERSED that gain -- ESR-1 59.90, ESR-5 19.18, both worse
+# than step 300's 72.76 / 38.67, and mean preserved-class motion loss rose to 46.6% (worse than
+# step 300's 39.1%) -- so step 300 is a local optimum on BOTH axes for rank 32, unlike rank 64 where
+# ESR/PSR keeps climbing all the way to step 100 while only the motion optimum sits at step 300.
+# This checks whether step 100 continues rank 32's step-200 decline (confirming step 300 is the
+# peak and step 200 was already past the point where this rank is reliably converged) or reverses
+# again.
+# Run: ./submit_job.py athena experiments/imagenet/exp154_eval_chainsaw_rank32_step100_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp142's step-100 checkpoint -- one save interval before exp152's step-200 -- same LoRA
+# (rank 32), same training run, only the stopping point differs.
+lora_checkpoint_dir: experiments/imagenet/exp142_frame_replace_chainsaw_rank32_matched_lr_2b/outputs_20260822_224618/frame_replace_lora_step100
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp152 (identical 200-video protocol, exp142's step-200 checkpoint) ran on athena within a 14h
+# budget. Same model, same eval-only forward pass, no reason to expect a different runtime here.
+slurm_time: "0-14:00:00"

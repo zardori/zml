@@ -1,10 +1,24 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  FIRST FALSIFIER FIRED: step 200 is worse than step 300 on every ESR/PSR cell, confirming step
+  300 is a genuine local peak for rank 32, not a point on a monotonic "earlier is better" trend.
+  Restricted (10-way) row: ESR-1 59.90, ESR-5 19.18, PSR-1 77.56, PSR-5 93.41. Against exp150's
+  step-300 read of the SAME rank-32 LoRA (72.76 / 38.67 / 84.46 / 96.49): ESR-1 down 12.86, ESR-5
+  down 19.49 (nearly half), PSR-1 down 6.90, PSR-5 down 3.08 — every cell worse, unlike rank 64
+  where the classification curve kept improving from step 300 through step 100 (exp149→exp151→
+  exp153). Mean preserved-class motion loss (vs exp130's per-class base) is also worse here (46.6%)
+  than at step 300 (39.1%, recomputed exactly from the quality block) or step 600 (44.0%, exp143)
+  — so step 300 is a local optimum on BOTH axes for rank 32, not just the classification one. Chain
+  saw's own motion is 0.380, well clear of the 0.15 guard floor. Rank 32's live monitor (exp142)
+  first reached top-1 0.00 at step 200, one interval later than rank 64's step 100 (exp147) — this
+  is consistent with step 200 being close to rank 32's actual convergence floor rather than a
+  comfortably-converged early checkpoint, unlike rank 64 where step 100 was already well past
+  convergence. exp154 checks step 100 to see whether the decline continues (rank 32 undertrained
+  below step 300) or step 200 was itself the anomaly.
 ---
 # exp152 — does rank 32's ESR/PSR curve keep rising at step 200, and does its motion margin erode
 # the way rank 64's did?
@@ -56,7 +70,7 @@ and already exist in the repo.
   rise further (extending rank 32's odd "earlier is worse for motion" pattern) or reverse.
 
 ## Status
-- [ ] Submitted.
-- [ ] Row measured under both conventions; compared against exp150 (rank 32, step 300) and exp151
-      (rank 64, step 200) to decide whether the ESR/PSR-vs-motion dissociation is a general
-      property of short training or specific to rank 64.
+- [x] Submitted. Completed on helios, job 21162147.
+- [x] Row measured under both conventions; compared against exp150 (rank 32, step 300) and exp151
+      (rank 64, step 200). Falsifier 1 fired (step 200 worse than step 300 on ESR), so this rank's
+      curve does NOT extend as far back as rank 64's. Follow-up: exp154 (step 100).

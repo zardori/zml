@@ -1,0 +1,81 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B: rank 64, field-for-field exp147, but with
+# save_interval dropped from 100 to 20 and the step budget cut from 600 to 140, to map the curve
+# BELOW the earliest checkpoint the thread has ever evaluated.
+#
+# exp153 (exp147's step-100 checkpoint) found the ESR/PSR-vs-step curve for rank 64 is still
+# rising at the earliest checkpoint that exists: ESR-1 77.86 (best in the thread so far), ESR-5
+# 44.49 (best in the thread by a wide margin, vs the prior best of 38.67 from exp150's rank-32/
+# step-300 row) -- both better than step 200 (exp151: 74.90 / 32.35), step 300 (exp149: 74.49 /
+# 21.63) and step 600 (exp148: 71.53 / 16.43). Chain saw's own motion at step 100 is 0.459, the
+# healthiest guard margin of any checkpoint measured (base 0.840, floor 0.15). Every checkpoint
+# saved so far shows ESR/PSR still improving as training gets shorter, all the way back to the
+# earliest point we have -- there is no evidence yet of where this rank's true peak is, only that
+# it has not been found. Motion preservation is a separate story: exp149 (step 300) found the best
+# mean preserved-class motion loss of any rank-64 checkpoint (17.4%), and step 100 (39.4%),
+# step 200 (49.8%) and step 600 (48.5%) are all worse -- so step 300 already looks like a genuine
+# local optimum for THAT axis, not something finer checkpointing near the start is expected to
+# beat.
+#
+# This run exists to answer one question the 100-step-resolution sweep cannot: does the
+# ESR/PSR-vs-step curve keep rising below step 100, plateau, or reverse before the model has had
+# enough steps to erase the concept at all? Only the live 9-prompt monitor is read here, per
+# standing practice -- a full esr_psr eval is the next-tick follow-up on whichever checkpoint the
+# live trajectory says is worth it, mirroring exp147 -> exp153's own precedent as closely as
+# exp142 -> exp143's.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp155_frame_replace_chainsaw_rank64_finegrained_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Identical dataset to exp147/exp142/exp139: exp131's 25 screened rows (primary) + exp138's 22
+# screened rows (extra_sources_file), 47 rows total, 24 first / 23 second half.
+metadata_file: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524_screened.json
+latents_dir: experiments/imagenet/exp131_split_chainsaw_2b/outputs_20260820_103524/latents
+extra_sources_file: experiments/imagenet/exp139_frame_replace_chainsaw_2b_gen2/extra_sources.json
+
+# exp132's 2B preservation anchors, unchanged from exp133/exp139/exp141/exp142/exp147.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged: eta=2.0, closed as a lever by exp137.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Same eval prompts as every prior chain-saw run, for an apples-to-apples live-monitor comparison.
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# Unchanged from exp147: rank 64, alpha 64.0.
+lora_rank: 64
+lora_alpha: 64.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+# UNCHANGED from exp139/exp142/exp147 (0.0005) -- same lr this rank has already converged with,
+# isolating checkpoint resolution as the sole variable.
+learning_rate: 0.0005
+# THE VARIABLE: a 140-step budget with save_interval 20 (checkpoints at 20/40/60/80/100/120/140)
+# instead of exp147's 600 steps / save_interval 100. Step 100 here should reproduce exp147's
+# step-100 checkpoint (same seed, same data order up to that point) as a sanity check; the new
+# information is steps 20-80, below anything evaluated so far.
+steps: 140
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp147 ran 600 steps in 13901s on helios (~23.2s/step). 140 steps is ~3250s of stepping plus
+# model-load and live-eval overhead at 7 checkpoints (vs exp147's 6) -- budgeting well above that.
+slurm_time: "0-04:00:00"
