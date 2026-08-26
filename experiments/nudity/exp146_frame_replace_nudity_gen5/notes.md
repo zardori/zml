@@ -1,5 +1,5 @@
 ---
-status: ready
+status: done
 concept: nudity
 method: frame_replace
 thread: nudity
@@ -88,7 +88,25 @@ If partial targets are supervision for the states unlearning actually visits, th
 against clean ones should matter: partial-first (start where the model already is) or partial-last
 (corrective fine-tuning once it stalls). That is a real technique — covering the induced state
 distribution rather than only the endpoint — and `review_class` is the field a curriculum run would
-sort on. Not staged: it is only worth building after exp146/exp147 show gen5 does something at all.
+sort on. Not staged: it is only worth building after exp146/exp148 show gen5 does something at all.
+
+
+## Outcome of the 2026-08-25 submission: TRUNCATED at step ~145/200
+
+All four jobs (both arms, both etas) were `CANCELLED ... DUE TO TIME LIMIT` at 20h. Not a crash —
+checkpoints and evals through **s140** are complete and valid; `run_info.json` still reads `running`
+because SLURM SIGKILLs before the finalizer writes, so that field cannot be trusted to mean "in
+flight". Check `squeue` and the `.err` tail instead.
+
+**The cause was the eval budget, not the model.** A training step costs ~37s, so 200 steps is ~2.1h;
+the other ~18h went to 14 evaluations at ~1.3h each, because this config raised `eval_num_prompts`
+10 -> 25 *and* added the related/unrelated sets, at `save_interval` 10. `slurm_time` is now 32h
+(plgrid-gpu-gh200 allows 48h).
+
+**Not resubmitted for the tail.** s150-200 has never produced a winner in this thread: exp080's best
+is s120, exp110's s140, exp123 r1's s80, and exp114 found longer training does not help. The one
+s200 candidate (exp136) failed on sharpness. The truncated range already covers where every winner
+has lived.
 
 ## Status
-Not submitted; blocked on the cluster-side merge.
+Submitted 2026-08-25, truncated; originally staged as: not submitted; blocked on the cluster-side merge.

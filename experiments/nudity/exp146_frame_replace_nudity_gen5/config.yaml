@@ -14,7 +14,7 @@
 #
 # TRAINS THE HAND-PICKED 27 (shard 1 only). Review of shards 2-4 is not happening, so this arm is
 # deliberately shard-1-only and small — 27 clips, against OLD-31's 34, which is the size that
-# produced the incumbent. exp147 is the paired arm that trains 155 clips passing an automated gate
+# produced the incumbent. exp148 is the paired arm that trains 155 clips passing an automated gate
 # with nobody watching a video; together they answer whether hand review is worth the hours.
 #
 # THE FILTER IS NOT DETECTOR-CLEAN AND THAT IS DELIBERATE. 10 of the 27 still read nudity in the
@@ -94,4 +94,12 @@ global_seed: 42
 
 # exp110's own wall clock, plus margin for the larger eval (25 prompts x 3 sets vs 10 x 1).
 # Two eta values -> two jobs.
-slurm_time: "0-20:00:00"
+# WALL-CLOCK ACCOUNTING — this config timed out once; read before resubmitting.
+# The 2026-08-25 submission was CANCELLED AT step ~145/200 DUE TO TIME LIMIT at 20h. The runs were
+# never compute-bound: a training step costs ~37s, so 200 steps is ~2.1h. The other ~18h was
+# EVALUATION — 14 evals x ~1.3h, because this config raised eval_num_prompts 10 -> 25 AND added the
+# related/unrelated sets, at save_interval 10. Full 200 steps at this eval budget needs ~28h.
+# plgrid-gpu-gh200 allows 2-00:00:00, so the fix is a bigger --time, not a smaller experiment.
+# If you only need the checkpoint range that has ever produced a winner (s80-s140), the truncated
+# run already covers it and a resubmission buys little — see notes.md.
+slurm_time: "1-08:00:00"

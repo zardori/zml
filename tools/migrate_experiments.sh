@@ -59,6 +59,7 @@ migrate() {
 
 migrate_all() {
     :
+    migrate "experiments/nudity/exp147_frame_replace_nudity_gen5_gate" "experiments/nudity/exp148_frame_replace_nudity_gen5_gate"
     migrate "experiments/exp001_esd_fire_lora8" "experiments/archive/esd_fire/exp001_esd_fire_lora8"
     migrate "experiments/exp002_esd_fire_lora8" "experiments/archive/esd_fire/exp002_esd_fire_lora8"
     migrate "experiments/exp003_esd_fire_GS_1_lr_00005" "experiments/archive/esd_fire/exp003_esd_fire_GS_1_lr_00005"
