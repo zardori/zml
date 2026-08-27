@@ -1,0 +1,27 @@
+# Reported ESR/PSR for exp160's chain-saw frame_replace LoRA -- rank 32 / eta 2.0 / void-target
+# dataset (exp156) -- at step 100, the earliest saved checkpoint, paired with exp163 (step 200).
+#
+# See exp163's config/notes for the full rationale: exp161 (step 600) and exp162 (step 300) both
+# show void+rank32 underperforming both single levers on ESR-1/ESR-5, with a partial recovery
+# from step 600 to step 300. This checkpoint tests the far end of that trend.
+#
+# Live monitor at step 100 (exp160): concept top-1 0.00, top-5 0.02, motion 0.712 -- the highest
+# (healthiest) live motion read of any checkpoint in this run, well clear of the 0.15 guard floor.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp164_eval_chainsaw_void_rank32_step100_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp160's step-100 checkpoint -- eval-only diagnostic, no new training. Same LoRA as exp161/162/163.
+lora_checkpoint_dir: experiments/imagenet/exp160_frame_replace_chainsaw_void_rank32_2b/outputs_20260826_205816/frame_replace_lora_step100
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp161/exp162/exp163's allotment for the identical eval workload (same model, same
+# 200-prompt protocol -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"

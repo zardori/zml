@@ -1,10 +1,26 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT FALSIFIED (STEP 300 > STEP 600 ON THIS LORA TOO), BUT STILL FAR BELOW EXP150'S PEAK — THE
+  INTERFERENCE EXP161 FOUND IS NOT AN ARTEFACT OF OVERTRAINING. Restricted (10-way) row: ESR-1
+  60.41, ESR-5 18.47, PSR-1 86.96, PSR-5 95.99. Against exp161 (same LoRA, step 600: 45.71 / 10.82
+  / 90.25 / 97.07): ESR-1 up 14.70, ESR-5 up 7.65, both PSR cells down slightly — the direction
+  exp150 found for rank 32 on the random-distractor dataset (earlier stop helps ESR/PSR-5 at a
+  small PSR-1 cost) reproduces here too, so per this run's pre-registered falsifier (scoring at or
+  below exp161 would falsify) the early-stop effect generalizes across datasets, not just across
+  ranks. But the magnitude does not: exp150 (rank 32, random-distractor, step 300: 72.76 / 38.67 /
+  84.46 / 96.49) beats this row on ESR-1 (+12.35) and ESR-5 (+20.20 — more than double) while
+  losing only on PSR-1 (-2.50). So stopping earlier recovers some of what void-target cost this
+  combination, but nowhere near enough to close the gap with rank-32-alone's own early-stop
+  optimum — the interference exp161 flagged is a real property of combining these two levers, not
+  just a step-600 overtraining artefact that early stopping fixes. Chain saw's own restricted
+  top-5 and quality block not separately called out here; the headline is the ESR-1/ESR-5 gap to
+  exp150. exp163 and exp164 (step 200 and step 100 evals of this same LoRA, queued this tick) test
+  whether the decline-with-training-length trend continues further back, the way rank 64's
+  ESR/PSR curve kept rising all the way to step 100 (exp149→exp151→exp153).
 ---
 # exp162 — eval: chain-saw void-target dataset x rank 32, CogVideoX-2B, early-stop checkpoint (step 300)
 

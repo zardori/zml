@@ -1,0 +1,34 @@
+# Reported ESR/PSR for exp160's chain-saw frame_replace LoRA -- rank 32 / eta 2.0 / void-target
+# dataset (exp156) -- at step 200, one interval earlier than exp162's step-300 read.
+#
+# exp161 (step 600) found void+rank32 UNDERPERFORMS both single levers on ESR-1/ESR-5 (45.71/10.82
+# vs exp143's rank32-alone 67.86/20.92 and exp158's void-rank8 70.92/15.41), though PSR is the best
+# in the thread (90.25/97.07). exp162 (step 300) partially recovers (60.41/18.47) -- confirming
+# earlier stopping helps this combo too, the same direction exp150 found for rank32 alone -- but
+# still far below exp150's own step-300 peak (72.76/38.67). This run tests whether the decline
+# with training length continues further back, the way rank 64's ESR/PSR curve kept climbing all
+# the way to step 100 (exp149->exp151->exp153) rather than peaking at step 300 the way rank 32
+# alone did (exp150 vs exp152's step-200 drop).
+#
+# Live monitor at step 200 (exp160): concept top-1 0.00, top-5 0.00, motion 0.085 -- below the
+# 0.15 guard floor in the live sample, though the full protocol is the number that settles it
+# (exp142's live read dipped comparably at some checkpoints without the full-protocol reading
+# breaching the floor).
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp163_eval_chainsaw_void_rank32_step200_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp160's step-200 checkpoint -- eval-only diagnostic, no new training. Same LoRA as exp161/exp162.
+lora_checkpoint_dir: experiments/imagenet/exp160_frame_replace_chainsaw_void_rank32_2b/outputs_20260826_205816/frame_replace_lora_step200
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp161/exp162's allotment for the identical eval workload (same model, same 200-prompt
+# protocol -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"
