@@ -55,16 +55,18 @@ method: frame_replace     # the pipeline; `foo/precompute` for a dataset build
 thread: frame_replace_fire
 takeaway: >
   eta=2 erases but motion collapses; superseded by exp057's interpolated target.
+submitted: 2026-08-27 18:32 helios job 12345   # written by submit_job.py, not by hand
 ---
 ```
 
 | field | meaning |
 |---|---|
-| `status` | `ready` — configured and committed, not submitted yet (often waiting on another run). `active` — in flight. `done` — finished, still a live reference or dataset. `superseded` — a later run replaced it. `abandoned` — configured but never run, or a dead end. The two live statuses (`ready`, `active`) block archiving; the two retired ones (`superseded`, `abandoned`) are what `INDEX.md` lists as ready to archive. |
+| `status` | `ready` — configured and committed, not submitted yet (often waiting on another run). `active` — in flight; `submit_job.py` sets this itself on every successful submission, so `ready` means "never submitted" rather than "nobody got round to updating it". `done` — finished, still a live reference or dataset. `superseded` — a later run replaced it. `abandoned` — configured but never run, or a dead end. The two live statuses (`ready`, `active`) block archiving; the two retired ones (`superseded`, `abandoned`) are what `INDEX.md` lists as ready to archive. |
 | `concept` | Which concept the run is about, or `none` for infrastructure. Validated against a fixed list. |
 | `method` | Mirrors `config.yaml`'s `method`, or the `job_type` when there is none (`eval`, `search`, `benchmark`). Dataset builds are written `frame_replace/precompute` so they are distinguishable from a training run of the same method in the index. |
 | `thread` | Which research thread it belongs to; also the archive subfolder. Must be a key of `THREAD_DOCS` in `tools/experiments_index.py`. |
 | `takeaway` | One or two sentences: what a person needs to know before designing the next run. Not a summary of the notes — the single thing that would change someone's mind. |
+| `submitted` | When the last submission went out, to which cluster, and as which SLURM jobs. Written by `submit_job.py` after sbatch accepts the jobs — never by hand, and absent until an experiment has actually been submitted. Optional and unvalidated; it exists so a queued run is distinguishable from one that was configured and left. |
 
 **On `takeaway` and honesty.** A run whose outcome was never written up says exactly that
 ("Outcome never written up"). Do not reconstruct a result from a guess; per

@@ -1,10 +1,11 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
   Not yet run.
+submitted: 2026-08-27 21:18 helios job 21367439
 ---
 # exp171 — eval: chain-saw void-target dataset x rank 8, CogVideoX-2B, step 200
 

@@ -27,6 +27,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -38,6 +39,7 @@ OUTPUT_MD = EXPERIMENTS_DIR / "INDEX.md"
 
 EXP_DIR_RE = re.compile(r"^exp\d{3}_")
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\s*\n", re.DOTALL)
+FRONTMATTER_KEY_RE = re.compile(r"^([A-Za-z_][\w-]*)\s*:")
 
 VALID_STATUSES = ("ready", "active", "done", "superseded", "abandoned")
 VALID_CONCEPTS = ("fire", "nudity", "imagenet", "face", "none")
@@ -156,6 +158,63 @@ def parse_frontmatter(notes: Path) -> tuple[dict, list[str]]:
     if not isinstance(data, dict):
         return {}, [f"{notes.relative_to(REPO_ROOT)}: frontmatter is not a mapping"]
     return data, []
+
+
+def _yaml_scalar(value: str) -> str:
+    """One-line YAML rendering, quoted only where a plain scalar would not read back unchanged."""
+    return yaml.safe_dump(value, default_flow_style=True, width=2**16).split("\n", 1)[0]
+
+
+def set_frontmatter_fields(text: str, updates: dict[str, str]) -> str:
+    """Return ``text`` with these top-level frontmatter fields set; everything else is untouched.
+
+    A field already present is rewritten where it stands (its old value's continuation lines — a
+    folded ``takeaway: >`` block, say — go with it); a new one is appended to the block. This edits
+    the text rather than round-tripping the mapping through ``yaml.dump`` so the diff stays on the
+    lines that actually changed: a ``notes.md`` is read by people far more often than by tools, and
+    its hand-written frontmatter should survive a machine setting one field.
+    """
+    match = FRONTMATTER_RE.match(text)
+    if match is None:
+        raise ValueError("no YAML frontmatter block")
+
+    pending = dict(updates)
+    kept: list[str] = []
+    lines = match.group(1).split("\n")
+    i = 0
+    while i < len(lines):
+        line, i = lines[i], i + 1
+        key = FRONTMATTER_KEY_RE.match(line)
+        if key and key.group(1) in pending:
+            kept.append(f"{key.group(1)}: {_yaml_scalar(pending.pop(key.group(1)))}")
+            while i < len(lines) and (not lines[i].strip() or lines[i][:1].isspace()):
+                i += 1
+        else:
+            kept.append(line)
+    kept += [f"{key}: {_yaml_scalar(value)}" for key, value in pending.items()]
+    return text[: match.start(1)] + "\n".join(kept) + text[match.end(1) :]
+
+
+def mark_submitted(notes: Path, cluster: str, job_ids: list[str],
+                   when: datetime | None = None) -> str:
+    """Record in an experiment's frontmatter that its jobs are now queued; return the stamp written.
+
+    ``status: active`` — in flight is what the experiment now is, whatever it was before — plus a
+    ``submitted`` line naming the cluster and the job ids, which is what ``status`` alone cannot
+    say: when it went out, where, and what to look for in ``squeue``. Called by ``submit_job.py``
+    once sbatch has accepted the jobs, so that nobody reading the registry afterwards — the weekly
+    report, ``INDEX.md``, or the research agent, which is handed each experiment's status and
+    takeaway and little else — takes a running experiment for one that was never submitted.
+    """
+    stamp = f"{(when or datetime.now()).strftime('%Y-%m-%d %H:%M')} {cluster}"
+    if job_ids:
+        stamp += f" job{'s' if len(job_ids) > 1 else ''} {','.join(job_ids)}"
+
+    text = notes.read_text()
+    updated = set_frontmatter_fields(text, {"status": "active", "submitted": stamp})
+    if updated != text:
+        notes.write_text(updated)
+    return stamp
 
 
 def validate(rel_dir: Path, data: dict) -> list[str]:

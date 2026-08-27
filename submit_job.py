@@ -36,6 +36,11 @@ checked to exist there — in your repo or in a peer's (slurm/check_config_paths
 missing is looked for on the *other* cluster and, with your confirmation, copied over before the
 job is submitted (zml/cluster_sync.py); an input nobody has anywhere aborts the submission instead
 of failing the job minutes after it starts.
+
+Once sbatch has accepted the jobs, the experiment's notes.md frontmatter is stamped
+`status: active` and `submitted: <when> <cluster> jobs <ids>` — commit and push that, or the
+registry (INDEX.md, the weekly report, the research agent) goes on reading a queued experiment as
+one that was never submitted.
 """
 
 import argparse
@@ -57,6 +62,7 @@ from zml.cluster_sync import (
     load_cluster,
     locate_paths,
 )
+from tools.experiments_index import mark_submitted
 
 
 CLUSTER_DEFAULT_SLURM: dict[str, str] = {
@@ -65,6 +71,8 @@ CLUSTER_DEFAULT_SLURM: dict[str, str] = {
 }
 
 DEFAULT_JOB_TYPE = "unlearn"
+
+NOTES_NAME = "notes.md"
 
 SBATCH_JOB_ID_RE = re.compile(r"Submitted batch job (\d+)")
 # Last line of a successful submission, so a non-interactive caller can record what it launched
@@ -285,6 +293,28 @@ def submit_grid(
     return job_ids
 
 
+def record_submission(config_path: str, cluster_name: str, job_ids: list[str]) -> None:
+    """Stamp `status: active` and a `submitted:` line into the experiment's notes frontmatter.
+
+    Without it an experiment stays `ready` with a "not run yet" takeaway for as long as it is in
+    the queue, and every reader of the registry — INDEX.md, the weekly report, the research agent,
+    which is given each experiment's frontmatter and not much else — reads that as never
+    submitted. Manual submissions are exactly the ones nothing else would ever correct.
+
+    Bookkeeping after the fact: the jobs are already queued, so notes that cannot be written are
+    a warning to fix by hand, never a failure of a submission that has already happened.
+    """
+    notes = Path(config_path).parent / NOTES_NAME
+    try:
+        stamp = mark_submitted(notes, cluster_name, job_ids)
+    except (OSError, ValueError) as exc:
+        print(f"Warning: could not mark {notes} as submitted ({exc}) — set `status: active` there "
+              f"by hand.", file=sys.stderr)
+        return
+    print(f"Marked {notes}: status active, submitted {stamp}.")
+    print("  Commit and push it — the clusters and the research agent read it from the remote.")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Submit experiment to HPC cluster.",
@@ -369,6 +399,8 @@ def main() -> None:
         job_ids = submit_scalar(cluster, slurm_script, args.config,
                                 slurm_time=slurm_time, job_type=job_type)
 
+    if job_ids:
+        record_submission(args.config, cluster.name, job_ids)
     print(f"{JOB_IDS_PREFIX}{','.join(job_ids)}")
 
 
