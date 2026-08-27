@@ -1,0 +1,32 @@
+# Reported ESR/PSR for the chain-saw frame_replace LoRA -- rank 32 / eta 2.0 / void-target dataset
+# (exp156) -- at step 150, the lower bracket of exp163's step-200 classification peak.
+#
+# exp161/exp162/exp163/exp164 evaluated exp160's 100-step-resolution checkpoints and found a single
+# sharp peak at step 200: restricted ESR-1/ESR-5 45.71/10.82 (600) -> 60.41/18.47 (300) ->
+# 86.73/43.57 (200) -> 62.76/16.94 (100). Step 200 is the thread's best classification row (ESR-1
+# within 5.65 of GOAL.md's 92.38 target) but the FIRST fully-evaluated checkpoint in the entire
+# rank/step sweep to actually breach the 0.15 erased-class motion floor (0.1379), where the other
+# three checkpoints on this LoRA clear it comfortably (0.408 / 0.546 / 0.820). exp165 re-trained
+# the identical recipe with save_interval 25; this run evaluates its step-150 checkpoint on the
+# full 200-prompt protocol. Paired with exp167 (175), exp168 (225), exp169 (250) -- independent
+# evals of exp165's saved checkpoints, no dependency between them -- to map the peak at 25-step
+# resolution and see whether any checkpoint near step 200 keeps ESR-1/ESR-5 well above exp162's
+# step-300 read (60.41/18.47) while clearing the 0.15 motion floor step 200 missed.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp166_eval_chainsaw_void_rank32_step150_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp165's step-150 checkpoint -- eval-only diagnostic, no new training.
+lora_checkpoint_dir: experiments/imagenet/exp165_frame_replace_chainsaw_void_rank32_finegrained_2b/outputs_20260827_071726/frame_replace_lora_step150
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp161/exp162/exp163/exp164's allotment for the identical eval workload (same model,
+# same 200-prompt protocol -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"

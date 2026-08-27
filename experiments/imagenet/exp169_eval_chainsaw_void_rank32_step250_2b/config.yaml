@@ -1,0 +1,23 @@
+# Reported ESR/PSR for the chain-saw frame_replace LoRA -- rank 32 / eta 2.0 / void-target dataset
+# (exp156) -- at step 250, the outer upper bracket of exp163's step-200 classification peak.
+#
+# See exp166's config for the full rationale. This run evaluates exp165's step-250 checkpoint --
+# halfway between exp163's step-200 peak and exp162's step-300 read (60.41/18.47, motion 0.408).
+# Together with exp168 (225) it maps how fast the ESR gain decays on the trailing edge and where
+# the motion floor is cleared. Paired with exp166 (150), exp167 (175), exp168 (225).
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp169_eval_chainsaw_void_rank32_step250_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp165's step-250 checkpoint -- eval-only diagnostic, no new training.
+lora_checkpoint_dir: experiments/imagenet/exp165_frame_replace_chainsaw_void_rank32_finegrained_2b/outputs_20260827_071726/frame_replace_lora_step250
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+slurm_time: "0-14:00:00"
