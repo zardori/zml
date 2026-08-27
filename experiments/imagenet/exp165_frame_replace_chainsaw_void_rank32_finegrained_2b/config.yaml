@@ -1,0 +1,82 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B: field-for-field exp160 (void-target dataset
+# x rank 32), but with save_interval dropped from 100 to 25 and the step budget cut from 600 to
+# 300, to map the curve AROUND the sharp peak exp163/exp164 found at step 200.
+#
+# exp161/exp162/exp163/exp164 evaluated exp160's 100-step-resolution checkpoints (600/300/200/100)
+# and found a single, narrow peak at step 200: restricted ESR-1/ESR-5 45.71/10.82 (600) ->
+# 60.41/18.47 (300) -> 86.73/43.57 (200) -> 62.76/16.94 (100). Step 200 is this thread's best
+# classification row by a wide margin (ESR-1 within 5.65 points of GOAL.md's 92.38 target) but its
+# erased-class motion_score_mean (0.1379) is the first fully-evaluated checkpoint in the whole
+# rank/step sweep to actually breach the 0.15 guard floor, not just approach it (motion at the
+# other three checkpoints on the same LoRA: 0.820 / 0.408 / 0.546, all comfortably clear). Same
+# seed/recipe/data as exp160 reproduces its trajectory exactly up to any given step (exp155
+# confirmed save_interval does not change the training trajectory, only checkpoint availability),
+# so steps 100/200/300 here are a sanity check against exp163/exp164/exp162's own reads, and
+# 25/50/75/125/150/175/225/250/275 are the new information -- fine enough to tell whether step
+# 200's motion dip is a single-checkpoint transient (a nearby step keeps most of the ESR gain
+# while clearing 0.15) or the leading/trailing edge of a wider collapse this 100-step-resolution
+# sweep was too coarse to see.
+#
+# Falsified by: no checkpoint between 125 and 275 clearing BOTH the 0.15 motion floor AND scoring
+# meaningfully above exp162's step-300 ESR-1/ESR-5 read (60.41/18.47) -- i.e. the peak is a single
+# isolated point with nothing recoverable near it, and the void+rank32 combination's only usable
+# operating points are the ones already evaluated (exp162's step 300 or exp164's step 100).
+# Only the live 9-prompt monitor is read from this run, per exp155's standing practice; a full
+# esr_psr eval is a next-tick follow-up on whichever checkpoint the live trajectory names as the
+# best candidate.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp165_frame_replace_chainsaw_void_rank32_finegrained_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Identical to exp160: exp156's 25 screened rows (void-target prompt_b, trajectory mode).
+metadata_file: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200_screened.json
+latents_dir: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200/latents
+
+# Unchanged from exp133/exp142/exp157/exp160: exp132's 2B preservation anchors.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged: eta=2.0, closed as a lever by exp137.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# Unchanged from exp160: rank 32, alpha 32.0.
+lora_rank: 32
+lora_alpha: 32.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+# UNCHANGED from exp142/exp157/exp160 (0.0005) -- same lr this recipe already converges with,
+# isolating checkpoint resolution as the sole variable versus exp160.
+learning_rate: 0.0005
+# THE VARIABLE vs exp160: a 300-step budget with save_interval 25 (checkpoints at
+# 25/50/75/100/125/150/175/200/225/250/275/300) instead of exp160's 600 steps / save_interval 100.
+# Steps 100/200/300 should reproduce exp164/exp163/exp162's own reads as a sanity check (same
+# seed, same data order up to that point); 25/50/75/125/150/175/225/250/275 are new.
+steps: 300
+save_interval: 25
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp160 ran 600 steps + 6 checkpoint live-evals in 13202s on helios. exp155's analogous
+# fine-grained run (140 steps + 7 checkpoints) took 8036s, i.e. per-checkpoint live-eval overhead
+# dominates over step count. This run has 300 steps (half exp160's) and 12 checkpoints (twice
+# exp155's) -- budgeting with headroom above a naive sum of both effects.
+slurm_time: "0-10:00:00"

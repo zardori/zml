@@ -1,10 +1,31 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT FALSIFIED, AND THIS IS THE THREAD'S BEST CLASSIFICATION ROW -- BUT IT FAILS THE MOTION GUARD.
+  Restricted (10-way) row: ESR-1 86.73, ESR-5 43.57, PSR-1 82.95, PSR-5 93.45. Against exp162
+  (same LoRA, step 300: 60.41 / 18.47 / 86.96 / 95.99): ESR-1 up 26.32, ESR-5 up 25.10 -- both far
+  above the falsifier bar (scoring at or below exp162), so the decline-with-training-length trend
+  exp161->exp162 reported does NOT continue monotonically; it reverses hard one checkpoint
+  earlier. ESR-1 86.73 is within 5.65 points of GOAL.md's target (92.38) -- closer than anything
+  else in the thread -- and ESR-5 43.57 essentially ties this thread's previous best (exp153,
+  rank 64/step 100: 44.49). BUT the erased-class motion guard FAILS here: chain saw
+  `motion_score_mean` is 0.1379, below GOAL.md's 0.15 floor (exp130 base: 0.840) -- the first time
+  in this thread's entire rank/step sweep that a fully-evaluated checkpoint has actually breached
+  the floor rather than just approaching it (exp151's rank64/step200 came closest before this, at
+  0.176). Motion at the three other checkpoints on this same LoRA (step 100: 0.820, step 300:
+  0.408, step 600: 0.546) all clear the floor comfortably, so this is a sharp, narrow dip
+  coincident with the ESR spike, not a trend. PSR-1/PSR-5 both stay well clear of their floors
+  (54.03 / 82.14). Net: step 200 is a genuine local optimum for classification erasure on this
+  LoRA (mirroring rank-32-alone's own non-monotonic peak at step 300, exp150, just shifted
+  earlier) but it cannot be reported as a target-clearing checkpoint because of the motion guard --
+  the strongest erasure and the motion floor breach land on the exact same checkpoint, which is
+  the mechanistic pattern this whole thread has been flagging (freeze co-occurring with strong
+  suppression) rather than a coincidence. exp165 maps the curve at finer resolution around this
+  peak (steps 125-275, interval 25) to see whether a nearby checkpoint keeps most of the ESR gain
+  while staying clear of the motion floor.
 ---
 # exp163 — eval: chain-saw void-target dataset x rank 32, CogVideoX-2B, step 200
 

@@ -1,10 +1,26 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  HYPOTHESIS FALSIFIED: step 100 does NOT continue rising toward step 200, it sits well below it.
+  Restricted (10-way) row: ESR-1 62.76, ESR-5 16.94, PSR-1 88.27, PSR-5 96.79. Against exp163
+  (same LoRA, step 200: 86.73 / 43.57 / 82.95 / 93.45): ESR-1 down 23.97, ESR-5 down 26.63 -- both
+  below the falsifier bar, so this run does NOT mirror rank 64's monotonic climb all the way to
+  step 100 (exp149->exp151->exp153). Instead the four checkpoints now measured on this LoRA (step
+  600 exp161: 45.71/10.82, step 300 exp162: 60.41/18.47, step 200 exp163: 86.73/43.57, step 100
+  here: 62.76/16.94) trace a sharp single-peak curve centered on step 200, the same non-monotonic
+  shape rank 32 alone showed on the random-distractor dataset (peak at step 300: exp150; step 200
+  below it: exp152; step 100 partial recovery: exp154) -- just with the peak shifted one interval
+  earlier. PSR-1/PSR-5 are this LoRA's best of the four checkpoints, continuing the pattern where
+  weaker erasure reads as stronger preservation (the mirror image of collateral damage, not an
+  independent gain). Chain saw's own motion is 0.8204, the healthiest margin of any checkpoint on
+  this LoRA (base 0.840, floor 0.15) -- consistent with early training doing little erasure damage
+  yet. Rank 32's checkpoint sweep on the void-target dataset is now complete at 100-step
+  resolution; exp165 maps steps 125-275 (interval 25) to locate the peak's edges and check whether
+  a nearby step keeps most of step 200's ESR gain while clearing the motion floor step 200 itself
+  missed.
 ---
 # exp164 — eval: chain-saw void-target dataset x rank 32, CogVideoX-2B, step 100
 
