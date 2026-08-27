@@ -1,0 +1,26 @@
+# Full 200-prompt esr_psr eval of exp157's chain-saw void-target LoRA (rank 8 / eta 2.0) at its
+# step-200 checkpoint. See exp170 for the full rationale: exp158 only reported the step-600 final
+# checkpoint (ESR-1 70.92, ESR-5 15.41, PSR-1 85.95, PSR-5 95.44), and early stopping is the one
+# lever untested on this dataset x rank combination. exp157's live monitor showed concept top-1
+# already at 0.00 by step 100 and top-5 near floor from early on, so step 200 is a well-converged
+# candidate, not an undertrained one.
+#
+# Pure eval-only diagnostic: exp157's checkpoints already exist on disk, no new training needed.
+# Run with exp170 (step 300) and exp172 (step 100) -- independent evals, no dependency between them.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp171_eval_chainsaw_void_rank8_step200_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+# exp157's step-200 checkpoint -- eval-only diagnostic, no new training.
+lora_checkpoint_dir: experiments/imagenet/exp157_frame_replace_chainsaw_void_2b/outputs_20260826_081121/frame_replace_lora_step200
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp158's allotment for the identical eval workload.
+slurm_time: "0-14:00:00"

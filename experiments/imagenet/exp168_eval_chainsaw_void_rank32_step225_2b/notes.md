@@ -1,10 +1,14 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  Submitted alongside exp166/exp167/exp169 (job 21359381, started 2026-08-27T18:30:20+02:00) but
+  still running as of this tick's pull (partial output: 7 of 10 classes' eval_step_0 dirs written,
+  no esr_psr.json yet). exp166/exp167/exp169 already answer the practical question this bracket
+  set was built for — no checkpoint within 50 steps of exp163's step-200 spike reproduces its
+  erasure — so this result will complete the picture but is not blocking. Read on the next pull.
 ---
 # exp168 — eval: chain-saw void-target dataset x rank 32, CogVideoX-2B, step 225
 

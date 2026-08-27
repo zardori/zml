@@ -1,10 +1,16 @@
 ---
-status: ready
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  FALSIFIED: step 175 drops back toward exp162's step-300 read, exactly the falsifier condition.
+  Restricted (10-way) row: ESR-1 59.59, ESR-5 18.37, PSR-1 85.40, PSR-5 94.58 — both below
+  exp166's step-150 read (72.65/18.37) and ESR-1 is actually the lowest of the whole 100/150/
+  175/200/250/300 set, not "one interval below the peak". Erased-class motion is 0.2905, clearing
+  the 0.15 floor as predicted. Confirms exp163's step-200 spike is an isolated single-checkpoint
+  optimum, not one edge of a plateau — the immediate neighbour on either side (150, 175) both land
+  close to step 300's level, well short of step 200's 86.73/43.57.
 ---
 # exp167 — eval: chain-saw void-target dataset x rank 32, CogVideoX-2B, step 175
 
@@ -26,5 +32,6 @@ Eval-only, `job_type: eval`, `mode: imagenet`, exp165's `frame_replace_lora_step
 200-prompt protocol. Submitted alongside exp166 (150), exp168 (225), exp169 (250).
 
 ## Status
-- [ ] Submitted.
-- [ ] Compared against exp163 (step 200), exp162 (step 300), and the other brackets.
+- [x] Submitted.
+- [x] Compared against exp163 (step 200), exp162 (step 300), exp166/exp169 (exp168 still running
+      as of this tick).
