@@ -167,6 +167,12 @@ them a per-target structure, not before.
   stage data ahead of time, e.g. the sources of a `merge_dataset.sh` build. Transfers go
   cluster-to-cluster when the source login node can ssh to the target (agent forwarding), otherwise
   they are streamed through this machine.
+- `tools/gpu_hours.py`: What compute is left and where it went. Reports, for both clusters at once,
+  the grant allocations from `hpc-grants` (group-wide consumed/limit) next to *your* GPU-hours from
+  Slurm accounting, broken down by account and by experiment (job names are experiment directory
+  names). Allocations whose Slurm association you no longer hold — an exhausted or expired grant
+  loses it, and the account is hardcoded in `slurm/<cluster>.sh` — are flagged `[NO ACCESS]`.
+  `--since`/`--days` set the window (PLGrid's sacct serves at most ~180 days), `--json` for tooling.
 - `watch_jobs.sh`: Polls `squeue` on both athena and helios every 30 s and displays a combined job table. Reads `cluster.conf` for hostnames.
 - `interactive.sh`: Opens an interactive SLURM session on the cluster.
 - `tools/weekly_report.py`: Builds the weekly mentor deck. `collect` gathers the week's runs,
