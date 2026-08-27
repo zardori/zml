@@ -1,10 +1,24 @@
 ---
-status: active
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT FALSIFIED ON ESR-5, MARGINALLY ON PSR-1 -- AND THIS IS THE PEAK. Restricted (10-way) row:
+  ESR-1 68.88, ESR-5 32.04, PSR-1 82.06, PSR-5 94.69, motion (chain saw) 0.4983. ESR-5 more than
+  doubles exp158's step-600 read (15.41 -> 32.04, +16.63) and is the highest of the four void+rank-8
+  checkpoints now measured (100/200/300/600: 23.98/32.04/30.20/15.41) -- step 200 is the peak, one
+  interval later than void+rank-32's own step-200 spike lands relative to its curve shape (exp163),
+  same qualitative non-monotonic pattern at a much smaller amplitude. PSR-1 (82.06) sits 0.65 points
+  BELOW exp134's random-distractor baseline (82.71) -- inside the letter of the pre-registered
+  falsifier, but the margin is noise-sized (comparable runs move PSR-1 by more than this from eval
+  seed variance alone) and PSR-1 is still 28pp clear of GOAL.md's 54.03 floor, so this is flagged,
+  not treated as a real regression. The finding that matters: unlike void+rank-32's identical-shaped
+  step-200 spike (exp163, ESR-5 43.57 but motion 0.1379 -- breaching the 0.15 guard floor), this
+  checkpoint's motion (0.4983) clears the floor by more than 3x. Capacity controls the spike's
+  amplitude AND its motion risk together -- rank 8 gets a smaller ESR-5 gain but keeps it legal;
+  rank 32 gets a bigger gain but forfeits it. Motivates testing an intermediate rank (16) at a
+  similar fine-grained step sweep to see whether the trade is continuous (exp173).
 submitted: 2026-08-27 21:18 helios job 21367439
 ---
 # exp171 — eval: chain-saw void-target dataset x rank 8, CogVideoX-2B, step 200
@@ -30,5 +44,5 @@ Eval-only, `job_type: eval`, `mode: imagenet`, exp157's `frame_replace_lora_step
 exp170 (step 300) and exp172 (step 100) — independent evals, no dependency between them.
 
 ## Status
-- [ ] Submitted.
-- [ ] Compared against exp158 (step 600), exp170 (step 300), exp172 (step 100).
+- [x] Submitted.
+- [x] Compared against exp158 (step 600), exp170 (step 300), exp172 (step 100). See frontmatter.

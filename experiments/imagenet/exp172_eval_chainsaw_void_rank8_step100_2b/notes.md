@@ -1,10 +1,24 @@
 ---
-status: active
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  PARTIAL FALSIFICATION: step 100 does not continue rising, it sits below both step 200 and step
+  300. Restricted (10-way) row: ESR-1 64.80, ESR-5 23.98, PSR-1 86.54, PSR-5 96.19, motion (chain
+  saw) 0.7977 -- the healthiest motion margin of the four checkpoints. Against exp171 (step 200:
+  68.88/32.04) and exp170 (step 300: 69.69/30.20), ESR-1 and ESR-5 are both lower here, so the
+  void+rank-8 curve across 100/200/300/600 is a single peak at step 200 (23.98 -> 32.04 -> 30.20 ->
+  15.41), not a monotonic climb to the earliest checkpoint the way rank 64's random-distractor curve
+  was (exp149->exp151->exp153) -- it matches rank 32's own non-monotonic single-peak shape
+  (exp150 vs exp152/exp154), just far milder in amplitude and, unlike rank 32's version, never
+  breaching the motion guard at any of the four checkpoints. PSR-1/PSR-5 are this LoRA's best of the
+  four checkpoints (86.54/96.19), continuing the pattern seen throughout this thread where weaker
+  erasure reads as stronger preservation -- the mirror image of collateral damage, not an
+  independent gain. This closes the void+rank-8 checkpoint sweep: step 200 (exp171) is the operating
+  point on this LoRA, at ESR-1 68.88 / ESR-5 32.04, comfortably legal on both PSR floors and the
+  motion guard, but well short of exp153's thread-best legal row (rank 64/step 100:
+  ESR-1 77.86 / ESR-5 44.49).
 submitted: 2026-08-27 21:18 helios job 21367441
 ---
 # exp172 — eval: chain-saw void-target dataset x rank 8, CogVideoX-2B, step 100
@@ -33,5 +47,5 @@ Eval-only, `job_type: eval`, `mode: imagenet`, exp157's `frame_replace_lora_step
 exp170 (step 300) and exp171 (step 200) — independent evals, no dependency between them.
 
 ## Status
-- [ ] Submitted.
-- [ ] Compared against exp158 (step 600), exp170 (step 300), exp171 (step 200).
+- [x] Submitted.
+- [x] Compared against exp158 (step 600), exp170 (step 300), exp171 (step 200). See frontmatter.

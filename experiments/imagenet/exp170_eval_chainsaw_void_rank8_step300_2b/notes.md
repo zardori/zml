@@ -1,10 +1,18 @@
 ---
-status: active
+status: done
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
-  Not yet run.
+  NOT FALSIFIED: step 300 clears both bars. Restricted (10-way) row: ESR-1 69.69, ESR-5 30.20,
+  PSR-1 83.39, PSR-5 95.60, motion (chain saw) 0.8122. Against exp158's step-600 read
+  (70.92/15.41/85.95/95.44): ESR-5 nearly doubles (+14.79) with a small ESR-1 give-back (-1.23) and
+  PSR-1 down 2.56 (still 32pp clear of the 54.03 floor). All four cells clear exp134's
+  random-distractor baseline (49.90/-/82.71/93.19). With exp171/exp172 this maps the void+rank-8
+  ESR-5 curve: 23.98 (step 100) -> 32.04 (step 200, peak) -> 30.20 (step 300) -> 15.41 (step 600,
+  exp158) -- a mid-training peak, same shape as void+rank-32 (exp163) but far milder and, critically,
+  motion-safe at every checkpoint (0.50-0.81, nowhere near the 0.15 floor rank-32's step-200 spike
+  breached).
 submitted: 2026-08-27 21:18 helios job 21367434
 ---
 # exp170 — eval: chain-saw void-target dataset x rank 8, CogVideoX-2B, step 300
@@ -41,5 +49,5 @@ this thread. Submitted alongside exp171 (step 200) and exp172 (step 100) — ind
 dependency between them.
 
 ## Status
-- [ ] Submitted.
-- [ ] Compared against exp158 (step 600), exp171 (step 200), exp172 (step 100).
+- [x] Submitted.
+- [x] Compared against exp158 (step 600), exp171 (step 200), exp172 (step 100). See frontmatter.

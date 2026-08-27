@@ -1,0 +1,84 @@
+# frame_replace erasure of CHAIN SAW on CogVideoX-2B: exp156's void-target dataset (same as
+# exp157/exp160/exp165), rank 16 -- the untested midpoint between rank 8 (exp157/exp158/exp170-172)
+# and rank 32 (exp160/exp165-169) -- with exp165's fine-grained checkpoint schedule (300 steps,
+# save_interval 25) from the start, since both ranks already measured on this dataset show a
+# non-monotonic ESR-5 peak near step 200 and a 100-step-resolution sweep would only re-derive that.
+#
+# exp170/exp171/exp172 (this tick) completed the void+rank-8 checkpoint sweep: restricted ESR-1/ESR-5
+# is 64.80/23.98 (step 100) -> 68.88/32.04 (step 200, peak) -> 69.69/30.20 (step 300) -> 70.92/15.41
+# (step 600, exp158) -- a mild peak, motion-safe at every checkpoint (0.50-0.81, floor 0.15).
+# exp160-exp169 found the SAME step-200-peak shape at rank 32, but sharper (ESR-5 43.57) and
+# motion-UNSAFE at the peak (0.1379, breaching the floor) while safe one interval either side
+# (exp166/exp167/exp169 all land back near step 300's level, ESR-5 15-18). So capacity appears to
+# control both the peak's amplitude and its motion risk together: rank 8 keeps it legal but small,
+# rank 32 makes it big but illegal. Rank 16 is the direct test of whether that trade is continuous
+# (a legal, bigger-than-rank-8 peak exists in between) or a step function (any capacity increase
+# either does nothing or breaches the floor).
+#
+# Recipe is otherwise unchanged from exp142/exp157/exp160/exp165: eta=2.0, lr 0.0005 unscaled
+# (matched-lr convention established by exp142, not exp141's scaled-down lr that failed to
+# converge), same void-target dataset and preservation anchors.
+#
+# Falsified by: no checkpoint in the 100-300 step range clearing BOTH the 0.15 motion floor AND
+# scoring meaningfully above rank 8's own peak (exp171's ESR-1/ESR-5 68.88/32.04) on the live
+# monitor's proxy signal -- i.e. rank 16 buys nothing over rank 8 on this dataset. Supported by: a
+# live-monitor candidate step whose classification signal is stronger than rank 8's while its
+# concept motion reading stays clearly above rank 32's failing level (~0.14) -- the actual claim
+# only a full esr_psr eval (a follow-up, not this run) can confirm, per this thread's standing
+# "queue a full eval only if the live monitor names a clear candidate" practice.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp173_frame_replace_chainsaw_void_rank16_finegrained_2b/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-2b
+concept: object
+concept_target: "chain saw"
+
+# Same as exp157/exp160/exp165: exp156's 25 screened rows (void-target prompt_b, trajectory mode).
+metadata_file: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200_screened.json
+latents_dir: experiments/imagenet/exp156_split_chainsaw_void_2b/outputs_20260826_071200/latents
+
+# Unchanged from exp133/exp142/exp157/exp160/exp165: exp132's 2B preservation anchors.
+retention_metadata_file: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/metadata.json
+retention_latents_dir: experiments/imagenet/exp132_imagenet_preservation_2b/outputs_20260820_114124/latents
+retention_exclude: "chain saw"
+retention_weight: 1.0
+
+# Unchanged: eta=2.0, closed as a lever by exp137.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+control_concept_prompts: prompts/imagenet_objects/chain_saw.csv
+control_related_prompts: prompts/imagenet_objects/others_chain_saw.csv
+control_unrelated_prompts: prompts/imagenet_objects/others_chain_saw.csv
+
+# THE VARIABLE: rank 16, the untested midpoint between rank 8 and rank 32. Alpha held at ratio 1,
+# same convention as every other rank arm in this thread (8, 32, 64).
+lora_rank: 16
+lora_alpha: 16.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+# UNCHANGED from exp142/exp157/exp160/exp165 (0.0005) -- the matched-lr convention that converges
+# cleanly at every rank tried so far (8/32/64); no scaling-confound risk per exp141/exp142's lesson.
+learning_rate: 0.0005
+# Fine-grained schedule from the start (unlike exp157/exp160's 100-step resolution): both ranks
+# measured on this dataset show their ESR-5 peak inside the first 300 steps, so a 300-step budget
+# with save_interval 25 (checkpoints at 25/50/.../300) covers the region of interest directly.
+steps: 300
+save_interval: 25
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 9
+eval_inference_steps: 50
+global_seed: 42
+
+# exp165 (rank 32, identical 300-step/save_interval-25 schedule, same dataset) ran 14341s (~4.0h)
+# on helios. Rank 16 sits between rank 8 (no directly comparable fine-grained run, but exp157's
+# 600-step/6-checkpoint run stayed well inside its 12h budget) and rank 32, so per-step cost should
+# be at or below exp165's; budgeting the same allotment with headroom.
+slurm_time: "0-08:00:00"
