@@ -1,10 +1,11 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: frame_replace
 thread: imagenet
 takeaway: >
   Not yet run.
+submitted: 2026-08-28 00:37 helios job 21373522
 ---
 # exp173 — frame_replace: chain-saw void-target dataset x rank 16, CogVideoX-2B, fine-grained
 
