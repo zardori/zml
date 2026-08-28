@@ -1,0 +1,26 @@
+# Full 200-prompt esr_psr eval of exp173's chain-saw void-target LoRA at RANK 16, step 200 -- the
+# checkpoint where both other ranks on exp156's void dataset peak their restricted ESR-5 (rank 8:
+# exp171, 32.04, motion-safe; rank 32: exp163, 43.57 but motion 0.1379, breaching the 0.15 floor).
+# This is the primary run of the exp174-exp177 bracket: it reads rank 16's peak ESR-5 amplitude and
+# -- the point of the whole rank-16 probe -- whether its erased-class motion at that peak clears
+# the 0.15 guard the way rank 8's did and rank 32's did not.
+#
+# Pure eval-only diagnostic: exp173's checkpoints already exist on disk, no new training needed.
+# Run with exp174/exp176/exp177 -- independent evals, no dependency between them.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp175_eval_chainsaw_void_rank16_step200_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+lora_checkpoint_dir: experiments/imagenet/exp173_frame_replace_chainsaw_void_rank16_finegrained_2b/outputs_20260828_003723/frame_replace_lora_step200
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp170/exp171's allotment for the identical eval workload (same model, same 200-prompt
+# protocol, same checkpoint architecture -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"

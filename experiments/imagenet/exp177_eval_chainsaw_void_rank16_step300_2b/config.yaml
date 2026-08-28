@@ -1,0 +1,26 @@
+# Full 200-prompt esr_psr eval of exp173's chain-saw void-target LoRA at RANK 16, step 300 -- the
+# last checkpoint of the fine-grained run, the converged / late-training reference for the
+# exp174-exp177 bracket. On rank 8 void, step 300 (exp170: ESR-5 30.20) sat just below the step-200
+# peak (exp171: 32.04); on rank 32 void, step 300 (exp162: 18.47) was far below its step-200 spike
+# (exp163: 43.57). This run anchors where rank 16's curve settles after the peak and confirms the
+# mid-training peak is real (step 200 > step 300) rather than a monotonic climb.
+#
+# Pure eval-only diagnostic: exp173's checkpoints already exist on disk, no new training needed.
+# Run with exp174/exp175/exp176 -- independent evals, no dependency between them.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp177_eval_chainsaw_void_rank16_step300_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_objects.csv
+erased_class: "chain saw"
+
+lora_checkpoint_dir: experiments/imagenet/exp173_frame_replace_chainsaw_void_rank16_finegrained_2b/outputs_20260828_003723/frame_replace_lora_step300
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# Matching exp170/exp171's allotment for the identical eval workload (same model, same 200-prompt
+# protocol, same checkpoint architecture -- only the LoRA weights differ).
+slurm_time: "0-14:00:00"
