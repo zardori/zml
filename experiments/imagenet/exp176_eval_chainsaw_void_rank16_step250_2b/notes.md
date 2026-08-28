@@ -1,11 +1,12 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
   Not yet run. Upper bracket (step 250) of exp173's rank-16 void-target LoRA — tests whether rank
   16's step-200 ESR-5 peak is narrow (collapses by step 250, like rank 32's did at exp169) or broad.
+submitted: 2026-08-28 11:01 helios job 21388530
 ---
 # exp176 — eval: chain-saw void-target dataset x rank 16, CogVideoX-2B, step 250
 

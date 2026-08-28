@@ -1,11 +1,12 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
   Not yet run. Primary run of the exp174-exp177 bracket: reads rank 16's step-200 peak ESR-5 and
   whether erased-class motion there clears the 0.15 guard (rank 8 did, rank 32 did not).
+submitted: 2026-08-28 11:01 helios job 21388529
 ---
 # exp175 — eval: chain-saw void-target dataset x rank 16, CogVideoX-2B, step 200
 

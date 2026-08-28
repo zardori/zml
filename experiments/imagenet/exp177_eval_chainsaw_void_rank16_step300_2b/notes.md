@@ -1,11 +1,12 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
   Not yet run. Late-training reference (step 300) for exp173's rank-16 void-target LoRA — anchors
   where the curve settles after the step-200 peak and confirms the peak is mid-training, not a climb.
+submitted: 2026-08-28 11:01 helios job 21388532
 ---
 # exp177 — eval: chain-saw void-target dataset x rank 16, CogVideoX-2B, step 300
 

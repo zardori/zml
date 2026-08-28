@@ -1,11 +1,12 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
 takeaway: >
   Not yet run. Lower bracket (step 150) of exp173's rank-16 void-target LoRA, testing whether rank
   16's ESR-5 peak sits below step 200 or the peak is centred there like rank 8 and rank 32.
+submitted: 2026-08-28 11:01 helios job 21388528
 ---
 # exp174 — eval: chain-saw void-target dataset x rank 16, CogVideoX-2B, step 150
 
