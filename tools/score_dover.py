@@ -49,7 +49,8 @@ def _dover_fields(scores: dict[str, list[float]]) -> dict[str, object]:
     }
 
 
-def score_output_dir(output_dir: Path, device: str | None, dry_run: bool) -> None:
+def score_output_dir(output_dir: Path, device: str | None, dry_run: bool,
+                     sets: tuple[str, ...] | None = None) -> None:
     step_dirs = sorted(
         output_dir.glob("eval_step_*"),
         key=lambda p: int(p.name.rsplit("_", 1)[-1]),
@@ -69,6 +70,11 @@ def score_output_dir(output_dir: Path, device: str | None, dry_run: bool) -> Non
         pending: dict[str, dict] = {}
         for set_dir in sorted(p for p in step_dir.iterdir() if p.is_dir()):
             set_name = set_dir.name
+            # A run evaluates concept + related + unrelated, but checkpoint selection only reads
+            # `concept`. Scoring all three triples the wall clock for numbers nobody ranks on, so
+            # --sets lets a long backlog be narrowed to what a decision actually needs.
+            if sets and set_name not in sets:
+                continue
             # Only prompt-set entries carry scores; `_`-prefixed keys are provenance metadata.
             if set_name not in metrics or not isinstance(metrics[set_name], dict):
                 continue
@@ -98,6 +104,8 @@ if __name__ == "__main__":
                         help="A run's outputs_{timestamp}/ dir containing eval_step_*/ subdirs")
     parser.add_argument("--device", default=None, help="torch device (default: cuda if available)")
     parser.add_argument("--dry-run", action="store_true", help="report changes without writing")
+    parser.add_argument("--sets", nargs="+", default=None, metavar="NAME",
+                        help="Only score these prompt sets (e.g. --sets concept). Default: all.")
     args = parser.parse_args()
 
     if not DOVER_AVAILABLE:
@@ -106,4 +114,5 @@ if __name__ == "__main__":
             "unavailable on helios (aarch64 GH200 compute nodes). Run this on an x86_64 machine "
             "(athena, an x86_64 login node, or locally) against pulled eval videos."
         )
-    score_output_dir(args.output_dir, args.device, args.dry_run)
+    score_output_dir(args.output_dir, args.device, args.dry_run,
+                     tuple(args.sets) if args.sets else None)
