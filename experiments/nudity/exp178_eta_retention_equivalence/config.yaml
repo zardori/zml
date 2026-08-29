@@ -1,0 +1,81 @@
+# exp178 - is `erase_esd_eta` just a reparameterization of `retention_weight`?
+#
+# THE CLAIM. The erase target is `target = (1-eta)*teacher + eta*donor`, so the erase residual is
+# `pred - target = u - eta*d` where u = pred - teacher (student displacement) and d = donor - teacher
+# (the edit). LoRA B is zero-init, so at step 0 u = 0 exactly and the erase gradient is `-eta*d` --
+# EXACTLY eta times the eta=1 gradient. AdamW is invariant to a global rescaling of the gradient
+# (m and sqrt(v) scale together), so eta cannot act as a step size. The only channel it has left is
+# the ratio against retention, because the retention branch is summed into the same .grad buffer and
+# does NOT scale with eta:
+#
+#     total = eta*g_erase(1) + w*g_retain  ~  g_erase(1) + (w/eta)*g_retain
+#
+# i.e. at initialisation the update depends only on r = eta/w. Which predicts:
+#
+#     (eta=2, w=1)  ==  (eta=1, w=0.5)          (eta=1, w=1)  ==  (eta=2, w=2)
+#
+# The equivalence is exact only at u=0 and decays as the student moves. How fast it decays is the
+# experiment. If it survives 60 steps, `erase_esd_eta` carries nothing `retention_weight` doesn't,
+# the ESD framing of frame_replace is decoration, and exp053/exp085/exp086/exp124/exp126/exp135 were
+# all retention sweeps in disguise.
+#
+# WHY THIS MATTERS SEPARATELY: eta=1.0 makes the teacher cancel algebraically ((1-1)*T + 1*D = D),
+# so it is plain masked SFT toward the donor -- and it still pays for a full extra transformer
+# forward to compute a teacher that vanishes. If eta is redundant, that forward pass goes away too
+# (currently 1 of every 3 forwards in the erase branch).
+#
+# READOUT IS WEIGHT-SPACE, NOT METRICS. Every reference run shares global_seed 42, lora_dropout 0.0,
+# accum 4, and eval uses an isolated torch.Generator (zml/unlearn/eval.py), so the TRAINING RNG
+# STREAM IS IDENTICAL across all six runs. Two runs at the same ratio should therefore land on
+# near-identical LoRA weights. `tools/compare_lora_weights.py` is the instrument; the n=1 eval below
+# exists only to catch a run that has silently diverged, and must NOT be used to rank anything.
+#
+# Grid cells and ratios: (1, 0.5) r=2 | (1, 2.0) r=0.5 | (2, 0.5) r=4 | (2, 2.0) r=1
+# Matched-ratio pairs against runs we already have:
+#   r=2 : this grid's (eta=1, w=0.5)  vs  exp080 run_002 (eta=2, w=1)  [checkpoints already local]
+#   r=1 : this grid's (eta=2, w=2.0)  vs  exp086 run_002 (eta=1, w=1)  [pull with --include-weights]
+#
+# Everything except erase_esd_eta and retention_weight is exp086 verbatim, which is itself exp080
+# run_002 verbatim except save_interval. That is what makes the cross-run weight comparison legal.
+#
+# Run: ./submit_job.py helios experiments/nudity/exp178_eta_retention_equivalence/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: nudity
+
+metadata_file: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/metadata.json
+latents_dir: experiments/nudity/exp080_frame_replace_nudity_gen2/combined_dataset/latents
+retention_metadata_file: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/metadata.json
+retention_latents_dir: experiments/shared/exp041_preservation_precompute/outputs_20260623_204602/latents
+
+# THE TWO SWEPT FIELDS. 2x2 -> 4 jobs. Held at exp080 run_002's (eta=2, w=1) as the origin, these
+# four cells span ratios 0.5/1/2/4 and complete two matched-ratio pairs with runs already on disk.
+erase_esd_eta: [1.0, 2.0]
+retention_weight: [0.5, 2.0]
+
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+
+# Concept column only, same as exp086 -- and at eval_num_prompts 1 it is a smoke test, not a metric.
+control_concept_prompts: prompts/cogvideox_nudity.csv
+
+lora_rank: 8
+lora_alpha: 8.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001   # exp080 run_002 / exp086 value; must not change or the comparison is void
+steps: 60               # the equivalence decays with ||u||; 60 steps at save_interval 10 measures how fast
+save_interval: 10
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 1     # smoke test only -- see READOUT above
+eval_inference_steps: 50
+global_seed: 42         # MUST match exp080 run_002 and exp086; the weight comparison depends on it
+
+# 60 steps is under a third of exp086's 200, and the eval budget drops from 20x10 to 6x1 clips.
+slurm_time: "0-8:00:00"
