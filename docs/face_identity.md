@@ -13,7 +13,9 @@ where we deliberately deviate from T2VUnlearning. Source files this document cov
 Related: [`comparison_targets.md`](comparison_targets.md) (why this concept, and in this order),
 [`frame_replace.md`](frame_replace.md) (the erasure method), [`split_prompt.md`](split_prompt.md)
 (how the training clips are manufactured), [`imagenet_objects.md`](imagenet_objects.md) (the closest
-prior art for a second comparison axis — most of this document's structure mirrors it).
+prior art for a second comparison axis — most of this document's structure mirrors it). §3.3's
+motion-collapse finding parallels the nudity thread's `experiments/nudity/exp107_vbench_utility_frame_replace/notes.md`,
+`exp086_eta_ablation_fire_retention/notes.md`, and `exp108_retention_weight_sweep_clothed/notes.md`.
 
 ---
 
@@ -147,6 +149,56 @@ follows for the ranking-convention ambiguity).
 The resume predicate in `face_eval.py`/`imagenet_eval.py` (`_video_needs_regeneration`) is
 content-aware for exactly this reason: the old `getsize() > 0` check treated a ~3.4 KB black clip as
 already generated and would have skipped it forever on every resumed run.
+
+### 3.3 Motion collapse is global, not targeted — and a small live-eval sample hides it
+
+Found at full scale by exp097 (2026-08-15), reporting exp095's `split`, step 200: `motion_score_mean`
+dropped 69–93% from the base model across **all five identities**, not just Obama (the erased one).
+Preserved-identity motion fell to 0.16–0.31x baseline (e.g. Trump 0.819 → 0.157), essentially the same
+magnitude as the erased identity's own collapse (Obama 1.362 → 0.097). This means Preserve↑ numbers
+from this checkpoint cannot yet be read as genuine collateral preservation: a plausible confound is
+that near-static video is *easier* to match to a reference face (less motion blur, more consistent
+framing across frames), so a higher Preserve ID-sim can coexist with worse generation quality rather
+than better collateral behaviour. See `experiments/face_identity/exp097_eval_frame_replace_obama/notes.md`
+for the full numbers.
+
+**exp095's own live-eval monitor missed this.** Its `unrelated` control set is 4 videos; at step 200
+it read `motion_score_mean: 1.87`, close to base and the basis for exp095's "`split` stays clean...
+Preserved-set motion recovers to 1.4–1.9 by step 200" verdict. exp097's full 120-video preserved set
+(30 per identity, same `VideoMotionScorer` class shared by `zml/unlearn/eval.py` and
+`zml/eval/face_eval.py`, so not a metric-definition difference) reads 0.16–0.23 instead — an order of
+magnitude lower. **A 4-video live-eval sample is not sufficient evidence that motion is preserved; only
+a full external eval is.**
+
+**This is the same failure mode the nudity thread already found, named, and could not fix**, which is
+why it should be treated as a property of the frame_replace adapter/regime rather than something to
+re-derive per concept:
+
+- **exp107** (VBench utility A/B on `exp080 run_002 step 120`, the checkpoint every reported nudity
+  number in this project descends from) found motion −68%/−36% on prompts containing **no nudity at
+  all**, and concluded explicitly: *"the collapse is a global property of the adapter... independently
+  refutes the frozen-donor diagnosis."* It also predicted and confirmed the stillness-confound
+  mechanism directly: Subject Consistency (rewards frame-to-frame similarity, → 1.0 for a frozen clip)
+  rose **+2.17** on the very clips that lost 36% of their motion — written down as a prediction before
+  the run specifically to rule out post-hoc rationalization. There is no face-identity analogue of
+  Subject Consistency instrumented yet, but the same mechanism plausibly explains exp097's Preserve
+  gain.
+- **exp086** (eta ablation, `erase_esd_eta ∈ [0.5, 1.0, 1.5]`) did not find an eta that avoids the
+  collapse; eta=1.5 got the cleanest zero-rate window, but human review still ranked eta=2.0 (the
+  regime every face run also uses) above it.
+- **exp108** (clothed-retention weight sweep) is an explicit null result: *"there is no middle."*
+  Sweeping the retention weight only slides along one curve — buying back erasure costs exactly the
+  motion protection a heavier retention anchor bought, and the two endpoints (full fire-retention,
+  full clothed-retention) each dominate everything in between. The project's resolution was to accept
+  the trade-off and report it honestly (exp106/exp107), not to keep searching for a hyperparameter fix.
+
+**Consequence for this axis:** don't spend a hyperparameter sweep chasing this before trying what
+resolved it for nudity — an identity-axis analogue of exp107 (ID-sim/motion A/B on identity-free
+general prompts, on the same checkpoint) to confirm the collapse is adapter-global here too, and
+human review of the actual clips to adjudicate face-deletion vs. identity-swap (§3.1). Until one of
+those lands, **no Erase or Preserve number from a `frame_replace` face checkpoint should be presented
+as a clean result** — report the trade-off, per the nudity thread's precedent, rather than treat the
+raw numbers as citable.
 
 ## 4. Implementation
 
@@ -375,7 +427,7 @@ prompt and confirming the script aborts.
 | exp116 | scale-up of exp115 with framing-controlled prompts | **done** — 43/90 kept; 52 total combined with exp115, feeds exp095 |
 | exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | **done** — `split` wins the grid (`wholeclip` disqualified by widespread degenerate clips); step 200 picked for exp096/exp097 |
 | exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner (`split`) | ready, blocked on exp093/exp094 (both done) — not yet submitted |
-| exp097 | reported ID-Similarity, Obama checkpoint | ready, blocked on exp095 (done) — not yet submitted |
+| exp097 | reported ID-Similarity, Obama checkpoint | **done, not citable** — Erase/Preserve beat NegPrompt on paper, but face-deletion ambiguity + adapter-global motion collapse undercut both; see §3.3 |
 | exp098 | reported ID-Similarity, Queen Elizabeth II checkpoint | ready, blocked on exp096 |
 
 exp090 has run and passed its gate; exp091/093/096/098 have been retargeted from the pre-run Obama +
