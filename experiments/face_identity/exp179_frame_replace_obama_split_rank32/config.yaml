@@ -1,0 +1,54 @@
+# frame_replace erasure of BARACK OBAMA — rerun of exp095 restricted to the target_variant that won
+# that grid (`split`; `wholeclip` was disqualified by widespread degenerate clips), at lora_rank 32
+# instead of exp095's rank 8. Everything else is exp095's config field-for-field.
+#
+# Run: ./submit_job.py helios experiments/face_identity/exp179_frame_replace_obama_split_rank32/config.yaml
+method: frame_replace
+model_id: THUDM/CogVideoX-5b
+concept: face               # live eval scores with ArcFace ID-similarity
+concept_target: "Barack Obama"
+
+metadata_file: experiments/face_identity/exp116_split_face_obama_dataset_scaleup/combined_dataset/metadata.json
+latents_dir: experiments/face_identity/exp116_split_face_obama_dataset_scaleup/combined_dataset/latents
+target_variant: split
+
+# Retention: the other four identities + the 10 generic-face anchors. retention_exclude drops
+# Obama's own anchors, which would otherwise pull directly against the erase branch.
+retention_metadata_file: experiments/face_identity/exp094_face_preservation/outputs_20260811_185230/metadata.json
+retention_latents_dir: experiments/face_identity/exp094_face_preservation/outputs_20260811_185230/latents
+retention_exclude: "Barack Obama"
+retention_weight: 1.0
+
+# exp080 run_002's regime verbatim — the human-reviewed best nudity checkpoint's config.
+nonfire_frame_weight: 0.0
+erase_input_latent: original
+erase_loss_space: velocity
+erase_esd_eta: 2
+
+# Live-eval sets. The concept set is the 30 published eval prompts for Obama — none of which has an
+# identity-free half — so erasure here is also the positional-shortcut test: a LoRA that only
+# learned "copy the donor half" fails on them.
+control_concept_prompts: prompts/face_identities/barack_obama.csv
+control_related_prompts: prompts/face_identities/others_barack_obama.csv   # required slot, unscored in training
+control_unrelated_prompts: prompts/face_identities/others_barack_obama.csv
+
+lora_rank: 32
+lora_alpha: 32.0
+lora_dropout: 0.0
+
+gradient_accumulation_steps: 4
+lr_scheduler: constant
+learning_rate: 0.0001
+steps: 200
+save_interval: 20
+
+timestep_min: 400
+timestep_max: 1000
+
+eval_num_prompts: 10
+eval_inference_steps: 50
+global_seed: 42
+
+# exp095's split arm ran comfortably inside 16h at rank 8; unchanged here since rank only affects
+# LoRA param count, not the dominant cost (video generation during eval).
+slurm_time: "0-16:00:00"
