@@ -286,7 +286,19 @@ exp085).
 
 `tools/screen_split_face_dataset.py` is the absolute-threshold-only ancestor of this tool, kept
 because exp115/exp116's published keep-lists were selected with it. New work should use the general
-one.
+one — including on the face axis: exp093 (Queen Elizabeth II) screened 0/30 on the absolute tool's
+Obama-calibrated 0.30 gate, and `exp180` moves that identity to this section's contrast-index tool
+instead of rescaling the threshold.
+
+**Caveat on the face concept.** `VideoFaceDetector.frame_confidences` returns `0.0` for a *no-face*
+frame, not "a face was detected and it isn't the target" (`docs/face_identity.md` §3.1's no-face
+convention). Every other concept's detector scores presence and identity/class together on one
+scale, so `ci` above is purely an identity/class differential. On faces it is partly a face-
+*presence* differential as well — a row where the concept half renders no face at all and the safe
+half renders any face at all will score a large positive `ci` for the wrong reason. Not yet observed
+in practice (`exp180` is the first face dataset screened with this tool), but worth checking for
+specifically when reviewing survivors, the same way the blank-target gate above catches the analogous
+failure on the object concepts.
 
 ### 3.2 Prompt framing decides yield, not the sampler
 
@@ -389,6 +401,10 @@ across the seam, which currently comes from the shared noise *and* the shared la
 finding (the cut is hard at every `split_step_frac`, including with zero heal steps) is the reason to
 expect the noise carries most of it, and exp127 is the test, with six currently-passing rows in its
 CSV as the regression check.
+
+Confirmed on objects at a second base model by exp131 (5b → 2B, 83% pass either way). `exp180`
+(Queen Elizabeth II) is the first test on the face axis, gridding `prediction` against `trajectory`
+at identical prompts and seeds rather than assuming the transfer — see its notes.md for the result.
 
 ### 3.4 The whole-clip variant is a diagnostic, not a training target
 

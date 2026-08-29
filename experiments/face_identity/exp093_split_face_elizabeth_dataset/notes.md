@@ -1,17 +1,19 @@
 ---
-status: done
+status: superseded
 concept: face
 method: frame_replace_split/precompute
 thread: face_identity
 takeaway: >
-  BUILT 30/30, SCREENS 0/30 — exp096 is blocked. Every row fails the Obama-calibrated 0.30 gate on
-  the original clip, and the misses are narrow: peak orig_max is 0.302 / 0.299 / 0.282 / 0.280, i.e.
-  clustered just under the threshold rather than absent. That tracks exp090 exactly, where Elizabeth's
-  base id_sim is 0.3272 against Obama's 0.5081 — the base model renders her much more weakly, so a
-  gate tuned on Obama rejects her whole set. Two readings, and the thread owner has to pick: the
-  threshold is identity-relative and needs rescaling per identity, or Elizabeth is too weak a target
-  to erase and the second pilot identity should change. Note the whole-clip A gate does clear 0.30 on
-  6 rows (up to 0.444), so the prompts do sometimes render her — it is the split that loses her.
+  SUPERSEDED by exp180. BUILT 30/30, SCREENS 0/30, and human review of the 6 wc_a>0.30 rows found
+  only 1/30 (p0_s7701) has a genuinely correct split. The "gate is calibrated on Obama" framing below
+  was incomplete: this run also carries split_step_frac 0.5 (exp092's rejected, chimera-face value —
+  never actually synced to exp115's 0.8 fix despite this config's own comment) and pre-exp116 wide/
+  ceremonial/crowd-distance prompt framing (9/30 rows read orig_max exactly 0.000, the same failure
+  class exp116 fixed for Obama by rewriting for medium/close frontal framing). exp180 fixes all
+  three defects (split_step_frac 0.8, framing-controlled CSVs written against her own eval prompts,
+  and tools/screen_split_dataset.py's identity-scale-free contrast index in place of this run's
+  Obama-calibrated absolute gate) and additionally tests split_mode: trajectory (exp127/exp131),
+  never tried on faces. See exp180's notes.md.
 ---
 # exp093 — split-prompt frame_replace dataset for Queen Elizabeth II
 
@@ -97,12 +99,23 @@ build: six rows clear 0.30 on the whole-clip A target (up to 0.444), so the prom
 was prompt rewriting (30% -> 50/63%). Here the prompts render her about as well as the base model ever
 does; the ceiling is the model's grasp of the identity.
 
+**Correction (superseded by exp180):** this claim does not survive closer reading of this run's own
+metadata. Nine of the 30 rows read `original_max_confidence` exactly 0.000 — the same "no recognizable
+face rendered at all, wide/side-on/occluded framing" signature exp116 diagnosed for Obama, on a CSV
+written in the pre-exp116 ceremonial/crowd-distance style (`prompts/face_identities/split/queen_elizabeth_ii.csv`:
+"From a raised reviewing stand", "Riding in an open state coach", "marches past in formation"). This
+run's `split_step_frac` was also never moved off 0.5 (exp092's rejected value), despite the header
+comment above saying it should track exp092's final decision. So the fork below was framed on an
+incomplete diagnosis — see exp180, which fixes both defects plus the absolute-gate/threshold issue,
+before drawing the "second pilot identity" conclusion.
+
 ## Status
 - [x] exp090 confirms Queen Elizabeth II as the second pilot identity (not Merkel — see Why).
 - [x] `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples) and anti-cheat checked.
 - [x] Submitted and complete (helios, 3.3 h, 30/30 built, 0 skipped).
 - [x] Screened: **0/30 at the default gates.**
-- [ ] **Decide the fork above** — rescale the gate per identity, or swap the second pilot identity.
-      exp096 and exp098 are blocked until this is settled.
+- [x] **Decided: not a threshold-rescale or pilot-swap question yet** — `split_step_frac` and prompt
+      framing were both still wrong. Superseded by `exp180_split_face_elizabeth_scaleup`, which fixes
+      those defects and re-runs the fork's diagnosis (see its Gate G2) before concluding either way.
 - [ ] Dataset reviewed by eye — splice quality and whole-clip quality, separately. Worth doing on the
       six `wc_a_max` > 0.30 rows before concluding the set is unusable.

@@ -448,8 +448,12 @@ prompt and confirming the script aborts.
   wide/side-on/occluded shots. `exp116` held `split_step_frac` at 0.8 and tested that directly: a
   re-seed of the same 30 prompts reproduced exp115's 30% baseline exactly (seed variance alone buys
   nothing), while two new CSVs written for medium/close frontal framing landed at 50% and 63% — the
-  framing hypothesis is confirmed, no frac sweep needed. Elizabeth (exp093) is still configured at 0.5
-  and should move to 0.8 (and use framing-controlled prompts) before submitting, same reasoning.
+  framing hypothesis is confirmed, no frac sweep needed. Elizabeth's first dataset (exp093) shipped
+  at 0.5 with pre-exp116 ceremonial/crowd-distance framing and screened at 0/30 as a result — both
+  defects, plus its Obama-calibrated absolute screen, are fixed in `exp180`
+  (`split_step_frac: 0.8`, framing-controlled CSVs, `tools/screen_split_dataset.py`'s identity-
+  scale-free contrast index), which also grids `split_mode: [prediction, trajectory]`
+  ([`split_prompt.md`](split_prompt.md) §3.3.1's yield fix, untested on faces until exp180).
 - **`target_variant`** — `"split"` (frame-local, seam risk) vs. `"wholeclip"` (whole-clip swap, motion-
   collapse risk per exp055's precedent — R5). exp095's grid is the first real measurement of this
   trade-off for any concept in the project.
@@ -461,12 +465,13 @@ prompt and confirming the script aborts.
 | exp090 | base-model ID-Similarity, all 5 identities — the `Original` row + the gate | **done**, gate (a)/(b) pass — see `experiments/face_identity/exp090_eval_base_face/notes.md`. Gate (c) (5×5 matrix) and `identity_threshold` calibration still open, §5. |
 | exp091 | NegPrompt baseline, 2 pilot identities | ready, retargeted to Obama + Elizabeth |
 | exp092 | split-prompt + whole-clip dataset, Obama, `split_step_frac 0.5` | **superseded by exp115** (0.5 under-heals — see §5) |
-| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II | ready — retargeted from the original Merkel guess to `experiments/face_identity/exp093_split_face_elizabeth_dataset/`, `prompts/face_identities/split/queen_elizabeth_ii.csv` authored (30 triples, seeds 7701-7730, anti-cheat checked) |
+| exp093 | split-prompt + whole-clip dataset, Queen Elizabeth II, `split_step_frac 0.5`, pre-exp116 framing | **superseded by exp180** — screened 0/30; human review found only 1/30 genuinely correct (§5) |
 | exp094 | preservation anchors (5×3 identity + 10 generic) | **done** — 25 anchors, `outputs_20260811_185230` |
 | exp115 | split-prompt + whole-clip dataset, Obama, `split_step_frac 0.8` | **done** — fixes exp092's chimera-face problem; yield low (9/30) |
 | exp116 | scale-up of exp115 with framing-controlled prompts | **done** — 43/90 kept; 52 total combined with exp115, feeds exp095 |
+| exp180 | rebuild of exp093, `split_step_frac 0.8` + framing-controlled CSVs + `split_mode: [prediction, trajectory]` grid | ready — not yet submitted; see `experiments/face_identity/exp180_split_face_elizabeth_scaleup/notes.md` |
 | exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | **done** — `split` wins the grid (`wholeclip` disqualified by widespread degenerate clips); step 200 picked for exp096/exp097 |
-| exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner (`split`) | ready, blocked on exp093/exp094 (both done) — not yet submitted |
+| exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner (`split`) | ready, blocked on exp180 (dataset) — not yet submitted |
 | exp097 | reported ID-Similarity, Obama checkpoint | **done** — successful erasure, usually by face deletion; target quality decreases and motion falls 93%, while non-target identities remain visually sound aside from a mean 76% motion loss; see §3.3 |
 | exp098 | reported ID-Similarity, Queen Elizabeth II checkpoint | ready, blocked on exp096 |
 

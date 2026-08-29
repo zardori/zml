@@ -6,8 +6,9 @@ thread: face_identity
 takeaway: >
   frame_replace erasure of Queen Elizabeth II, same regime as exp095 (Obama) with target_variant
   narrowed to exp095's winner. Second pilot identity confirmed by exp090 (supersedes this
-  experiment's original Angela Merkel target — see exp090's notes.md). Blocked on exp093/exp094 and
-  on exp095 picking a winner. Not yet submitted.
+  experiment's original Angela Merkel target — see exp090's notes.md). exp095 has picked a winner
+  (`split`); blocked on the dataset instead — exp093 is superseded (screened 0/30), so this now
+  waits on `exp180_split_face_elizabeth_scaleup`. Not yet submitted.
 ---
 # exp096 — frame_replace erasure of Queen Elizabeth II
 
@@ -31,12 +32,14 @@ not re-gridded. LR and target_variant are not variables under test in this run; 
 answers on the first identity. The config field below is a placeholder — **do not submit until
 exp095 has picked a winner and this is updated to match.**
 
-- Dataset: exp093 (split-prompt + whole-clip manufactured targets for Elizabeth).
+- Dataset: **exp180** (split-prompt + whole-clip manufactured targets for Elizabeth) — exp093 is
+  superseded (screened 0/30, only 1/30 correct on human review; see its notes.md).
 - Retention: exp094's anchors minus Elizabeth's own (`retention_exclude`).
 
-**Before submitting**, replace the `outputs_TIMESTAMP` placeholders with the real
-`outputs_{timestamp}` directories from exp093 and exp094, and set `target_variant` to exp095's
-actual winner.
+**Before submitting**, once exp180 has built, screened, and merged, repoint `metadata_file`/
+`latents_dir` at its `combined_dataset/` and set `target_variant: split` (exp095's confirmed
+winner — the config's current value is correct, but was written as a placeholder before that was
+settled).
 
 ## What to watch
 Same as exp095 — read `summary.json` first, watch erasure vs. the shortcut test, `face_present_rate`
@@ -55,7 +58,8 @@ comparable to T2VUnlearning's CogVideoX-5B Table 3 block.
 
 ## Status
 - [x] exp090 confirms Queen Elizabeth II as the second pilot identity (not Merkel — see Why).
-- [ ] exp095 has a winning `target_variant`; this config updated to match.
-- [ ] exp093 and exp094 complete; timestamps filled in.
+- [x] exp095 has a winning `target_variant` (`split`).
+- [ ] exp094 complete (it is); exp093 superseded by exp180 — waiting on exp180's build + merge for
+      a usable dataset, then fill in `combined_dataset/` timestamps.
 - [ ] Submitted.
 - [ ] Compared against exp095's result for identity-dependence.

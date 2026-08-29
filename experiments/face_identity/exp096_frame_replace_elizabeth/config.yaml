@@ -1,23 +1,24 @@
-# frame_replace erasure of QUEEN ELIZABETH II, same regime as exp095 (Obama) but with
-# `target_variant` narrowed to whichever value exp095's grid found better — LR/target_variant are not
-# variables under test here, and re-running the full grid would spend 2x the compute to answer a
-# question exp095 already answers. FILL IN target_variant below once exp095 has a winner.
+# frame_replace erasure of QUEEN ELIZABETH II, same regime as exp095 (Obama) with `target_variant`
+# narrowed to exp095's confirmed winner (`split`) — LR/target_variant are not variables under test
+# here, and re-running the full grid would spend 2x the compute to answer a question exp095 already
+# answers.
 #
 # Second pilot identity confirmed by exp090's actual gate numbers (Obama + Elizabeth), superseding
 # the pre-run Obama + Merkel guess this experiment originally targeted — see exp090's notes.md.
 #
-# exp094 (retention) is done, outputs_20260811_185230 filled in below. FILL IN exp093's
-# outputs_{timestamp} once that dataset is built and reviewed.
+# exp094 (retention) is done, outputs_20260811_185230 filled in below. exp093 (the original
+# Elizabeth dataset) is superseded -- screened 0/30, only 1/30 correct on human review. FILL IN
+# exp180's combined_dataset outputs once that dataset is built, screened and merged
+# (experiments/face_identity/exp180_split_face_elizabeth_scaleup/notes.md).
 # Run: ./submit_job.py helios experiments/face_identity/exp096_frame_replace_elizabeth/config.yaml
 method: frame_replace
 model_id: THUDM/CogVideoX-5b
 concept: face
 concept_target: "Queen Elizabeth II"
 
-metadata_file: experiments/face_identity/exp093_split_face_elizabeth_dataset/outputs_TIMESTAMP/metadata.json
-latents_dir: experiments/face_identity/exp093_split_face_elizabeth_dataset/outputs_TIMESTAMP/latents
-# FILL IN: "split" or "wholeclip", whichever exp095 found better. Placeholder below is not a result.
-target_variant: split
+metadata_file: experiments/face_identity/exp180_split_face_elizabeth_scaleup/combined_dataset/metadata.json
+latents_dir: experiments/face_identity/exp180_split_face_elizabeth_scaleup/combined_dataset/latents
+target_variant: split   # exp095's confirmed grid winner (not a placeholder)
 
 retention_metadata_file: experiments/face_identity/exp094_face_preservation/outputs_20260811_185230/metadata.json
 retention_latents_dir: experiments/face_identity/exp094_face_preservation/outputs_20260811_185230/latents

@@ -1,0 +1,65 @@
+# Rebuild of the Queen Elizabeth II split-prompt frame_replace dataset. exp093 is unusable: by eye
+# only 1/30 triples has a correct split, and tools/screen_split_face_dataset.py keeps 0/30. Three
+# independent, already-fixed defects explain it, all corrected here:
+#   1. exp093 ran split_step_frac: 0.5 -- exp092's rejected value (chimera faces, one blended
+#      identity). exp115 fixed this at 0.8 for Obama; docs/face_identity.md Sec5 already flags
+#      Elizabeth as "still configured at 0.5 and should move to 0.8... before submitting."
+#   2. exp093's CSV is written in the pre-exp116 style -- wide, ceremonial, side-on, crowd-distance
+#      scenes ("From a raised reviewing stand", "marches past in formation"). 9/30 rows read
+#      orig_max exactly 0.000. exp116 proved medium/close frontal framing doubles yield on this
+#      exact failure for Obama (30% -> 50%/63%); the new CSVs here copy that template and are
+#      written against her own eval prompts (prompts/face_cogvideox.csv), which are overwhelmingly
+#      seated/indoor/medium-close.
+#   3. exp093 was screened with the Obama-calibrated absolute 0.30 gate
+#      (screen_split_face_dataset.py), which sits above her own base id_sim (0.3272 vs Obama's
+#      0.5082). docs/split_prompt.md Sec3.1 now says the general, within-clip contrast-index tool
+#      (screen_split_dataset.py) is scale-free across identities and is what new work should use.
+# Also fixed: exp093's B-prompt substitutes were Elizabeth-shaped ("elderly woman... tiara",
+# "silver-haired woman... fur hat") -- the same not-split failure mode exp067 hit for church.
+# New CSVs give B equally specific, non-identifying descriptions.
+#
+# New lever tried here that exp093 could not have used: split_mode: trajectory (exp127) took
+# exp120's 12 known-suppressed object rows from 0/12 to 12/12 at identical cost, and exp131
+# confirmed it transfers across base models. exp093's own closing line -- "the whole-clip A gate
+# does clear 0.30 on 6 rows... it is the split that loses her" -- describes exactly the suppression
+# pathology trajectory mode cures. Never tried on faces, so this grids both split_modes against the
+# same 3 CSVs/seeds (6 jobs) rather than assuming a winner.
+#
+# Run: ./submit_job.py helios experiments/face_identity/exp180_split_face_elizabeth_scaleup/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+# 3 CSVs x 2 split_modes = 6 grid jobs (submit_job.py Cartesian-products all list fields).
+csv_path:
+  - prompts/face_identities/split/queen_elizabeth_ii_closeup1.csv   # 30 new framing-controlled prompts, 7901-7930
+  - prompts/face_identities/split/queen_elizabeth_ii_closeup2.csv   # 30 new framing-controlled prompts, 7931-7960
+  - prompts/face_identities/split/queen_elizabeth_ii_closeup3.csv   # 30 new framing-controlled prompts, 7961-7990
+split_mode: [prediction, trajectory]   # exp127/exp131's yield fix, untested on faces -- measured here
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+# Split sampler + de-biasing knobs. split_step_frac 0.8 (not exp093's 0.5) per exp115/exp116.
+split_latent_frame: 7
+concept_region: random
+split_jitter: 2
+split_step_frac: 0.8
+tail_prompt_mode: c   # exp119 rejected "empty"; concept_guidance_scale left unset, exp120 rejected it
+
+# Detection -> logging only; the concept mask is derived from (split_latent_frame, concept_region),
+# not from the detector (docs/split_prompt.md). concept/concept_target select the ArcFace detector
+# via zml/benchmarks/registry.py.
+concept: face
+concept_target: "Queen Elizabeth II"
+frame_concept_threshold: 0.3
+min_donor_frames: 2
+save_videos: true
+
+# First build of this recipe for this identity -- separates a prompt failure from a splitter
+# failure in one job (docs/split_prompt.md Sec3.2/Sec6), and doubles as the sampler-comparison arm.
+emit_whole_clip_target: true
+
+# Same shape/cost as exp116 (30 rows, emit_whole_clip_target: true, 3h43m measured); each of the 6
+# grid runs is independently 30 rows, so the same per-run budget applies.
+slurm_time: "0-10:00:00"
