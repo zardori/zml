@@ -8,10 +8,11 @@ takeaway: >
   grid clearly: `wholeclip` produces widespread degenerate (black/structureless) clips on both the
   erased and preserved identities mid-training, confirming the R5 motion-collapse risk. `split`
   stays clean (zero degenerate clips throughout) but reduces motion, especially on the concept
-  videos — manual review agrees with the automated collapse in concept `face_present_rate`/ID-sim,
-  though it can't cleanly separate identity-swap from face-deletion. Later checkpoints look best on
-  review; step 200 picked for exp096/exp097. exp096 targets Queen Elizabeth II, not Merkel (see
-  `docs/face_identity.md` §6).
+  videos. This run's small live sample could not separate identity swap from deletion; exp097's full
+  evaluation and qualitative review later confirm successful erasure, usually by face deletion,
+  with lower target quality and severe motion suppression but no major non-target quality loss
+  beyond motion. Step 200 picked for exp096/exp097. exp096 targets Queen Elizabeth II, not Merkel
+  (see `docs/face_identity.md` §6).
 ---
 # exp095 — frame_replace erasure of Barack Obama
 
@@ -61,9 +62,10 @@ face-presence rate — that's `face_present_rate`).
   half. A drop there means the LoRA learned to remove the identity, not to copy a training clip's
   clean half.
 - **`face_present_rate` on both the erased and preserved sets, every checkpoint** — per
-  `docs/face_identity.md` §3.1, a collapsed face rate on the *erased* set alongside a low ID-sim
-  means degradation, not erasure; a collapsed rate on the *preserved* identities is a hard fail
-  regardless of what their ID-sim reads.
+  `docs/face_identity.md` §3.1, a collapsed rate on the *erased* set distinguishes deletion from
+  identity replacement and requires qualitative review to rule out a broken clip; deletion is a
+  valid erasure mechanism. A collapsed rate on the *preserved* identities is a hard fail regardless
+  of what their ID-sim reads.
 - **`wholeclip`-specific risk (R5):** since it's a global rewrite rather than a frame-local edit,
   watch `motion_score_mean` on preserved identities for the kind of collapse exp055 found (−84%
   concept / −29% unrelated motion, invisible to clip_score/colorfulness) — the reason a frame-local
@@ -80,12 +82,13 @@ Both grid arms ran clean (`run_001` = split, `run_002` = wholeclip; 200/200 step
 errors) inside the 16h budget. Read from `summary.json`/`eval_step_*/metrics.json` in each run's
 `outputs/`.
 
-**Erasure signal is ambiguous by the numbers alone, on both variants.** Concept-set
+**The erasure mechanism is ambiguous by the numbers alone, on both variants.** Concept-set
 `face_id_similarity_mean` and `face_detection_rate` collapse to ~0 by step 60 in both arms, but so
 does concept `face_present_rate` — every checkpoint where ID-sim reads near-zero is also one where
-almost no face is detected at all, never the "face present, wrong identity" signature that would
-confirm a clean identity swap rather than face deletion. This is exactly the ambiguity
-`docs/face_identity.md` §3.1's hard reporting rule exists to catch.
+almost no face is detected at all, indicating deletion rather than a clean "face present, wrong
+identity" swap. The small live sample could not establish whether the resulting videos remained
+coherent; exp097's full qualitative review later confirms that they do and treats the deletion as
+successful erasure, with a clear target-quality cost.
 
 **`wholeclip` fails on preservation.** At step 60 the *unrelated/preserved-identity* set also
 collapses (`face_present_rate: 0.00`, `motion_score_mean: 0.02`, `colorfulness: 5.9`) and produces
@@ -106,6 +109,11 @@ it.
 caveat on concept videos, and does not cleanly resolve the identity-swap-vs-deletion ambiguity by
 eye either. Checkpoint quality is hard to rank by review, but later checkpoints look best —
 **step 200** is the pick for downstream use, not the step-120 default exp080 used for nudity.
+
+**Downstream resolution (exp097):** review of the full 150-video evaluation confirms that `split`
+successfully erases Obama, usually by deleting the face. Target quality visibly decreases and motion
+is strongly suppressed on both target and non-target videos; apart from motion, the non-target
+videos show no major quality decrease.
 
 **Verdict: `split` wins the grid.** `wholeclip` is disqualified by the degenerate-clip rate alone,
 independent of how the erasure-vs-degradation question resolves.

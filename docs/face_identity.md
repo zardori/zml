@@ -114,9 +114,12 @@ report **two conventions, always both**:
   face" with "wrong face."
 
 **Hard reporting rule**: no Erase or Preserve number is citable without `face_present_rate` **and
-`clips_degenerate`** for the same set (§3.2). A low Erase ID-sim alongside a collapsed face-presence
-rate is degradation, not erasure — and the same signal on the *preserved* identities is a fail
-regardless of what their ID-sim reads.
+`clips_degenerate`** for the same set (§3.2). A low target face-presence rate identifies the erasure
+mechanism as face deletion rather than identity replacement; deletion counts as successful erasure
+when qualitative review confirms that the surrounding video remains coherent. It must still be
+reported because ID-similarity alone cannot distinguish those mechanisms. A collapsed face-presence
+rate on the *preserved* identities remains a collateral failure regardless of what their ID-sim
+reads.
 
 ### 3.2 Degenerate frames — a generation failure is not a "no-face" measurement
 
@@ -155,12 +158,17 @@ already generated and would have skipped it forever on every resumed run.
 Found at full scale by exp097 (2026-08-15), reporting exp095's `split`, step 200: `motion_score_mean`
 dropped 69–93% from the base model across **all five identities**, not just Obama (the erased one).
 Preserved-identity motion fell to 0.16–0.31x baseline (e.g. Trump 0.819 → 0.157), essentially the same
-magnitude as the erased identity's own collapse (Obama 1.362 → 0.097). This means Preserve↑ numbers
-from this checkpoint cannot yet be read as genuine collateral preservation: a plausible confound is
-that near-static video is *easier* to match to a reference face (less motion blur, more consistent
-framing across frames), so a higher Preserve ID-sim can coexist with worse generation quality rather
-than better collateral behaviour. See `experiments/face_identity/exp097_eval_frame_replace_obama/notes.md`
-for the full numbers.
+magnitude as the erased identity's own collapse (Obama 1.362 → 0.097). Qualitative review confirms
+that Obama is successfully erased, usually through face deletion, while the target videos also show
+a clear quality decrease. On the four preserved identities, faces and scenes remain recognizable
+and no major visual-quality loss is apparent apart from the obvious motion suppression. That agrees
+with their preserved face-presence, ID-similarity, CLIP and colorfulness scores.
+
+The motion cost is nevertheless severe, and near-static video may make ArcFace matching easier by
+reducing motion blur and stabilizing framing. Preserve↑ should therefore be read as evidence that
+non-target identity semantics survive, not as evidence that full video-generation quality is
+unchanged. See `experiments/face_identity/exp097_eval_frame_replace_obama/notes.md` for the full
+numbers.
 
 **exp095's own live-eval monitor missed this.** Its `unrelated` control set is 4 videos; at step 200
 it read `motion_score_mean: 1.87`, close to base and the basis for exp095's "`split` stays clean...
@@ -192,13 +200,12 @@ re-derive per concept:
   full clothed-retention) each dominate everything in between. The project's resolution was to accept
   the trade-off and report it honestly (exp106/exp107), not to keep searching for a hyperparameter fix.
 
-**Consequence for this axis:** don't spend a hyperparameter sweep chasing this before trying what
-resolved it for nudity — an identity-axis analogue of exp107 (ID-sim/motion A/B on identity-free
-general prompts, on the same checkpoint) to confirm the collapse is adapter-global here too, and
-human review of the actual clips to adjudicate face-deletion vs. identity-swap (§3.1). Until one of
-those lands, **no Erase or Preserve number from a `frame_replace` face checkpoint should be presented
-as a clean result** — report the trade-off, per the nudity thread's precedent, rather than treat the
-raw numbers as citable.
+**Consequence for this axis:** exp097 is a citable deletion-based erasure result, but never as an
+ID-similarity-only win. Report Erase/Preserve together with face presence, target qualitative
+degradation and the −93%/−76% target/preserved motion losses. An identity-axis analogue of exp107 on
+identity-free general prompts would still be useful to map how far the motion suppression extends,
+but it is a follow-up characterization rather than a gate on the current result. Earlier checkpoints
+are worth testing as alternative operating points on the erasure-versus-motion/quality trade-off.
 
 ## 4. Implementation
 
@@ -427,7 +434,7 @@ prompt and confirming the script aborts.
 | exp116 | scale-up of exp115 with framing-controlled prompts | **done** — 43/90 kept; 52 total combined with exp115, feeds exp095 |
 | exp095 | frame_replace erasure of Obama, `target_variant: [split, wholeclip]` grid | **done** — `split` wins the grid (`wholeclip` disqualified by widespread degenerate clips); step 200 picked for exp096/exp097 |
 | exp096 | frame_replace erasure of Queen Elizabeth II, `target_variant` fixed to exp095's winner (`split`) | ready, blocked on exp093/exp094 (both done) — not yet submitted |
-| exp097 | reported ID-Similarity, Obama checkpoint | **done, not citable** — Erase/Preserve beat NegPrompt on paper, but face-deletion ambiguity + adapter-global motion collapse undercut both; see §3.3 |
+| exp097 | reported ID-Similarity, Obama checkpoint | **done** — successful erasure, usually by face deletion; target quality decreases and motion falls 93%, while non-target identities remain visually sound aside from a mean 76% motion loss; see §3.3 |
 | exp098 | reported ID-Similarity, Queen Elizabeth II checkpoint | ready, blocked on exp096 |
 
 exp090 has run and passed its gate; exp091/093/096/098 have been retargeted from the pre-run Obama +

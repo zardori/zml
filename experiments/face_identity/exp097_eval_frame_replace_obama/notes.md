@@ -5,13 +5,14 @@ method: eval
 thread: face_identity
 takeaway: >
   THE OBAMA ROW: Erase 0.0497 against base 0.5081 and NegPrompt 0.3391, with Preserve 0.4205
-  actually ABOVE base's 0.3846 — by the headline numbers the strongest erasure in this project, and
-  identity collateral is nil. But §3.1's hard rule fires: Obama's `face_present_rate` collapses
-  0.8735 -> 0.0714 (28 of 30 clips contain no detectable face), so this is face *deletion*, not
-  identity removal, and the Erase figure is not evidence of the latter. That settles exp095's open
-  question, which manual review could not. Motion also collapses globally — the four preserved
-  identities lose a mean 76% (Obama -93%) — matching exp071 (objects, -45%) and exp111 (nudity,
-  -89%) the same week. Report Erase only alongside face_present_rate.
+  actually ABOVE base's 0.3846. Qualitative review confirms successful identity erasure, usually by
+  deleting the face (`face_present_rate` 0.8735 -> 0.0714; 28/30 clips have no detectable face),
+  which is an acceptable erasure mechanism and also appears in T2VUnlearning's qualitative results.
+  Target videos show a clear quality decrease. Motion is the main collateral: Obama loses 93% and
+  the four preserved identities lose a mean 76%. Aside from that motion suppression, qualitative
+  review finds no major quality decrease on non-target videos, consistent with their preserved face
+  presence, ID-similarity, CLIP score and colorfulness. Report the erasure together with face
+  presence, motion and quality so its mechanism and trade-off remain explicit.
 ---
 # exp097 — reported ID-Similarity for the Obama frame_replace LoRA
 
@@ -32,8 +33,9 @@ the same I2P/SafeSora pairs so only the intervention differs across the three ro
 
 ## What to watch
 Same reading as every other reported eval in this project:
-- **Erase and Preserve together**, not Erase alone — a low Erase with a collapsed
-  `face_present_rate` is degradation, not erasure (`docs/face_identity.md` §3.1's hard rule).
+- **Erase and Preserve together**, not Erase alone. A collapsed target `face_present_rate` can be a
+  valid deletion-based erasure, provided qualitative review shows a coherent output rather than a
+  broken clip. The same collapse on preserved identities remains a collateral failure.
 - **`collapse_score`** on the erased identity's own 30 clips (recorded in `id_similarity.json`) —
   compare against exp090's base-model collapse_score for Obama; a large jump is R6's
   fixed-substitute-collapse failure mode (the LoRA learned one specific replacement face, not
@@ -47,7 +49,7 @@ Same reading as every other reported eval in this project:
 This row, plus exp090 (Original) and exp091 (NegPrompt), fills the Obama column of the comparison
 table sitting next to T2VUnlearning's CogVideoX-5B Table 3 block.
 
-## Results (2026-08-15) — the number lands, and §3.1's hard rule fires
+## Results (2026-08-15; qualitative review completed) — strong deletion-based erasure with motion cost
 
 Completed on helios in 5.3 h, all 150 prompts, `exp095 run_001 frame_replace_lora_step200`,
 `identity_threshold` 0.23. Same `(prompt, seed)` pairs as exp090 and exp091.
@@ -65,22 +67,29 @@ Both conventions agree, as §3.1 requires them to be reported.
 
 **Preserve is above base** (0.4205 vs 0.3846), and every preserved identity's `face_present_rate`
 *rises* against base (Merkel 0.674 -> 0.838, Trump 0.805 -> 0.958, Biden 0.788 -> 0.829, Elizabeth
-0.820 -> 0.949). There is no identity collateral at all — the LoRA does not touch the other four.
+0.820 -> 0.949). There is no evident identity-semantic collateral on the other four; their major
+shared collateral is the motion suppression quantified below.
 
-### Why the Erase number cannot be reported alone
+### Erasure mechanism and qualitative result
 
-`docs/face_identity.md` §3.1's hard rule: *a low Erase with a collapsed `face_present_rate` is
-degradation, not erasure.* Obama's collapses from 0.8735 to **0.0714** — **28 of 30 clips contain no
-detectable face at all**. The model has not learned to render a different person for "Barack Obama";
-it has learned to render no face.
+Obama's `face_present_rate` collapses from 0.8735 to **0.0714** — **28 of 30 clips contain no
+detectable face at all**. Qualitative review confirms that the identity is successfully erased,
+usually by deleting the face rather than replacing it with a different identity. This counts as
+successful erasure under the task definition, provided the surrounding video remains coherent;
+T2VUnlearning's qualitative examples also include deletion-style face erasure.
+
+The target videos nevertheless show a clear overall quality decrease, as well as the severe motion
+loss quantified below. The low Erase score is therefore reportable, but only together with
+`face_present_rate`, motion and qualitative quality findings so it cannot be mistaken for a clean
+identity swap with unchanged video quality.
 
 `collapse_score` 0.0711 against base 0.5782 looks like a pass on R6 (fixed-substitute collapse), but
 it is computed over face embeddings and there are almost no faces to embed, so it carries no
 information here. R6 is untested by this run, not cleared by it.
 
-**This settles exp095's open question.** exp095's manual review agreed something collapsed but "can't
-cleanly separate identity-swap from face-deletion". At 28/30 clips without a face, on 30 prompts
-rather than exp095's 10, it is face-deletion.
+**This settles exp095's open question.** At 28/30 clips without a face, on 30 prompts rather than
+exp095's 10, the dominant mechanism is face deletion, and qualitative review confirms that it
+successfully removes the target identity.
 
 ### Motion collapses globally, as in the other two threads
 
@@ -102,14 +111,19 @@ nothing.
 Clip score on Obama drops 0.3502 -> 0.3012 and colorfulness 49.8 -> 46.1; on the preserved identities
 clip score is 0.330-0.374 against base — essentially unharmed.
 
+Qualitative review agrees with that separation: target videos have a clear quality decrease, while
+the non-target videos show no major quality loss apart from their obvious motion suppression. Their
+faces and scenes remain recognizable and visually coherent. The result is therefore a successful
+but temporally costly erasure, not a total generation failure.
+
 ## Status
 - [x] exp095 has a checkpoint chosen (`split`, step 200); `lora_checkpoint_dir` filled in.
 - [x] Submitted and complete (helios, 5.3 h, `outputs_20260815_125349`).
 - [x] Compared against exp090 (Original) and exp091 (NegPrompt) on Erase, Preserve,
       `face_present_rate`, `collapse_score` and quality.
-- [ ] **Human review of the 28 face-less Obama clips** — what is rendered instead (back of head?
-      occlusion? empty scene?) decides whether this is reportable as erasure at all.
+- [x] Human review completed: Obama is successfully erased, usually through face deletion; target
+      quality is visibly lower, while non-target quality is broadly intact aside from motion.
 - [ ] An earlier checkpoint than step 200 measured: step 200 was picked on exp095's n=10 monitor, and
-      exp112/exp071 both showed that set cannot rank checkpoints. A step where `face_present_rate`
-      still holds is the checkpoint worth reporting.
-- [ ] `docs/face_identity.md` updated with the row and the face-deletion caveat.
+      exp112/exp071 both showed that set cannot rank checkpoints. An earlier point may offer a better
+      motion/target-quality trade-off while retaining deletion-based erasure.
+- [x] `docs/face_identity.md` updated with the row, qualitative verdict and motion/quality caveats.

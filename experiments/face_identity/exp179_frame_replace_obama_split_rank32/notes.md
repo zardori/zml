@@ -1,5 +1,5 @@
 ---
-status: ready
+status: active
 concept: face
 method: frame_replace
 thread: face_identity
@@ -7,6 +7,7 @@ takeaway: >
   Not yet run. Rerun of exp095's `split` arm (the winner of that grid) at lora_rank 32 instead of
   rank 8, to see whether more LoRA capacity changes the identity-swap-vs-face-deletion ambiguity or
   the motion reduction on concept videos that exp095 flagged.
+submitted: 2026-08-29 14:45 helios job 21415841
 ---
 # exp179 — frame_replace erasure of Barack Obama, split target, rank 32
 
@@ -43,5 +44,5 @@ Same checklist as exp095 (`docs/face_identity.md` §3.1): read `summary.json` fi
   `split` still avoids it at higher rank.
 
 ## Status
-- [ ] Submit (project owner) — `./submit_job.py helios experiments/face_identity/exp179_frame_replace_obama_split_rank32/config.yaml`
+- [x] Submit (project owner) — `./submit_job.py helios experiments/face_identity/exp179_frame_replace_obama_split_rank32/config.yaml`
 - [ ] Compare against exp095's rank-8 split arm on erasure, preservation, and concept-motion collapse.
