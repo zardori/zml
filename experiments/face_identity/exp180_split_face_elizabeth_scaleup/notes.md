@@ -1,5 +1,5 @@
 ---
-status: ready
+status: active
 concept: face
 method: frame_replace_split/precompute
 thread: face_identity
@@ -11,6 +11,7 @@ takeaway: >
   framing-controlled CSVs written against her own eval prompts, tools/screen_split_dataset.py's
   identity-scale-free contrast index) and additionally grids split_mode {prediction, trajectory} --
   exp127/exp131's yield fix, never tried on faces -- against the same 3 CSVs/seeds. See Gates below.
+submitted: 2026-08-29 15:44 helios jobs 21416704,21416705,21416706,21416707,21416708,21416709
 ---
 # exp180 — rebuild of the Queen Elizabeth II split-prompt frame_replace dataset
 
@@ -131,7 +132,7 @@ and why.
       checked.
 - [x] `experiments/face_identity/exp180_split_face_elizabeth_scaleup/config.yaml` written (6-way
       grid: 3 CSVs × 2 split_modes, `split_step_frac: 0.8`).
-- [ ] Submitted (project owners submit jobs, not Claude — see `.claude/rules/workflow_rules.md`).
+- [x] Submitted (project owners submit jobs, not Claude — see `.claude/rules/workflow_rules.md`).
 - [ ] Built and pulled.
 - [ ] Screened with both `screen_split_dataset.py` (primary) and `screen_split_face_dataset.py`
       (continuity check).

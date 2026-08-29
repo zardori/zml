@@ -7,7 +7,7 @@ takeaway: >
   Not yet run. Rerun of exp095's `split` arm (the winner of that grid) at lora_rank 32 instead of
   rank 8, to see whether more LoRA capacity changes the identity-swap-vs-face-deletion ambiguity or
   the motion reduction on concept videos that exp095 flagged.
-submitted: 2026-08-29 14:45 helios job 21415841
+submitted: 2026-08-29 15:59 helios job 21416924
 ---
 # exp179 — frame_replace erasure of Barack Obama, split target, rank 32
 
