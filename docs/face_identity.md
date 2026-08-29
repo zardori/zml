@@ -67,6 +67,39 @@ Their published CogVideoX-5B row — what our numbers will sit next to:
 | Erase↓ | .1779 | .1074 | .1202 | .0786 | .0949 | **.1158** |
 | Preserve↑ | .3335 | .2134 | .2705 | .1533 | .3003 | **.2542** |
 
+### 2.1 Direct Obama comparison: T2VUnlearning vs. frame_replace
+
+exp097 fills the Obama column for our method on CogVideoX-5B. Both evaluations use the paper's 30
+Obama prompts and 120 non-target prompts and report the same ArcFace-based Erase/Preserve structure.
+Relative changes are computed against each evaluation's own Original row because the absolute base
+scores differ.
+
+| Obama erased | T2VUnlearning | frame_replace (exp097) |
+|---|---:|---:|
+| Original target ID-sim | 0.4362 | 0.5081 |
+| Erase ID-sim ↓ | 0.1074 | **0.0497** |
+| Reduction from own Original | −75.4% | **−90.2%** |
+| Original four-identity Preserve reference | 0.3726 | 0.3846 |
+| Preserve ID-sim ↑ | 0.2134 | **0.4205** |
+| Change from own Preserve reference | −42.7% | **+9.3%** |
+| Target `face_present_rate` | not reported | 0.0714 (28/30 clips without a detected face) |
+| Motion change, target / four preserved | not reported | −93% / −76% mean |
+| Qualitative quality | no face-task quality metric reported | target quality visibly lower; non-target quality broadly intact apart from motion |
+
+**Reading.** On the stated ID-similarity metric, frame_replace is stronger in the Obama column: it
+removes more target identity signal and retains more non-target identity signal. Qualitative review
+confirms that its erasure is real and usually works by deleting the face, a mechanism also visible
+in T2VUnlearning's qualitative face-erasure results. The cost is severe temporal suppression and a
+clear quality decrease on target videos; aside from motion, the four non-target identities show no
+major qualitative degradation.
+
+This is a **protocol-level comparison, not a strict claim of numerical superiority**. The paper does
+not release its face-evaluation code, reference embeddings, detector/alignment details, no-face
+convention, face-presence rate, or face-task motion scores. We also generate 49 frames per video
+where it generates 17. Those differences can shift absolute ID-similarity, as the unequal Original
+rows demonstrate. Report the table as evidence that frame_replace is competitive under the shared
+task structure, while keeping exp097's face-deletion, target-quality and motion findings attached.
+
 **The leave-one-out trick fills the whole `Original` row from one base-model run.** With
 `erased_identity` unset, `zml.eval.face_eval._leave_one_out_report` computes Erase/Preserve with
 each identity in turn as the hypothetical erased one, plus mean/std across the five — exactly how
