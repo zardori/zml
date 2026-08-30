@@ -1,0 +1,18 @@
+# Full reported ID-Similarity evaluation for exp179's rank-32 Obama frame_replace LoRA.
+# The n=10 live evaluation selects step 180 over step 200: both erase Obama, but step 180 retains
+# more target faces and motion without a degenerate target clip. Mirrors exp097's rank-8 evaluation.
+# Run: ./submit_job.py helios experiments/face_identity/exp181_eval_frame_replace_obama_rank32_step180/config.yaml
+job_type: eval
+mode: face
+
+model_id: THUDM/CogVideoX-5b
+prompts_csv: prompts/face_cogvideox.csv
+erased_identity: "Barack Obama"
+
+lora_checkpoint_dir: experiments/face_identity/exp179_frame_replace_obama_split_rank32/outputs_20260829_155907/frame_replace_lora_step180
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp097's identical 150-video protocol completed on helios in 5.3 hours.
+slurm_time: "0-08:00:00"

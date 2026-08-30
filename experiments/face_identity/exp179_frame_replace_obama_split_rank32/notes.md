@@ -1,12 +1,13 @@
 ---
-status: active
+status: done
 concept: face
 method: frame_replace
 thread: face_identity
 takeaway: >
-  Not yet run. Rerun of exp095's `split` arm (the winner of that grid) at lora_rank 32 instead of
-  rank 8, to see whether more LoRA capacity changes the identity-swap-vs-face-deletion ambiguity or
-  the motion reduction on concept videos that exp095 flagged.
+  Rank 32 improves exp095's live erasure/quality trade-off at step 180: Obama detection remains
+  0/10, but faces survive in 6/10 target clips instead of 1/10 and target motion rises 0.080 ->
+  0.129, with no degenerate clips. Step 200 regresses to 3/10 face-containing clips, motion 0.042,
+  and 1/10 degenerate, so step 180 is selected for exp181's full 150-prompt evaluation.
 submitted: 2026-08-29 15:59 helios job 21416924
 ---
 # exp179 — frame_replace erasure of Barack Obama, split target, rank 32
@@ -43,6 +44,32 @@ Same checklist as exp095 (`docs/face_identity.md` §3.1): read `summary.json` fi
 - Degenerate/black clip rate on both sets, every checkpoint — the `wholeclip` failure mode; confirm
   `split` still avoids it at higher rank.
 
+## Results
+The successful rerun completed all 200 steps on helios in 6h49m
+(`outputs_20260829_155907`; the earlier `outputs_20260829_144553` attempt failed after 31 seconds
+because one merged-dataset latent was missing). Training health is clean: no health flags, with
+recent total loss 0.4792 versus 0.5993 initially.
+
+**Step 180 is the winner, not the final checkpoint.** Against exp095 rank-8 split step 200 on the
+same live protocol, it keeps thresholded Obama detection at 0.00 while improving target
+`face_present_rate` 0.10 -> 0.50 (faces in 1/10 -> 6/10 clips), target motion 0.080 -> 0.129, and
+colorfulness 30.64 -> 61.27. Target CLIP score is unchanged (0.29 -> 0.30), and both checkpoints
+have zero degenerate clips. The six face-containing clips with zero Obama identifications are the
+first live evidence that higher rank may shift the mechanism from face deletion toward identity
+replacement.
+
+Preservation also improves numerically at step 180: unrelated face-present rate 0.66 -> 0.69,
+motion 1.87 -> 2.53, and CLIP score 0.33 -> 0.34, with no degenerate clips. That set contains only
+four videos, however, so it is a direction rather than a reported preservation result.
+
+Step 200 regresses on the target side despite retaining 0.00 Obama detection: face-present rate
+falls to 0.33, motion to 0.042, and one of ten target clips is degenerate. It is not selected.
+
+The result remains an n=10 checkpoint monitor. exp181 repeats exp097's full 150-prompt protocol at
+step 180 to determine whether the apparent identity-replacement and motion improvements survive.
+
 ## Status
 - [x] Submit (project owner) — `./submit_job.py helios experiments/face_identity/exp179_frame_replace_obama_split_rank32/config.yaml`
-- [ ] Compare against exp095's rank-8 split arm on erasure, preservation, and concept-motion collapse.
+- [x] Compared against exp095's rank-8 split arm on erasure, preservation, and concept-motion
+      collapse; step 180 selected.
+- [ ] Full 150-prompt evaluation and qualitative review (exp181).
