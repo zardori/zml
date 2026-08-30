@@ -1,0 +1,30 @@
+# Prompt-focused follow-up to exp180. Its prompts request close framing, but many make hands or
+# handled objects the active subject. This build uses only face-dominant, static head-and-shoulders
+# portraits with facial motion, while holding exp180's sampler and detector settings fixed.
+#
+# Run: ./submit_job.py helios experiments/face_identity/exp182_split_face_elizabeth_face_visible/config.yaml
+job_type: precompute
+method: frame_replace_split
+
+csv_path: prompts/face_identities/split/queen_elizabeth_ii_face_visible.csv
+split_mode: [prediction, trajectory]
+
+model_id: THUDM/CogVideoX-5b
+num_inference_steps: 50
+guidance_scale: 6.0
+
+split_latent_frame: 7
+concept_region: random
+split_jitter: 2
+split_step_frac: 0.8
+tail_prompt_mode: c
+
+concept: face
+concept_target: "Queen Elizabeth II"
+frame_concept_threshold: 0.3
+min_donor_frames: 2
+save_videos: true
+emit_whole_clip_target: true
+
+# Same measured per-run shape as exp180 (30 rows, whole-clip diagnostics); two sampler arms.
+slurm_time: "0-10:00:00"

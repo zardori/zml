@@ -1,5 +1,5 @@
 ---
-status: ready
+status: active
 concept: face
 method: eval
 thread: face_identity
@@ -8,6 +8,7 @@ takeaway: >
   live n=10 monitor suggests the same complete erasure as exp095 rank 8, but with substantially
   more target faces and motion; this run tests that apparent identity-replacement improvement on
   the reported protocol. Not yet submitted.
+submitted: 2026-08-30 17:59 helios job 21449712
 ---
 # exp181 — full evaluation of rank-32 Obama frame_replace, step 180
 
