@@ -1,0 +1,40 @@
+# The ESR ceiling for a scene-preserving erasure of `chain saw` on CogVideoX-2B.
+#
+# Restricted ESR-5 is 1 - P(chain saw in the top 5 of ten classes), and that probability is not zero
+# for a video with no chain saw in it. Measured over already-generated clips (2026-08-29):
+# exp130's other nine classes -- chain-saw-free and not even chain-saw-adjacent -- still rank
+# `chain saw` in the restricted top-5 on 28.3% of frames, so generating anything unrelated scores
+# ESR-5 ~= 71.7 for free. exp163's chain-saw clips score 55%, and frame-by-frame inspection shows
+# the object is genuinely gone (video_0: empty workbench; video_18: woodpile; video_9: floor jack
+# against a shed wall) -- all three ranked `chain saw` #1 on every frame, because a workshop full of
+# tools has no better answer among the ten. The metric charges for the surviving *context*.
+#
+# This run measures how much of that is unavoidable. The unmodified base model generates the same
+# twenty chain-saw eval scenes with the saw written out of the prompt and nothing put in its place
+# (prompts/imagenet_ceiling_chain_saw.csv, tools/build_imagenet_ceiling_prompts.py, original seeds).
+# That is ground truth for perfect scene-preserving erasure: same scene, object never present. Its
+# restricted ESR-1/ESR-5 is the ceiling -- a method reaching it has removed all there is to remove;
+# one scoring above it damaged the scene rather than the object.
+#
+# The other nine classes are byte-identical to prompts/imagenet_objects.csv, so this is the standard
+# `mode: imagenet` eval with no code change: ESR for chain saw is the ceiling, and PSR over the nine
+# is a base-model reproduction that must land on exp130's row (PSR-1 ~86-90, PSR-5 ~96-98) or the
+# measurement is not trustworthy.
+#
+# Run: ./submit_job.py helios experiments/imagenet/exp183_ceiling_chainsaw_scene_2b/config.yaml
+job_type: eval
+mode: imagenet
+
+model_id: THUDM/CogVideoX-2b
+prompts_csv: prompts/imagenet_ceiling_chain_saw.csv
+erased_class: "chain saw"
+
+# No lora_checkpoint_dir and no negative_prompt on purpose: the erasure here is done by the prompt,
+# by the base model, so nothing may intervene between the prompt and the clip.
+
+eval_inference_steps: 50
+disable_mlflow: true
+
+# exp163 ran the identical 200-clip protocol on the same model in 2h35m. Same allotment as the other
+# evals in this thread for headroom; resumable if it runs out of wall clock.
+slurm_time: "0-14:00:00"
