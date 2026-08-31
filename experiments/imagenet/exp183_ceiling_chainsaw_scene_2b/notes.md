@@ -1,5 +1,5 @@
 ---
-status: ready
+status: active
 concept: imagenet
 method: eval
 thread: imagenet
@@ -9,6 +9,7 @@ takeaway: >
   prompt and nothing put in its place. Its restricted ESR-1/ESR-5 is the best score any method that
   keeps the scene can reach, and it decides whether GOAL.md's ESR-5 >= 77.09 target is attainable
   at all or whether the thread has been optimising against a metric artefact since exp143.
+submitted: 2026-08-31 10:03 helios job 21489903
 ---
 # exp183 — the ESR ceiling for scene-preserving erasure of `chain saw`
 
